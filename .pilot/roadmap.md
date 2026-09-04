@@ -12,7 +12,7 @@ Ordre = ordre de production. Taille des livraisons : S ≤ 2 tâches, M 3–4, L
 
 ## 2. Entreprises et contacts — L
 1. Entreprises : liste dense, fiche trois colonnes, type, conditions de paiement — M
-2. Contacts : liste, fiche, rattachement à une entreprise, rôle dans la décision — M
+2. Personnes et profil contact : liste, fiche, rattachement à une entreprise, rôle dans la décision (décision du 2026-09-04 : une fiche Personne à profils) — M
 3. Activités sur une fiche : notes, appels, réunions, tâches ; historique des changements de champs — M
 4. Champs personnalisés (texte, liste, date, nombre), règle de branchement pour tout nouvel objet — M
 5. Filtres, tri, colonnes, vues sauvegardées épinglées — M
@@ -20,7 +20,7 @@ Ordre = ordre de production. Taille des livraisons : S ≤ 2 tâches, M 3–4, L
 dépend de : 1
 
 ## 3. Les consultants Workday — M
-1. Fiche consultant : statut salarié / freelance / portage, modules Workday, certifications, coût journalier, CV — M
+1. Profil consultant sur une personne : statut salarié / freelance / portage, modules Workday, certifications, coût journalier, CV — M
 2. Disponibilité, état (disponible, en mission, indisponible), liste filtrable par compétence — M
 dépend de : 2
 

@@ -1,6 +1,6 @@
 # Direction visuelle
 
-Statut : **validée** le 2026-09-04.
+Statut : **validée** le 2026-09-04. Système de design déposé le même jour dans `.pilot/design/` (mode d'emploi : `.pilot/design/README.md`, export : `.pilot/design/bundle/`). Consigne : références adaptables, tokens appliqués tels quels.
 
 ## Références (ce qu'on leur emprunte)
 

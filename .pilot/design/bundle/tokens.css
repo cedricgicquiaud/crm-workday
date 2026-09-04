@@ -1,109 +1,10 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-
-@custom-variant dark (&:is(.dark *));
-
 /* ============================================================================
-   Tokens du système de design (source : .pilot/design/bundle/tokens.css, v1 du
-   2026-09-04). Ce fichier est la copie intégrée : on modifie la source puis on
-   recopie, jamais l'inverse. Les composants shadcn/ui lisent ces variables.
+   CRM Workday — fichier de tokens
+   Format shadcn/ui (variables CSS). Thème clair sur :root, thème sombre sur .dark.
+   Les valeurs sont des couleurs complètes : utiliser var(--background) directement,
+   sans wrapper hsl(). Tailwind : mapper dans @theme / tailwind.config.
+   Accent unique : blurple #9184d9 en sombre, sa version profonde en clair.
    ==========================================================================*/
-
-@theme inline {
-  /* --- couleurs shadcn/ui ------------------------------------------------- */
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary-hover: var(--primary-hover);
-  --color-primary-active: var(--primary-active);
-  --color-primary-subtle: var(--primary-subtle);
-  --color-primary-subtle-foreground: var(--primary-subtle-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary-hover: var(--secondary-hover);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-subtle: var(--subtle);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-border-strong: var(--border-strong);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-
-  /* --- sémantiques : badges, points, barres, icônes, bannières ------------- */
-  --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
-  --color-success-subtle: var(--success-subtle);
-  --color-success-border: var(--success-border);
-  --color-warning: var(--warning);
-  --color-warning-foreground: var(--warning-foreground);
-  --color-warning-subtle: var(--warning-subtle);
-  --color-warning-border: var(--warning-border);
-  --color-danger: var(--danger);
-  --color-danger-foreground: var(--danger-foreground);
-  --color-danger-subtle: var(--danger-subtle);
-  --color-danger-border: var(--danger-border);
-  --color-info: var(--info);
-  --color-info-foreground: var(--info-foreground);
-  --color-info-subtle: var(--info-subtle);
-  --color-info-border: var(--info-border);
-  --color-neutral-subtle: var(--neutral-subtle);
-  --color-neutral-border: var(--neutral-border);
-
-  /* --- graphiques et barre latérale --------------------------------------- */
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-
-  /* --- typographie : 12 / 13 / 14 px de travail, chiffres tabulaires ------ */
-  --font-sans: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "Geist Mono", Menlo, monospace;
-  --font-heading: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
-  --text-2xs: 10px;  --text-2xs--line-height: 14px;
-  --text-xs: 11px;   --text-xs--line-height: 15px;
-  --text-sm: 12px;   --text-sm--line-height: 16px;
-  --text-base: 13px; --text-base--line-height: 18px;
-  --text-md: 14px;   --text-md--line-height: 20px;
-  --text-lg: 16px;   --text-lg--line-height: 22px;
-  --text-xl: 20px;   --text-xl--line-height: 26px;
-  --text-2xl: 26px;  --text-2xl--line-height: 32px;
-  --text-3xl: 32px;  --text-3xl--line-height: 38px;
-
-  /* --- rayons (tokens --radius-*) ----------------------------------------- */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 12px;
-  --radius-2xl: 16px;
-  --radius-3xl: 20px;
-  --radius-4xl: 24px;
-
-  /* --- ombres et mouvement ------------------------------------------------ */
-  --shadow-xs: var(--shadow-xs);
-  --shadow-sm: var(--shadow-sm);
-  --shadow-md: var(--shadow-md);
-  --shadow-lg: var(--shadow-lg);
-  --ease-out: var(--ease);
-}
 
 :root {
   color-scheme: light;
@@ -251,7 +152,8 @@
 
 :root {
   /* --- typographie : 12 / 13 / 14 px comme tailles de travail ------------- */
-  /* polices : définies dans @theme (Inter via next/font, --font-inter) */
+  --font-sans: "Inter", "Inter var", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Geist Mono", Menlo, monospace;
 
   --text-2xs: 10px;   --leading-2xs: 14px;   /* micro-libellés en majuscules */
   --text-xs: 11px;    --leading-xs: 15px;    /* méta, compteurs, raccourcis */
@@ -342,45 +244,5 @@
     --shadow-sm: none;
     --shadow-md: none;
     --shadow-lg: none;
-  }
-}
-
-/* ============================================================================
-   Barre latérale (shadcn Sidebar) — dérivée des tokens, pas dans tokens.css
-   ==========================================================================*/
-
-:root {
-  --sidebar: var(--background);
-  --sidebar-foreground: var(--foreground);
-  --sidebar-primary: var(--primary);
-  --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: var(--primary-subtle);
-  --sidebar-accent-foreground: var(--primary-subtle-foreground);
-  --sidebar-border: var(--border);
-  --sidebar-ring: var(--ring);
-}
-
-.dark {
-  --sidebar: hsl(228 13% 11.5%);
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  html {
-    @apply font-sans;
-  }
-  body {
-    @apply bg-background text-foreground;
-    -webkit-font-smoothing: antialiased;
-  }
-  /* montants, dates, colonnes numériques : chiffres tabulaires */
-  .tabular, table td, table th {
-    font-variant-numeric: tabular-nums;
-  }
-  :focus-visible {
-    outline: var(--focus-outline);
-    outline-offset: var(--focus-offset);
   }
 }

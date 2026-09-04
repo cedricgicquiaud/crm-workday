@@ -21,7 +21,7 @@ _(`.claude/skills/pilot/`) ; ici, seulement ce qui est propre à ce dépôt._
   quand la boucle a fait ses preuves sur ce projet)
 - Barème et capacité : `.pilot/calibration.md`
 - Cahier de recette : `UAT.md` à la racine, lié depuis chaque feature
-- Direction visuelle : `.pilot/design.md`, système de design : `.pilot/design/` (à venir)
+- Direction visuelle : `.pilot/design.md`, système de design : `.pilot/design/` (déposé le 2026-09-04 ; lire `.pilot/design/README.md` avant tout écran)
 
 **Selon le projet** — une ligne absente vaut « non », et ce qu'on perd est dit à côté
 
@@ -37,6 +37,24 @@ Linear sans liste validée.
 
 - Fin de session : résumé dans `.workflow/sessions/AAAA-MM-JJ-description.md`.
 - Début de session : lire le dernier fichier de `.workflow/sessions/`, puis `/pilot next`.
+
+## Idiomes de code
+
+_Fautes déjà commises sur ce dépôt et attrapées à l'audit ou au merge. Le producteur relit son diff contre elles._
+
+- Les fichiers chargés par Playwright (`e2e/global-setup.ts`, `e2e/**`) n'importent jamais de module applicatif par l'alias `@/` : son chargeur ne le résout pas en CI. Passer par un sous-processus `tsx` ou des imports relatifs.
+- Pas de `await` au niveau module dans un fichier lancé par `tsx` (`scripts/`, `src/db/migrate.ts`) : le paquet est en CommonJS. Écrire une fonction `main()`.
+- `process.env.NODE_ENV` est en lecture seule pour TypeScript : `Object.assign(process.env, { NODE_ENV: "test" })`.
+- L'environnement se lit par `getEnv()` à la demande, jamais au chargement d'un module importé par une page : `next build` évalue les modules sans les secrets.
+- Toute page qui affiche la date ou dépend de la session déclare `export const dynamic = "force-dynamic"`, sinon Next.js la fige au build.
+- `pg-boss` s'importe en export nommé : `import { PgBoss } from "pg-boss"`.
+- Dans un gabarit d'email, une phrase avec variable s'écrit en gabarit de chaîne (`{`Bonjour ${prenom},`}`) : React insère sinon des commentaires `<!-- -->` qui cassent la recherche de texte.
+
+## Idiomes d'interface
+
+- `CardTitle` de shadcn (style base-nova) rend un `div` : un titre de page ou de carte est un vrai `<h1>` / `<h2>`, pour l'accessibilité et pour `getByRole("heading")`.
+- Aucun défilement horizontal à 375 px ; chaque page a exactement un `<h1>`.
+- Le bloc `nextjs-agent-rules` en fin de ce fichier est réécrit par `next dev` : on le commite tel quel, on n'y touche pas.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
