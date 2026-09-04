@@ -27,3 +27,10 @@
 - Dates calculées avec days_per_week = 1 (valeur par défaut « observed ») : V1 du 2026-09-07 au 2026-10-19, V2 jusqu'au 2026-11-02. À recaler par `sync` dès les premiers merges, ou en forçant `days_per_week` dans `.pilot/calibration.md`.
 - Roadmap locale : `.pilot/roadmap.md` (non commitée, à inclure dans la prochaine PR).
 - Prochaine étape : `/pilot feature 1` (cadrage de « L'équipe entre dans le CRM ») ; question ouverte : prompt de système de design (`.pilot/design/PROMPT.md`) voulu ou non.
+
+## Feature 1 (nuit)
+- Cadrage validé (25 décisions, contrat de 35 phrases, relu par le contradicteur) → écrit dans la fiche Linear.
+- Découpage validé (découpeur) : 5 livraisons en série 1.1 → 1.2a → 1.2b → 1.4 → 1.3 ; 23 tâches CRM-8 à CRM-30 ; feature « Planifiée », XL.
+- Socle 1.1 produit hors boucle (D1) : Next.js 16, shadcn/ui (26 composants), Drizzle + Postgres Docker (crm / crm_test), Better Auth paresseux, email capturé + `email_log`, pages d'attente, santé, Vitest (9 tests) + Playwright (2 tests), CI GitHub. PR `CRM-8 Première page en ligne`.
+- Décision : la boucle (1.2a…) attend le dépôt du système de design dans `.pilot/design/`.
+- Reste à faire par Cédric : merger la PR CRM-8 ; maquetter avec `.pilot/design/PROMPT.md` et déposer le résultat ; tâches CRM-1 (Resend) puis CRM-2, CRM-3.
