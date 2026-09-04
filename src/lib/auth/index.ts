@@ -11,6 +11,7 @@ import { and, count, eq, gt } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { db } from "@/lib/db";
 import { getEnv } from "@/lib/env";
+import { sendTemplatedEmail } from "@/lib/mail/send";
 
 /** Cinq échecs en 15 minutes sur une adresse, connue ou non, la verrouillent 15 minutes (D14). */
 const MAX_FAILED_ATTEMPTS = 5;
@@ -59,6 +60,19 @@ function createAuth() {
       minPasswordLength: 12,
       /** Pas d'inscription libre : les comptes naissent par invitation (1.2a). */
       disableSignUp: true,
+      /** Lien de réinitialisation : 1 heure, usage unique, toutes les sessions fermées après (D9). */
+      resetPasswordTokenExpiresIn: 60 * 60,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user, token }) => {
+        /** Les champs supplémentaires (prénom, nom) sont présents à l'exécution, pas dans le type de base. */
+        const { firstName = "", lastName = "" } = user as typeof user & { firstName?: string; lastName?: string };
+        await sendTemplatedEmail({
+          to: user.email,
+          template: "reinitialisation",
+          variables: { prenom: firstName, nom: lastName, cabinet: "le cabinet", lien: `${env.APP_URL}/reinitialisation/${token}` },
+          objectRef: { type: "user", id: user.id },
+        });
+      },
     },
     session: {
       expiresIn: 60 * 60 * 24 * 30,
