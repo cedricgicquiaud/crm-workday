@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { seedAdmin } from "../../scripts/seed-admin";
-import { user } from "@/db/schema";
+import { session, user } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
 import { closeDb, db } from "@/lib/db";
 
@@ -17,6 +17,18 @@ async function signIn(email: string, password: string) {
     }),
   );
   return { status: res.status, body: await res.json(), setCookie: res.headers.get("set-cookie") };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Ce que le navigateur renvoie ensuite : le cookie de session tel que posé par la connexion. */
+function cookieHeader(setCookie: string | null): string {
+  return (setCookie ?? "").split(/,(?=[^;]+?=)/).map((c) => c.split(";")[0].trim()).join("; ");
+}
+
+async function getSession(cookie: string) {
+  const res = await getAuth().handler(new Request("http://localhost:3000/api/auth/get-session", { headers: { cookie } }));
+  return res.json();
 }
 
 beforeAll(async () => {
@@ -57,5 +69,26 @@ describe("connexion (CRM-14)", () => {
     expect(attempt.status).toBe(401);
     expect(attempt.body).toEqual(refused.body);
     expect(attempt.setCookie).toBeNull();
+  });
+
+  it("garde connecté un membre actif au jour 29 jusqu'au jour 45, et déconnecte un membre inactif 31 jours (contrat 8)", async () => {
+    await db.delete(user);
+    await seedAdmin(ADMIN);
+    const login = await signIn(ADMIN.email, ADMIN.password);
+    expect(login.status).toBe(200);
+    const cookie = cookieHeader(login.setCookie);
+    const [created] = await db.select().from(session);
+
+    // Jour 29 : session ouverte il y a 29 jours, il lui reste 1 jour ; une activité la repousse de 30 jours.
+    const day29 = new Date(Date.now() - 29 * DAY_MS);
+    await db.update(session).set({ createdAt: day29, updatedAt: day29, expiresAt: new Date(Date.now() + 1 * DAY_MS) }).where(eq(session.id, created.id));
+    const active = await getSession(cookie);
+    expect(active?.user?.email).toBe(ADMIN.email);
+    const [refreshed] = await db.select().from(session).where(eq(session.id, created.id));
+    expect(refreshed.expiresAt.getTime()).toBeGreaterThan(Date.now() + 16 * DAY_MS);
+
+    // Inactif 31 jours : la session a expiré hier, il faut se reconnecter.
+    await db.update(session).set({ expiresAt: new Date(Date.now() - 1 * DAY_MS) }).where(eq(session.id, created.id));
+    expect(await getSession(cookie)).toBeNull();
   });
 });
