@@ -1,10 +1,10 @@
-import { loadDotenv } from "../src/lib/dotenv";
+import { execFileSync } from "node:child_process";
 
-/** Migre la base de développement avant de lancer le serveur. */
+/**
+ * Migre la base de développement avant de lancer le serveur. Passe par `tsx` en
+ * sous-processus : le chargeur TypeScript de Playwright ne résout pas l'alias `@/`
+ * utilisé par le code applicatif (constaté en CI).
+ */
 export default async function globalSetup() {
-  loadDotenv();
-  const { runMigrations } = await import("../src/db/migrate");
-  const { closeDb } = await import("../src/lib/db");
-  await runMigrations();
-  await closeDb();
+  execFileSync("npx", ["tsx", "src/db/migrate.ts"], { stdio: "inherit" });
 }
