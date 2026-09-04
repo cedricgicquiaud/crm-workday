@@ -26,9 +26,14 @@ export async function getSession(request?: Request): Promise<Session | null> {
   return getAuth().api.getSession({ headers: request?.headers ?? (await headers()) });
 }
 
+/** Un compte désactivé ne se connecte plus, même si une session ouverte avant la désactivation existe encore (D12). */
+function isActive(session: Session): boolean {
+  return session.user.status !== "desactive";
+}
+
 export async function requireSession(request?: Request): Promise<Session> {
   const session = await getSession(request);
-  if (session) return session;
+  if (session && isActive(session)) return session;
   if (request) throw new HttpError(401, "non_authentifie");
   redirect("/connexion");
 }
