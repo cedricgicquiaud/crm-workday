@@ -4,127 +4,383 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================================
+   Tokens du système de design (source : .pilot/design/bundle/tokens.css, v1 du
+   2026-09-04). Ce fichier est la copie intégrée : on modifie la source puis on
+   recopie, jamais l'inverse. Les composants shadcn/ui lisent ces variables.
+   ==========================================================================*/
+
 @theme inline {
+  /* --- couleurs shadcn/ui ------------------------------------------------- */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-subtle-foreground: var(--primary-subtle-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary-hover: var(--secondary-hover);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* --- sémantiques : badges, points, barres, icônes, bannières ------------- */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-border: var(--warning-border);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-danger-border: var(--danger-border);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-border: var(--info-border);
+  --color-neutral-subtle: var(--neutral-subtle);
+  --color-neutral-border: var(--neutral-border);
+
+  /* --- graphiques et barre latérale --------------------------------------- */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* --- typographie : 12 / 13 / 14 px de travail, chiffres tabulaires ------ */
+  --font-sans: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Geist Mono", Menlo, monospace;
+  --font-heading: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
+  --text-2xs: 10px;  --text-2xs--line-height: 14px;
+  --text-xs: 11px;   --text-xs--line-height: 15px;
+  --text-sm: 12px;   --text-sm--line-height: 16px;
+  --text-base: 13px; --text-base--line-height: 18px;
+  --text-md: 14px;   --text-md--line-height: 20px;
+  --text-lg: 16px;   --text-lg--line-height: 22px;
+  --text-xl: 20px;   --text-xl--line-height: 26px;
+  --text-2xl: 26px;  --text-2xl--line-height: 32px;
+  --text-3xl: 32px;  --text-3xl--line-height: 38px;
+
+  /* --- rayons (tokens --radius-*) ----------------------------------------- */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
+  --radius-4xl: 24px;
+
+  /* --- ombres et mouvement ------------------------------------------------ */
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --ease-out: var(--ease);
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  color-scheme: light;
+
+  /* --- surfaces et texte -------------------------------------------------- */
+  --background: hsl(220 20% 98.5%);
+  --foreground: hsl(224 24% 12%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(224 24% 12%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(224 24% 12%);
+  --muted: hsl(220 16% 96%);
+  --muted-foreground: hsl(220 10% 44%);
+  --subtle: hsl(220 18% 97.5%);          /* fond de ligne alternée, en-tête de tableau */
+
+  /* --- rôles interactifs -------------------------------------------------- */
+  --primary: hsl(249 45% 46%);
+  --primary-foreground: hsl(250 40% 99%);
+  --primary-hover: hsl(249 45% 41%);
+  --primary-active: hsl(249 45% 36%);
+  --primary-subtle: hsl(249 60% 96%);     /* fond d'état sélectionné, puce active */
+  --primary-subtle-foreground: hsl(249 45% 38%);
+  --secondary: hsl(220 16% 95%);
+  --secondary-foreground: hsl(224 20% 22%);
+  --secondary-hover: hsl(220 16% 91%);
+  --accent: hsl(220 16% 94%);             /* survol de ligne / d'item de menu */
+  --accent-foreground: hsl(224 20% 18%);
+
+  /* --- bordures, champs, focus -------------------------------------------- */
+  --border: hsl(220 14% 89%);
+  --border-strong: hsl(220 13% 80%);
+  --input: hsl(220 14% 86%);
+  --ring: hsl(249 55% 58%);
+
+  /* --- couleurs sémantiques (parcimonie : badges, barres, icônes) ---------- */
+  --success: hsl(157 58% 32%);
+  --success-foreground: hsl(0 0% 100%);
+  --success-subtle: hsl(157 45% 94%);
+  --success-border: hsl(157 35% 78%);
+
+  --warning: hsl(32 78% 36%);
+  --warning-foreground: hsl(0 0% 100%);
+  --warning-subtle: hsl(38 85% 94%);
+  --warning-border: hsl(35 60% 76%);
+
+  --danger: hsl(2 66% 44%);
+  --danger-foreground: hsl(0 0% 100%);
+  --danger-subtle: hsl(2 70% 96%);
+  --danger-border: hsl(2 55% 82%);
+  --destructive: var(--danger);           /* alias shadcn/ui */
+  --destructive-foreground: var(--danger-foreground);
+
+  --info: hsl(208 68% 36%);
+  --info-foreground: hsl(0 0% 100%);
+  --info-subtle: hsl(208 70% 95%);
+  --info-border: hsl(208 50% 80%);
+
+  --neutral-subtle: hsl(220 16% 95%);     /* famille de statut « inerte » */
+  --neutral-border: hsl(220 14% 85%);
+
+  /* --- graphiques (même palette, désaturée) ------------------------------- */
+  --chart-1: hsl(249 45% 55%);
+  --chart-2: hsl(208 55% 46%);
+  --chart-3: hsl(157 42% 40%);
+  --chart-4: hsl(32 60% 48%);
+  --chart-5: hsl(220 10% 62%);
+
+  /* --- ombres : peu, et courtes ------------------------------------------- */
+  --shadow-xs: 0 1px 1px hsl(224 24% 12% / .04);
+  --shadow-sm: 0 1px 2px hsl(224 24% 12% / .06), 0 1px 1px hsl(224 24% 12% / .04);
+  --shadow-md: 0 4px 12px hsl(224 24% 12% / .08), 0 1px 2px hsl(224 24% 12% / .06);
+  --shadow-lg: 0 16px 40px hsl(224 24% 12% / .14), 0 2px 6px hsl(224 24% 12% / .06);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  color-scheme: dark;
+
+  --background: hsl(228 14% 10%);
+  --foreground: hsl(220 16% 93%);
+  --card: hsl(228 13% 12.5%);
+  --card-foreground: hsl(220 16% 93%);
+  --popover: hsl(228 13% 15%);
+  --popover-foreground: hsl(220 16% 93%);
+  --muted: hsl(228 11% 17%);
+  --muted-foreground: hsl(220 9% 62%);
+  --subtle: hsl(228 12% 14%);
+
+  --primary: hsl(249 51% 68%);            /* #9184d9 */
+  --primary-foreground: hsl(249 40% 11%);
+  --primary-hover: hsl(249 51% 74%);
+  --primary-active: hsl(249 45% 60%);
+  --primary-subtle: hsl(249 30% 20%);
+  --primary-subtle-foreground: hsl(249 60% 85%);
+  --secondary: hsl(228 11% 18%);
+  --secondary-foreground: hsl(220 14% 88%);
+  --secondary-hover: hsl(228 11% 22%);
+  --accent: hsl(228 11% 19%);
+  --accent-foreground: hsl(220 16% 95%);
+
+  --border: hsl(228 10% 21%);
+  --border-strong: hsl(228 9% 30%);
+  --input: hsl(228 10% 26%);
+  --ring: hsl(249 55% 70%);
+
+  --success: hsl(157 48% 58%);
+  --success-foreground: hsl(157 60% 8%);
+  --success-subtle: hsl(157 30% 17%);
+  --success-border: hsl(157 25% 30%);
+
+  --warning: hsl(38 78% 62%);
+  --warning-foreground: hsl(32 70% 9%);
+  --warning-subtle: hsl(35 30% 18%);
+  --warning-border: hsl(35 28% 32%);
+
+  --danger: hsl(2 72% 65%);
+  --danger-foreground: hsl(2 70% 10%);
+  --danger-subtle: hsl(2 30% 19%);
+  --danger-border: hsl(2 30% 33%);
+  --destructive: var(--danger);
+  --destructive-foreground: var(--danger-foreground);
+
+  --info: hsl(208 70% 66%);
+  --info-foreground: hsl(208 70% 9%);
+  --info-subtle: hsl(208 32% 19%);
+  --info-border: hsl(208 30% 33%);
+
+  --neutral-subtle: hsl(228 11% 19%);
+  --neutral-border: hsl(228 9% 28%);
+
+  --chart-1: hsl(249 51% 68%);
+  --chart-2: hsl(208 62% 62%);
+  --chart-3: hsl(157 42% 55%);
+  --chart-4: hsl(38 62% 60%);
+  --chart-5: hsl(220 8% 45%);
+
+  --shadow-xs: 0 1px 1px hsl(0 0% 0% / .3);
+  --shadow-sm: 0 1px 2px hsl(0 0% 0% / .4);
+  --shadow-md: 0 4px 14px hsl(0 0% 0% / .45), 0 1px 2px hsl(0 0% 0% / .3);
+  --shadow-lg: 0 18px 44px hsl(0 0% 0% / .55), 0 2px 6px hsl(0 0% 0% / .35);
+}
+
+/* ============================================================================
+   Échelles non colorées — communes aux deux thèmes
+   ==========================================================================*/
+
+:root {
+  /* --- typographie : 12 / 13 / 14 px comme tailles de travail ------------- */
+  /* polices : définies dans @theme (Inter via next/font, --font-inter) */
+
+  --text-2xs: 10px;   --leading-2xs: 14px;   /* micro-libellés en majuscules */
+  --text-xs: 11px;    --leading-xs: 15px;    /* méta, compteurs, raccourcis */
+  --text-sm: 12px;    --leading-sm: 16px;    /* en-têtes de colonne, libellés */
+  --text-base: 13px;  --leading-base: 18px;  /* défaut : cellules, formulaires */
+  --text-md: 14px;    --leading-md: 20px;    /* corps de note, titres de carte */
+  --text-lg: 16px;    --leading-lg: 22px;    /* titre de section */
+  --text-xl: 20px;    --leading-xl: 26px;    /* titre de fiche */
+  --text-2xl: 26px;   --leading-2xl: 32px;   /* chiffre de tuile */
+  --text-3xl: 32px;   --leading-3xl: 38px;   /* chiffre principal */
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --tracking-caps: .04em;
+  --numeric: tabular-nums;   /* font-variant-numeric pour montants, dates, colonnes */
+
+  /* --- espacements : échelle serrée, base 4 ------------------------------- */
+  --space-0: 0px;
+  --space-px: 1px;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 14px;
+  --space-8: 16px;
+  --space-10: 20px;
+  --space-12: 24px;
+  --space-16: 32px;
+  --space-20: 40px;
+
+  /* --- rayons ------------------------------------------------------------- */
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-full: 999px;
+
+  /* --- métriques de densité ---------------------------------------------- */
+  --row-h: 32px;            /* ligne de tableau — plafond 36px */
+  --row-h-comfy: 36px;
+  --header-h: 28px;         /* en-tête de colonne */
+  --control-h-sm: 24px;
+  --control-h: 28px;        /* boutons et champs par défaut */
+  --control-h-lg: 32px;
+  --topbar-h: 40px;
+  --sidebar-w: 224px;
+  --sidebar-w-collapsed: 48px;
+  --pane-left-w: 260px;     /* fiche : colonne relations */
+  --pane-right-w: 380px;    /* fiche : fil d'activité */
+
+  /* --- transitions : courtes --------------------------------------------- */
+  --duration-fast: 80ms;
+  --duration: 120ms;
+  --duration-slow: 180ms;
+  --ease: cubic-bezier(.2, 0, .3, 1);
+
+  /* --- focus clavier : identique partout, jamais supprimé ---------------- */
+  --focus-ring: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+  --focus-outline: 2px solid var(--ring);
+  --focus-offset: 1px;
+
+  --z-sticky: 10;
+  --z-sheet: 40;
+  --z-dialog: 50;
+  --z-command: 60;
+  --z-toast: 70;
+}
+
+/* ============================================================================
+   Impression — documents A4 en niveaux de gris (facture, contrat)
+   ==========================================================================*/
+
+@media print {
+  .doc-print {
+    --background: #fff;
+    --foreground: #111;
+    --card: #fff;
+    --muted: #f4f4f4;
+    --muted-foreground: #555;
+    --subtle: #f7f7f7;
+    --border: #d4d4d4;
+    --border-strong: #9a9a9a;
+    --primary: #111;
+    --primary-foreground: #fff;
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+  }
+}
+
+/* ============================================================================
+   Barre latérale (shadcn Sidebar) — dérivée des tokens, pas dans tokens.css
+   ==========================================================================*/
+
+:root {
+  --sidebar: var(--background);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--primary-subtle);
+  --sidebar-accent-foreground: var(--primary-subtle-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+}
+
+.dark {
+  --sidebar: hsl(228 13% 11.5%);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* montants, dates, colonnes numériques : chiffres tabulaires */
+  .tabular, table td, table th {
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: var(--focus-offset);
   }
 }
