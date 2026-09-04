@@ -59,4 +59,15 @@ describe("mot de passe oublié (CRM-16)", () => {
     expect(await lastEmailTo("inconnu-reset@exemple.fr")).toBeNull();
     expect(await lastEmailTo(disabled.email)).toBeNull();
   });
+
+  it("refuse un lien de réinitialisation déjà utilisé comme invalide (contrat 12)", async () => {
+    expect((await forgot(ACTIVE.email)).status).toBe(200);
+    const token = await readResetToken(ACTIVE.email);
+    expect((await authPost("/reset-password", { token, newPassword: "MotDePasse-Encore-1" })).status).toBe(200);
+    const reused = await authPost("/reset-password", { token, newPassword: "MotDePasse-Pirate-1" });
+    expect(reused.status).toBe(400);
+    expect(await reused.json()).toMatchObject({ code: "INVALID_TOKEN" });
+    expect((await signIn(ACTIVE.email, "MotDePasse-Pirate-1")).status).toBe(401);
+    expect((await signIn(ACTIVE.email, "MotDePasse-Encore-1")).status).toBe(200);
+  });
 });
