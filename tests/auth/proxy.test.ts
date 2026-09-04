@@ -15,7 +15,9 @@ describe("proxy : rien n'est servi sans session hors routes publiques (contrat 1
 
   it("sert connexion, invitation, réinitialisation et santé sans session, et une page privée avec un cookie de session", async () => {
     for (const path of ["/connexion", "/invitation/jeton-x", "/reinitialisation", "/reinitialisation/jeton-y", "/api/health", "/api/auth/get-session", "/api/invitations/jeton-z"]) {
-      expect((await proxy(request(path))).headers.get("location"), path).toBeNull();
+      const res = await proxy(request(path));
+      expect(res.headers.get("location"), path).toBeNull();
+      expect(res.status, path).toBe(200);
     }
     const withCookie = await proxy(request("/accueil", "better-auth.session_token=abc.def"));
     expect(withCookie.headers.get("location")).toBeNull();
