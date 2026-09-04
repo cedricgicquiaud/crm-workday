@@ -4,11 +4,13 @@
  * conservé : un lecteur de la base ne peut pas se connecter à la place de l'invité.
  */
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { invitation, user } from "@/db/schema";
+import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getEnv } from "@/lib/env";
 import { sendTemplatedEmail } from "@/lib/mail/send";
-import type { Role } from "./accounts";
+import { MIN_PASSWORD_LENGTH, PASSWORD_RULE, setPassword, type Role } from "./accounts";
 
 export const INVITATION_TTL_MS = 72 * 60 * 60 * 1000;
 /** Nom du cabinet dans les emails, en attendant ses paramètres (livraison 1.4). */
@@ -46,4 +48,26 @@ export async function createInvitation(input: NewInvitation): Promise<{ userId: 
     objectRef: { type: "user", id: userId },
   });
   return { userId };
+}
+
+/** Invitation encore valable pour ce jeton : ni utilisée, ni expirée. */
+export async function findValidInvitation(token: string) {
+  const [row] = await db
+    .select({ id: invitation.id, userId: invitation.userId, email: user.email })
+    .from(invitation)
+    .innerJoin(user, eq(user.id, invitation.userId))
+    .where(and(eq(invitation.tokenHash, hashToken(token)), isNull(invitation.usedAt), gt(invitation.expiresAt, new Date())))
+    .limit(1);
+  return row ?? null;
+}
+
+/** L'invité choisit son mot de passe : le lien est consommé, le compte devient actif. */
+export async function acceptInvitation(token: string, password: string): Promise<{ email: string }> {
+  const valid = await findValidInvitation(token);
+  if (!valid) throw new HttpError(410, "lien_invalide", "Ce lien est invalide : déjà utilisé ou expiré.");
+  if (password.length < MIN_PASSWORD_LENGTH) throw new HttpError(400, "mot_de_passe_trop_court", PASSWORD_RULE);
+  await setPassword(valid.userId, password);
+  await db.update(user).set({ status: "actif", emailVerified: true, updatedAt: new Date() }).where(eq(user.id, valid.userId));
+  await db.update(invitation).set({ usedAt: new Date() }).where(eq(invitation.id, valid.id));
+  return { email: valid.email };
 }
