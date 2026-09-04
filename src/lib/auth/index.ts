@@ -71,7 +71,7 @@ function createAuth() {
         await sendTemplatedEmail({
           to: user.email,
           template: "reinitialisation",
-          variables: { prenom: firstName, nom: lastName, cabinet: "le cabinet", lien: `${env.APP_URL}/reinitialisation/${token}` },
+          variables: { prenom: firstName, nom: lastName, cabinet: "votre cabinet", lien: `${env.APP_URL}/reinitialisation/${token}` },
           objectRef: { type: "user", id: user.id },
         });
       },

@@ -15,7 +15,7 @@ import { MIN_PASSWORD_LENGTH, PASSWORD_RULE } from "./password-rule";
 
 export const INVITATION_TTL_MS = 72 * 60 * 60 * 1000;
 /** Nom du cabinet dans les emails, en attendant ses paramètres (livraison 1.4). */
-const CABINET = "le cabinet";
+const CABINET = "votre cabinet";
 
 export type NewInvitation = { email: string; firstName: string; lastName: string; role: Role; authorId: string };
 
