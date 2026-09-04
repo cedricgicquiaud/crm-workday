@@ -8,14 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth/client";
 import Link from "next/link";
+import { safeNext } from "./routes";
 
 /** Un seul message de refus, quel que soit le motif : on ne révèle ni l'adresse ni le verrou (D14). */
 export const SIGN_IN_ERROR = "Email ou mot de passe incorrect.";
-
-/** Seule une page interne peut suivre la connexion : jamais une adresse externe. */
-export function safeNext(next: string | undefined): string {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/accueil";
-}
 
 export function ConnexionForm({ next }: { next?: string }) {
   const router = useRouter();
@@ -36,7 +32,7 @@ export function ConnexionForm({ next }: { next?: string }) {
       setError(SIGN_IN_ERROR);
       return;
     }
-    router.push(safeNext(next));
+    router.push(safeNext(next, window.location.origin));
     router.refresh();
   }
 
