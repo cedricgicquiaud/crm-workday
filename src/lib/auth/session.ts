@@ -14,6 +14,8 @@ export class HttpError extends Error {
     public readonly status: number,
     public readonly code: string,
     message?: string,
+    /** champs supplémentaires rendus dans la réponse JSON */
+    public readonly details: Record<string, unknown> = {},
   ) {
     super(message ?? code);
     this.name = "HttpError";
@@ -45,7 +47,7 @@ export function withApi<A extends unknown[]>(handler: (request: Request, ...args
       return await handler(request, ...args);
     } catch (error) {
       if (error instanceof HttpError) {
-        return NextResponse.json({ error: error.code, message: error.message }, { status: error.status });
+        return NextResponse.json({ error: error.code, message: error.message, ...error.details }, { status: error.status });
       }
       throw error;
     }

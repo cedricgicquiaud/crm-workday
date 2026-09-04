@@ -23,11 +23,16 @@ export function hashToken(token: string): string {
 }
 
 export async function createInvitation(input: NewInvitation): Promise<{ userId: string }> {
+  const email = input.email.trim().toLowerCase();
+  const [existing] = await db.select({ status: user.status }).from(user).where(eq(user.email, email)).limit(1);
+  if (existing) {
+    throw new HttpError(409, "email_deja_utilise", "Un compte existe déjà pour cet email.", { status: existing.status });
+  }
   const userId = randomUUID();
   await db.insert(user).values({
     id: userId,
     name: `${input.firstName} ${input.lastName}`.trim(),
-    email: input.email.trim().toLowerCase(),
+    email,
     firstName: input.firstName,
     lastName: input.lastName,
     role: input.role,
