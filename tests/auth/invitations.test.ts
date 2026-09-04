@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { POST as createInvitation } from "@/app/api/invitations/route";
 import { POST as acceptInvitation } from "@/app/api/invitations/[token]/route";
+import { POST as resendInvitation } from "@/app/api/invitations/renvoyer/route";
 import { invitation, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { hashToken } from "@/features/auth/invitations";
@@ -136,5 +137,18 @@ describe("API des invitations (CRM-15)", () => {
     expect(disabled.status).toBe(409);
     expect(await disabled.json()).toMatchObject({ error: "email_deja_utilise", status: "desactive" });
     await db.update(user).set({ status: "actif" }).where(eq(user.email, MEMBER.email));
+  });
+
+  it("« Renvoyer l'invitation » envoie un lien neuf et invalide l'ancien (D7)", async () => {
+    const email = "invitee-renvoi@exemple.fr";
+    const first = await inviteAndReadToken(email);
+    const res = await resendInvitation(post("/api/invitations/renvoyer", { email }, adminCookie));
+    expect(res.status).toBe(200);
+    const second = (await lastEmailTo(email))!.links.find((l) => l.includes("/invitation/"))!.split("/invitation/")[1];
+    expect(second).not.toBe(first);
+    expect((await accept(first, "MotDePasse-Invite-1")).status).toBe(410);
+    expect((await accept(second, "MotDePasse-Invite-1")).status).toBe(200);
+    const asMember = await resendInvitation(post("/api/invitations/renvoyer", { email }, memberCookie));
+    expect(asMember.status).toBe(403);
   });
 });
