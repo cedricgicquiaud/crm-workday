@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { getAuth } from "@/lib/auth";
@@ -40,5 +41,22 @@ describe("mot de passe oublié (CRM-16)", () => {
     expect(reset.status).toBe(200);
     expect((await signIn(ACTIVE.email, ACTIVE.password)).status).toBe(401);
     expect((await signIn(ACTIVE.email, "MotDePasse-Nouveau-1")).status).toBe(200);
+  });
+
+  it("répond pareil pour un email inconnu ou un compte désactivé, sans rien envoyer (contrat 14)", async () => {
+    const disabled = { email: "desactive-reset@exemple.fr", firstName: "Dan", lastName: "Petit", password: "MotDePasse-Desactive-1", role: "membre" as const };
+    await createUserWithPassword(disabled);
+    await db.update(user).set({ status: "desactive" }).where(eq(user.email, disabled.email));
+
+    const known = await forgot(ACTIVE.email);
+    const unknown = await forgot("inconnu-reset@exemple.fr");
+    const deactivated = await forgot(disabled.email);
+    expect(unknown.status).toBe(200);
+    expect(deactivated.status).toBe(200);
+    const expected = await known.json();
+    expect(await unknown.json()).toEqual(expected);
+    expect(await deactivated.json()).toEqual(expected);
+    expect(await lastEmailTo("inconnu-reset@exemple.fr")).toBeNull();
+    expect(await lastEmailTo(disabled.email)).toBeNull();
   });
 });
