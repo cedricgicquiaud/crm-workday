@@ -117,4 +117,12 @@ describe("API des invitations (CRM-15)", () => {
     const [stillInvited] = await db.select().from(user).where(eq(user.email, expiredEmail));
     expect(stillInvited.status).toBe("invite");
   });
+
+  it("rejette un mot de passe de 11 caractères avec le message de la règle, le lien reste valable (contrat 13)", async () => {
+    const token = await inviteAndReadToken("invitee-court@exemple.fr");
+    const short = await accept(token, "Court-Mdp-1");
+    expect(short.status).toBe(400);
+    expect(await short.json()).toMatchObject({ message: "Le mot de passe doit contenir 12 caractères au moins." });
+    expect((await accept(token, "MotDePasse-Invite-1")).status).toBe(200);
+  });
 });
