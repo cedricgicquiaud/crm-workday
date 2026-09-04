@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { POST as createInvitation } from "@/app/api/invitations/route";
+import { POST as acceptInvitation } from "@/app/api/invitations/[token]/route";
 import { invitation, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { getAuth } from "@/lib/auth";
@@ -32,6 +33,17 @@ function post(path: string, body: unknown, cookie?: string) {
     body: JSON.stringify(body),
   });
 }
+
+/** Invite une adresse en tant qu'administrateur et rend le jeton du lien reçu. */
+async function inviteAndReadToken(email: string, firstName = "Inès"): Promise<string> {
+  const res = await createInvitation(post("/api/invitations", { email, firstName, lastName: "Roux", role: "membre" }, adminCookie));
+  expect(res.status).toBe(201);
+  const mail = await lastEmailTo(email);
+  return mail!.links.find((l) => l.includes("/invitation/"))!.split("/invitation/")[1];
+}
+
+const accept = (token: string, password: string) =>
+  acceptInvitation(post(`/api/invitations/${token}`, { password }), { params: Promise.resolve({ token }) });
 
 let adminCookie: string;
 let memberCookie: string;
@@ -73,5 +85,18 @@ describe("API des invitations (CRM-15)", () => {
     expect(row.usedAt).toBeNull();
     expect(row.expiresAt.getTime() - Date.now()).toBeGreaterThan(71 * HOUR_MS);
     expect(row.expiresAt.getTime() - Date.now()).toBeLessThan(73 * HOUR_MS);
+  });
+
+  it("connecte l'invité qui choisit son mot de passe et active son compte ; il peut ensuite se reconnecter (contrat 6)", async () => {
+    const email = "invitee-accepte@exemple.fr";
+    const token = await inviteAndReadToken(email);
+    const res = await accept(token, "MotDePasse-Invite-1");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("set-cookie")).toMatch(/session_token/);
+    const [activated] = await db.select().from(user).where(eq(user.email, email));
+    expect(activated.status).toBe("actif");
+    const [row] = await db.select().from(invitation).where(eq(invitation.userId, activated.id));
+    expect(row.usedAt).not.toBeNull();
+    await sessionCookie(email, "MotDePasse-Invite-1");
   });
 });
