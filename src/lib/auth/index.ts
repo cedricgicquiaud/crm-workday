@@ -29,10 +29,16 @@ async function recentFailures(email: string): Promise<number> {
   return row?.n ?? 0;
 }
 
-const refuseWhenLocked = createAuthMiddleware(async (ctx) => {
+async function isDeactivated(email: string): Promise<boolean> {
+  const [row] = await db.select({ status: schema.user.status }).from(schema.user).where(eq(schema.user.email, email)).limit(1);
+  return row?.status === "desactive";
+}
+
+/** Adresse verrouillée ou compte désactivé : refus indiscernable d'un mot de passe faux. */
+const refuseLockedOrDeactivated = createAuthMiddleware(async (ctx) => {
   if (ctx.path !== "/sign-in/email") return;
   const email = normalizeEmail(ctx.body?.email);
-  if ((await recentFailures(email)) >= MAX_FAILED_ATTEMPTS) {
+  if ((await recentFailures(email)) >= MAX_FAILED_ATTEMPTS || (await isDeactivated(email))) {
     throw APIError.from("UNAUTHORIZED", INVALID_CREDENTIALS);
   }
 });
@@ -58,7 +64,7 @@ function createAuth() {
       expiresIn: 60 * 60 * 24 * 30,
       updateAge: 60 * 60 * 24,
     },
-    hooks: { before: refuseWhenLocked, after: recordFailure },
+    hooks: { before: refuseLockedOrDeactivated, after: recordFailure },
     user: {
       additionalFields: {
         firstName: { type: "string", required: false, defaultValue: "" },
