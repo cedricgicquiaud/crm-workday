@@ -23,7 +23,7 @@ function runDbCommand(...args: string[]): string {
   return execFileSync("npx", ["tsx", SELF, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
 }
 
-/** Recrée l'administrateur et le membre de test (mot de passe connu, sessions fermées). */
+/** Recrée l'administrateur et le membre de test (mot de passe connu, sessions fermées) ; efface tout compte `*-e2e@exemple.fr`. */
 export function seedAccounts(): void {
   runDbCommand("seed");
 }
@@ -66,10 +66,10 @@ async function main(command: string, arg?: string) {
   const { closeDb, db } = await import("../../src/lib/db");
   try {
     if (command === "seed") {
-      const { inArray } = await import("drizzle-orm");
+      const { like } = await import("drizzle-orm");
       const { user } = await import("../../src/db/schema");
       const { createUserWithPassword } = await import("../../src/features/auth/accounts");
-      await db.delete(user).where(inArray(user.email, [ADMIN.email, MEMBER.email]));
+      await db.delete(user).where(like(user.email, "%-e2e@exemple.fr"));
       await createUserWithPassword(ADMIN);
       await createUserWithPassword(MEMBER);
     } else if (command === "last-email" && arg) {

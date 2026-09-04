@@ -9,8 +9,6 @@ import { and, eq } from "drizzle-orm";
 import { account, user } from "@/db/schema";
 import { db } from "@/lib/db";
 
-export const MIN_PASSWORD_LENGTH = 12;
-export const PASSWORD_RULE = `Le mot de passe doit contenir ${MIN_PASSWORD_LENGTH} caractères au moins.`;
 const CREDENTIAL = { issuer: "local:credential", providerId: "credential" } as const;
 
 export type Role = "administrateur" | "membre";

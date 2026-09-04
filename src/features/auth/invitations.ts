@@ -10,7 +10,8 @@ import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getEnv } from "@/lib/env";
 import { sendTemplatedEmail } from "@/lib/mail/send";
-import { MIN_PASSWORD_LENGTH, PASSWORD_RULE, setPassword, type Role } from "./accounts";
+import { setPassword, type Role } from "./accounts";
+import { MIN_PASSWORD_LENGTH, PASSWORD_RULE } from "./password-rule";
 
 export const INVITATION_TTL_MS = 72 * 60 * 60 * 1000;
 /** Nom du cabinet dans les emails, en attendant ses paramètres (livraison 1.4). */
