@@ -33,4 +33,16 @@ describe("connexion (CRM-14)", () => {
     expect(unknown.body).toEqual(wrong.body);
     expect(unknown.setCookie).toBeNull();
   });
+
+  it("refuse la sixième tentative en 15 minutes sur une adresse, même avec le bon mot de passe, avec le même message (contrat 15)", async () => {
+    const target = { email: "cible-limitation@exemple.fr", firstName: "Bob", lastName: "Martin", password: "MotDePasse-Cible-1" };
+    await db.delete(user);
+    await seedAdmin(target);
+    const refused = await signIn("inconnu@exemple.fr", "MotDePasse-Faux-1");
+    for (let i = 0; i < 5; i++) await signIn(target.email, "MotDePasse-Faux-1");
+    const sixth = await signIn(target.email, target.password);
+    expect(sixth.status).toBe(401);
+    expect(sixth.body).toEqual(refused.body);
+    expect(sixth.setCookie).toBeNull();
+  });
 });
