@@ -64,8 +64,10 @@ function createAuth() {
       resetPasswordTokenExpiresIn: 60 * 60,
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, token }) => {
-        /** Les champs supplémentaires (prénom, nom) sont présents à l'exécution, pas dans le type de base. */
-        const { firstName = "", lastName = "" } = user as typeof user & { firstName?: string; lastName?: string };
+        /** Les champs supplémentaires (prénom, nom, état) sont présents à l'exécution, pas dans le type de base. */
+        const { firstName = "", lastName = "", status } = user as typeof user & { firstName?: string; lastName?: string; status?: string };
+        /** Compte désactivé : même réponse qu'un compte actif, mais rien ne part (D9). */
+        if (status === "desactive") return;
         await sendTemplatedEmail({
           to: user.email,
           template: "reinitialisation",
