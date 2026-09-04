@@ -34,3 +34,10 @@
 - Socle 1.1 produit hors boucle (D1) : Next.js 16, shadcn/ui (26 composants), Drizzle + Postgres Docker (crm / crm_test), Better Auth paresseux, email capturé + `email_log`, pages d'attente, santé, Vitest (9 tests) + Playwright (2 tests), CI GitHub. PR `CRM-8 Première page en ligne`.
 - Décision : la boucle (1.2a…) attend le dépôt du système de design dans `.pilot/design/`.
 - Reste à faire par Cédric : merger la PR CRM-8 ; maquetter avec `.pilot/design/PROMPT.md` et déposer le résultat ; tâches CRM-1 (Resend) puis CRM-2, CRM-3.
+
+## Sync après merge de la PR #2 (22:05)
+- CRM-8 à CRM-13 « Terminée » par l'intégration GitHub (pièces jointes PR présentes : l'intégration voit le dépôt). Jalon 1.1 daté 2026-09-04 ; feature 1 « En développement », startDate 2026-09-04.
+- Barème : première mesure L = 0.6 h (hors boucle) ; barème global conservé jusqu'à 2 mesures.
+- Idiomes de code et d'interface proposés dans `CLAUDE.md` (7 + 3), à valider, partent avec la prochaine PR.
+- Alerte : CRM-1 (compte Resend) échue le 2026-09-04, non faite ; conditionne l'envoi réel (1.4) et la mise en service (feature 9).
+- Attente : système de design dans `.pilot/design/` avant 1.2a.

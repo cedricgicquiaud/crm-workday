@@ -43,3 +43,4 @@ days_per_week: observed   # remplacer par un nombre (ex. 2) pour forcer la capac
 
 | Feature | Taille | Tâches | Début | PR ouverte | Mergée | Heures réelles |
 |---|---|---|---|---|---|---|
+| L'équipe entre dans le CRM — 1.1 Première page en ligne | L | 6 | 2026-09-04 21:05 | 2026-09-04 21:41 | 2026-09-04 22:05 | 0.6 (hors boucle, Claude en session ; + 0.1 correction CI) |
