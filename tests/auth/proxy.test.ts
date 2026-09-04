@@ -12,4 +12,13 @@ describe("proxy : rien n'est servi sans session hors routes publiques (contrat 1
     expect(new URL(res.headers.get("location")!).pathname).toBe("/connexion");
     expect(new URL(res.headers.get("location")!).searchParams.get("next")).toBe("/parametres/comptes?onglet=actifs");
   });
+
+  it("sert connexion, invitation, réinitialisation et santé sans session, et une page privée avec un cookie de session", async () => {
+    for (const path of ["/connexion", "/invitation/jeton-x", "/reinitialisation", "/reinitialisation/jeton-y", "/api/health", "/api/auth/get-session"]) {
+      expect((await proxy(request(path))).headers.get("location"), path).toBeNull();
+    }
+    const withCookie = await proxy(request("/accueil", "better-auth.session_token=abc.def"));
+    expect(withCookie.headers.get("location")).toBeNull();
+    expect(withCookie.status).toBe(200);
+  });
 });
