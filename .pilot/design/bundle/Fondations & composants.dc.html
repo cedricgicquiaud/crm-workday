@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+  a { color: var(--primary); text-decoration: none; }
+  a:hover { color: var(--primary-hover); text-decoration: underline; }
+  * { box-sizing: border-box; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes shimmer { 0% { opacity: .45; } 50% { opacity: .9; } 100% { opacity: .45; } }
+  @keyframes caret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+</style>
+</helmet>
+
+<div id="surface" style="background:var(--background);color:var(--foreground);min-height:100vh;padding:0 0 80px">
+
+  <div style="position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px;height:48px;padding:0 24px;background:var(--card);border-bottom:1px solid var(--border)">
+    <span style="display:flex;align-items:center;gap:8px;font-size:var(--text-base);font-weight:600;letter-spacing:-.01em"><i class="ph-fill ph-squares-four" style="color:var(--primary);font-size:16px"></i>CRM Workday — fondations &amp; composants</span>
+    <span style="font-size:var(--text-xs);color:var(--muted-foreground)">tokens.css · shadcn/ui · Inter</span>
+    <div style="flex:1"></div>
+    <a href="Ecrans-types.dc.html" style="font-size:var(--text-xs);color:var(--muted-foreground)">écrans-types →</a>
+    <div style="display:flex;align-items:center;gap:2px;padding:2px;background:var(--muted);border-radius:var(--radius);border:1px solid var(--border)">
+      <button type="button" onClick="{{ setLight }}" style="display:flex;align-items:center;gap:5px;height:22px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--foreground);background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;box-shadow:var(--shadow-xs)" style-hover="background:var(--card);border-color:var(--border-strong)"><i class="ph ph-sun" style="font-size:12px"></i>Clair</button>
+      <button type="button" onClick="{{ setDark }}" style="display:flex;align-items:center;gap:5px;height:22px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);background:transparent;border:1px solid transparent;border-radius:var(--radius-sm);cursor:pointer" style-hover="color:var(--foreground);background:var(--accent)"><i class="ph ph-moon" style="font-size:12px"></i>Sombre</button>
+    </div>
+  </div>
+
+  <div style="max-width:1240px;margin:0 auto;padding:40px 24px 0;display:flex;flex-direction:column;gap:56px">
+
+    <header style="display:flex;flex-direction:column;gap:12px;max-width:720px">
+      <span style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Système de design</span>
+      <h1 style="margin:0;font-size:var(--text-3xl);line-height:var(--leading-3xl);font-weight:600;letter-spacing:-.02em">Des briques, pas des écrans</h1>
+      <p style="margin:0;font-size:var(--text-md);line-height:var(--leading-md);color:var(--muted-foreground);text-wrap:pretty">Tout ce qui suit sort de <code style="font-family:var(--font-mono);font-size:12px;padding:1px 4px;background:var(--muted);border-radius:var(--radius-sm)">tokens.css</code> : deux thèmes, une couleur d'accent, quatre couleurs sémantiques. Chaque composant est montré dans ses variantes et ses états, avec sa règle d'emploi en regard. Les écrans-types assemblent ces briques sans rien ajouter.</p>
+    </header>
+
+    <!-- ============================= COULEUR ============================= -->
+    <section style="display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:baseline;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+        <span style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">01</span>
+        <h2 style="margin:0;font-size:var(--text-lg);line-height:var(--leading-lg);font-weight:600">Couleur</h2>
+        <span style="font-size:var(--text-xs);color:var(--muted-foreground)">neutres froids · un accent · quatre sémantiques</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:20px">
+          <div>
+            <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground);margin-bottom:8px">Surfaces et texte</div>
+            <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px">
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--background);border:1px solid var(--border);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--background</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--card</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--subtle);border:1px solid var(--border);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--subtle</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--muted);border:1px solid var(--border);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--muted</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--foreground);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--foreground</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--muted-foreground);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--muted-foreground</span></div>
+            </div>
+          </div>
+          <div>
+            <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground);margin-bottom:8px">Accent — un seul</div>
+            <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px">
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--primary);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--primary</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--primary-hover);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--primary-hover</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--primary-active);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--primary-active</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--primary-subtle);border:1px solid var(--border);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--primary-subtle</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--ring);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--ring</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--border);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--border</span></div>
+            </div>
+          </div>
+          <div>
+            <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground);margin-bottom:8px">Sémantiques — teinte de base, fond discret, bordure</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--success);border-radius:var(--radius-sm)"></div><div style="height:22px;background:var(--success-subtle);border:1px solid var(--success-border);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--success · succès</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--warning);border-radius:var(--radius-sm)"></div><div style="height:22px;background:var(--warning-subtle);border:1px solid var(--warning-border);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--warning · avertissement</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--danger);border-radius:var(--radius-sm)"></div><div style="height:22px;background:var(--danger-subtle);border:1px solid var(--danger-border);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--danger · danger</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:52px;background:var(--info);border-radius:var(--radius-sm)"></div><div style="height:22px;background:var(--info-subtle);border:1px solid var(--info-border);border-radius:var(--radius-sm)"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--info · information</span></div>
+            </div>
+          </div>
+          <div>
+            <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground);margin-bottom:8px">Graphiques</div>
+            <div style="display:flex;gap:8px">
+              <div style="flex:1;height:32px;background:var(--chart-1);border-radius:var(--radius-sm)"></div>
+              <div style="flex:1;height:32px;background:var(--chart-2);border-radius:var(--radius-sm)"></div>
+              <div style="flex:1;height:32px;background:var(--chart-3);border-radius:var(--radius-sm)"></div>
+              <div style="flex:1;height:32px;background:var(--chart-4);border-radius:var(--radius-sm)"></div>
+              <div style="flex:1;height:32px;background:var(--chart-5);border-radius:var(--radius-sm)"></div>
+            </div>
+          </div>
+        </div>
+        <div data-spec="1" style="display:flex;flex-direction:column;gap:12px;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md)">
+          <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Règles</div>
+          <p style="margin:0;font-size:var(--text-base);line-height:var(--leading-base);color:var(--foreground)">L'accent est un <strong style="font-weight:600">blurple</strong> — <code style="font-family:var(--font-mono);font-size:11px">#9184d9</code> en sombre, sa version profonde <code style="font-family:var(--font-mono);font-size:11px">hsl(249 45% 46%)</code> en clair. Il ne sert qu'à trois choses : l'action principale, l'élément sélectionné, l'anneau de focus.</p>
+          <p style="margin:0;font-size:var(--text-base);line-height:var(--leading-base);color:var(--muted-foreground)">Les quatre sémantiques ne teintent que des surfaces de moins de 40 px de haut : badge, point, barre, icône, bannière. Jamais un fond d'écran, jamais une ligne entière.</p>
+          <p style="margin:0;font-size:var(--text-base);line-height:var(--leading-base);color:var(--muted-foreground)">Aucune information n'est portée par la couleur seule : chaque teinte est doublée d'un mot, et d'une forme de point (plein, creux, barré).</p>
+          <div style="display:flex;flex-direction:column;gap:4px;padding-top:10px;border-top:1px solid var(--border);font-size:var(--text-xs);color:var(--muted-foreground)">
+            <span>Contraste texte / fond : 13,1:1 (clair) · 11,4:1 (sombre)</span>
+            <span>Accent / fond : 6,8:1 (clair) · 6,1:1 (sombre) — AA sur texte normal</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================== TYPOGRAPHIE ============================ -->
+    <section style="display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:baseline;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+        <span style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">02</span>
+        <h2 style="margin:0;font-size:var(--text-lg);line-height:var(--leading-lg);font-weight:600">Typographie, densité, mouvement</h2>
+        <span style="font-size:var(--text-xs);color:var(--muted-foreground)">Inter · 12 / 13 / 14 px de travail · chiffres tabulaires</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:0;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden">
+          <div style="display:grid;grid-template-columns:96px 92px 1fr;gap:12px;padding:6px 14px;background:var(--subtle);border-bottom:1px solid var(--border);font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)"><span>Token</span><span>Taille</span><span>Emploi</span></div>
+          <div style="display:grid;grid-template-columns:96px 92px 1fr;gap:12px;align-items:baseline;padding:8px 14px;border-bottom:1px solid var(--border)"><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--text-3xl</span><span style="font-size:var(--text-xs);color:var(--muted-foreground);font-variant-numeric:tabular-nums">32 / 38</span><span style="font-size:var(--text-3xl);line-height:var(--leading-3xl);font-weight:600;letter-spacing:-.02em">248 400,00 €</span></div>
+          <div style="display:grid;grid-template-columns:96px 92px 1fr;gap:12px;align-items:baseline;padding:8px 14px;border-bottom:1px solid var(--border)"><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--text-xl</span><span style="font-size:var(--text-xs);color:var(--muted-foreground);font-variant-numeric:tabular-nums">20 / 26</span><span style="font-size:var(--text-xl);line-height:var(--leading-xl);font-weight:600;letter-spacing:-.01em">Mission Workday Payroll — Banque Solveige</span></div>
+          <div style="display:grid;grid-template-columns:96px 92px 1fr;gap:12px;align-items:baseline;padding:8px 14px;border-bottom:1px solid var(--border)"><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--text-lg</span><span style="font-size:var(--text-xs);color:var(--muted-foreground);font-variant-numeric:tabular-nums">16 / 22</span><span style="font-size:var(--text-lg);line-height:var(--leading-lg);font-weight:500">Titre de section</span></div>
+          <div style="display:grid;grid-template-columns:96px 92px 1fr;gap:12px;align-items:baseline;padding:8px 14px;border-bottom:1px solid var(--border)"><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--text-md</span><span style="font-size:var(--text-xs);color:var(--muted-foreground);font-variant-numeric:tabular-nums">14 / 20</span><span style="font-size:var(--text-md);line-height:var(--leading-md)">Corps d'une note, titre de carte kanban, texte de bannière.</span></div>
+          <div style="display:grid;grid-template-columns:96px 92px 1fr;gap:12px;align-items:baseline;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--primary-subtle)"><span style="font-family:var(--font-mono);font-size:10px;color:var(--primary-subtle-foreground)">--text-base</span><span style="font-size:var(--text-xs);color:var(--primary-subtle-foreground);font-variant-numeric:tabular-nums">13 / 18</span><span style="font-size:var(--text-base);line-height:var(--leading-base);color:var(--foreground)">Défaut de l'application : cellules, champs, menus, boutons.</span></div>
+          <div style="display:grid;grid-template-columns:96px 92px 1fr;gap:12px;align-items:baseline;padding:8px 14px;border-bottom:1px solid var(--border)"><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--text-sm</span><span style="font-size:var(--text-xs);color:var(--muted-foreground);font-variant-numeric:tabular-nums">12 / 16</span><span style="font-size:var(--text-sm);line-height:var(--leading-sm)">En-tête de colonne, libellé de champ, méta de fiche.</span></div>
+          <div style="display:grid;grid-template-columns:96px 92px 1fr;gap:12px;align-items:baseline;padding:8px 14px;border-bottom:1px solid var(--border)"><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--text-xs</span><span style="font-size:var(--text-xs);color:var(--muted-foreground);font-variant-numeric:tabular-nums">11 / 15</span><span style="font-size:var(--text-xs);line-height:var(--leading-xs)">Compteur, raccourci clavier, horodatage.</span></div>
+          <div style="display:grid;grid-template-columns:96px 92px 1fr;gap:12px;align-items:baseline;padding:8px 14px"><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">--text-2xs</span><span style="font-size:var(--text-xs);color:var(--muted-foreground);font-variant-numeric:tabular-nums">10 / 14</span><span style="font:600 var(--text-2xs)/var(--leading-2xs) var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase">Micro-libellé de groupe</span></div>
+        </div>
+        <div data-spec="1" style="display:flex;flex-direction:column;gap:12px;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md)">
+          <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Règles</div>
+          <p style="margin:0;font-size:var(--text-base);line-height:var(--leading-base)">Une seule famille, Inter, en trois graisses : 400 pour le texte, 500 pour les titres et les libellés, 600 pour les chiffres et les en-têtes. Pas d'italique dans les tableaux.</p>
+          <p style="margin:0;font-size:var(--text-base);line-height:var(--leading-base);color:var(--muted-foreground)">Montants, dates, durées et colonnes numériques passent en <code style="font-family:var(--font-mono);font-size:11px">font-variant-numeric: tabular-nums</code> et s'alignent à droite. Format : <span style="font-variant-numeric:tabular-nums">12 500,00 €</span> · <span style="font-variant-numeric:tabular-nums">4 sept. 2026</span>.</p>
+          <div style="display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--border)">
+            <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Densité</div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>Ligne de tableau</span><span style="font-variant-numeric:tabular-nums;color:var(--foreground)">32 px (plafond 36)</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>En-tête de colonne</span><span style="font-variant-numeric:tabular-nums;color:var(--foreground)">28 px</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>Bouton / champ</span><span style="font-variant-numeric:tabular-nums;color:var(--foreground)">28 px</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>Barre supérieure</span><span style="font-variant-numeric:tabular-nums;color:var(--foreground)">40 px</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>Barre latérale</span><span style="font-variant-numeric:tabular-nums;color:var(--foreground)">224 / 48 px</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>Lignes visibles en 1440×900</span><span style="font-variant-numeric:tabular-nums;color:var(--foreground)">22</span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--border)">
+            <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Mouvement</div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>Survol, focus</span><span style="font-variant-numeric:tabular-nums;color:var(--foreground)">80 ms</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>Menu, popover</span><span style="font-variant-numeric:tabular-nums;color:var(--foreground)">120 ms</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>Sheet, dialog</span><span style="font-variant-numeric:tabular-nums;color:var(--foreground)">180 ms</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ BOUTONS ============================== -->
+    <section style="display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:baseline;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+        <span style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">03</span>
+        <h2 style="margin:0;font-size:var(--text-lg);line-height:var(--leading-lg);font-weight:600">Boutons</h2>
+        <span style="font-size:var(--text-xs);color:var(--muted-foreground)">shadcn/ui Button · 6 variantes × 4 tailles</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:0;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden">
+          <div style="display:grid;grid-template-columns:110px repeat(6,1fr);gap:10px;padding:6px 14px;background:var(--subtle);border-bottom:1px solid var(--border);font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)"><span>État</span><span>default</span><span>secondary</span><span>outline</span><span>ghost</span><span>destructive</span><span>link</span></div>
+
+          <div style="display:grid;grid-template-columns:110px repeat(6,1fr);gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+            <span style="font-size:var(--text-xs);color:var(--muted-foreground)">repos</span>
+            <button type="button" style="height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--primary-foreground);background:var(--primary);border:1px solid var(--primary);border-radius:var(--radius);cursor:pointer;box-shadow:var(--shadow-xs);transition:background var(--duration-fast) var(--ease)" style-hover="background:var(--primary-hover);border-color:var(--primary-hover)" style-focus="box-shadow:var(--focus-ring);outline:none">Nouveau</button>
+            <button type="button" style="height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--secondary-foreground);background:var(--secondary);border:1px solid transparent;border-radius:var(--radius);cursor:pointer" style-hover="background:var(--secondary-hover)" style-focus="box-shadow:var(--focus-ring);outline:none">Filtrer</button>
+            <button type="button" style="height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--foreground);background:var(--card);border:1px solid var(--input);border-radius:var(--radius);cursor:pointer;box-shadow:var(--shadow-xs)" style-hover="background:var(--accent);border-color:var(--border-strong)" style-focus="box-shadow:var(--focus-ring);outline:none">Exporter</button>
+            <button type="button" style="height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--muted-foreground);background:transparent;border:1px solid transparent;border-radius:var(--radius);cursor:pointer" style-hover="color:var(--accent-foreground);background:var(--accent)" style-focus="box-shadow:var(--focus-ring);outline:none">Annuler</button>
+            <button type="button" style="height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--danger-foreground);background:var(--danger);border:1px solid var(--danger);border-radius:var(--radius);cursor:pointer" style-hover="filter:brightness(1.08)" style-focus="box-shadow:var(--focus-ring);outline:none">Supprimer</button>
+            <button type="button" style="height:28px;padding:0 2px;font:500 var(--text-base)/1 var(--font-sans);color:var(--primary);background:transparent;border:none;border-radius:var(--radius-sm);cursor:pointer;text-align:left" style-hover="text-decoration:underline">Tout voir</button>
+          </div>
+
+          <div style="display:grid;grid-template-columns:110px repeat(6,1fr);gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+            <span style="font-size:var(--text-xs);color:var(--muted-foreground)">survol</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--primary-foreground);background:var(--primary-hover);border:1px solid var(--primary-hover);border-radius:var(--radius)">Nouveau</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--secondary-foreground);background:var(--secondary-hover);border:1px solid transparent;border-radius:var(--radius)">Filtrer</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--foreground);background:var(--accent);border:1px solid var(--border-strong);border-radius:var(--radius)">Exporter</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--accent-foreground);background:var(--accent);border:1px solid transparent;border-radius:var(--radius)">Annuler</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--danger-foreground);background:var(--danger);filter:brightness(1.08);border-radius:var(--radius)">Supprimer</span>
+            <span style="display:inline-flex;align-items:center;height:28px;font:500 var(--text-base)/1 var(--font-sans);color:var(--primary);text-decoration:underline">Tout voir</span>
+          </div>
+
+          <div style="display:grid;grid-template-columns:110px repeat(6,1fr);gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+            <span style="font-size:var(--text-xs);color:var(--muted-foreground)">focus clavier</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--primary-foreground);background:var(--primary);border-radius:var(--radius);box-shadow:var(--focus-ring)">Nouveau</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--secondary-foreground);background:var(--secondary);border-radius:var(--radius);box-shadow:var(--focus-ring)">Filtrer</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--foreground);background:var(--card);border:1px solid var(--input);border-radius:var(--radius);box-shadow:var(--focus-ring)">Exporter</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--accent-foreground);border-radius:var(--radius);box-shadow:var(--focus-ring)">Annuler</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--danger-foreground);background:var(--danger);border-radius:var(--radius);box-shadow:var(--focus-ring)">Supprimer</span>
+            <span style="display:inline-flex;align-items:center;height:28px;padding:0 2px;font:500 var(--text-base)/1 var(--font-sans);color:var(--primary);border-radius:var(--radius-sm);box-shadow:var(--focus-ring)">Tout voir</span>
+          </div>
+
+          <div style="display:grid;grid-template-columns:110px repeat(6,1fr);gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+            <span style="font-size:var(--text-xs);color:var(--muted-foreground)">actif / enfoncé</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--primary-foreground);background:var(--primary-active);border-radius:var(--radius);transform:translateY(.5px)">Nouveau</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--secondary-foreground);background:var(--border);border-radius:var(--radius)">Filtrer</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--foreground);background:var(--muted);border:1px solid var(--border-strong);border-radius:var(--radius)">Exporter</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--accent-foreground);background:var(--muted);border-radius:var(--radius)">Annuler</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--danger-foreground);background:var(--danger);filter:brightness(.9);border-radius:var(--radius)">Supprimer</span>
+            <span style="display:inline-flex;align-items:center;height:28px;font:500 var(--text-base)/1 var(--font-sans);color:var(--primary-active);text-decoration:underline">Tout voir</span>
+          </div>
+
+          <div style="display:grid;grid-template-columns:110px repeat(6,1fr);gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+            <span style="font-size:var(--text-xs);color:var(--muted-foreground)">désactivé</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--primary-foreground);background:var(--primary);border-radius:var(--radius);opacity:.45;cursor:not-allowed">Nouveau</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--secondary-foreground);background:var(--secondary);border-radius:var(--radius);opacity:.45">Filtrer</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--foreground);background:var(--card);border:1px solid var(--input);border-radius:var(--radius);opacity:.45">Exporter</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--muted-foreground);border-radius:var(--radius);opacity:.45">Annuler</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--danger-foreground);background:var(--danger);border-radius:var(--radius);opacity:.45">Supprimer</span>
+            <span style="display:inline-flex;align-items:center;height:28px;font:500 var(--text-base)/1 var(--font-sans);color:var(--primary);opacity:.45">Tout voir</span>
+          </div>
+
+          <div style="display:grid;grid-template-columns:110px repeat(6,1fr);gap:10px;align-items:center;padding:10px 14px">
+            <span style="font-size:var(--text-xs);color:var(--muted-foreground)">chargement</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--primary-foreground);background:var(--primary);border-radius:var(--radius);opacity:.8"><span style="width:11px;height:11px;border:1.5px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite"></span>Envoi…</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:28px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--secondary-foreground);background:var(--secondary);border-radius:var(--radius)"><span style="width:11px;height:11px;border:1.5px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;opacity:.6"></span>Calcul…</span>
+            <span style="grid-column:span 4;font-size:var(--text-xs);color:var(--muted-foreground)">Le libellé change, la largeur ne bouge pas ; le bouton reste focusable et annonce <code style="font-family:var(--font-mono);font-size:10px">aria-busy</code>.</span>
+          </div>
+        </div>
+        <div data-spec="1" style="display:flex;flex-direction:column;gap:12px;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md)">
+          <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Spécification</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:var(--text-base);line-height:var(--leading-base)">
+            <div><span style="color:var(--muted-foreground)">Tailles </span>sm 24 px · default 28 px · lg 32 px · icon 28×28 px.</div>
+            <div><span style="color:var(--muted-foreground)">Un seul </span><code style="font-family:var(--font-mono);font-size:11px">default</code> par écran — l'action de création. Tout le reste est <code style="font-family:var(--font-mono);font-size:11px">outline</code> ou <code style="font-family:var(--font-mono);font-size:11px">ghost</code>.</div>
+            <div><span style="color:var(--muted-foreground)">Icônes </span>Phosphor regular à 14 px, jamais seules sans <code style="font-family:var(--font-mono);font-size:11px">aria-label</code> + tooltip.</div>
+            <div><span style="color:var(--muted-foreground)">Raccourci </span>affiché à droite du libellé dans les menus, en <code style="font-family:var(--font-mono);font-size:11px">--text-xs</code> sur fond <code style="font-family:var(--font-mono);font-size:11px">--muted</code>.</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;padding-top:10px;border-top:1px solid var(--border)">
+            <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Boutons icône et groupes</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <button type="button" aria-label="Trier" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;color:var(--muted-foreground);background:transparent;border:1px solid transparent;border-radius:var(--radius);cursor:pointer" style-hover="color:var(--foreground);background:var(--accent)"><i class="ph ph-arrows-down-up" style="font-size:14px"></i></button>
+              <button type="button" aria-label="Colonnes" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;color:var(--muted-foreground);background:transparent;border:1px solid transparent;border-radius:var(--radius);cursor:pointer" style-hover="color:var(--foreground);background:var(--accent)"><i class="ph ph-columns" style="font-size:14px"></i></button>
+              <button type="button" aria-label="Plus d'actions" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;color:var(--muted-foreground);background:transparent;border:1px solid transparent;border-radius:var(--radius);cursor:pointer" style-hover="color:var(--foreground);background:var(--accent)"><i class="ph ph-dots-three" style="font-size:14px"></i></button>
+              <div style="display:flex;height:28px;border:1px solid var(--input);border-radius:var(--radius);overflow:hidden;background:var(--card)">
+                <span style="display:inline-flex;align-items:center;gap:5px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--foreground);background:var(--muted);border-right:1px solid var(--border)"><i class="ph ph-list" style="font-size:12px"></i>Liste</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);border-right:1px solid var(--border)"><i class="ph ph-kanban" style="font-size:12px"></i>Kanban</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground)"><i class="ph ph-calendar-blank" style="font-size:12px"></i>Cal.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================== FORMULAIRES =========================== -->
+    <section style="display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:baseline;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+        <span style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">04</span>
+        <h2 style="margin:0;font-size:var(--text-lg);line-height:var(--leading-lg);font-weight:600">Champs et formulaires</h2>
+        <span style="font-size:var(--text-xs);color:var(--muted-foreground)">Input · Select · Calendar · Popover · Command · Dialog · Sheet</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:18px">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md)">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:var(--text-sm);line-height:var(--leading-sm);font-weight:500;color:var(--foreground)">Titre de l'opportunité</label>
+              <input type="text" value="Refonte Payroll 2027" style="height:28px;padding:0 8px;font:400 var(--text-base)/1 var(--font-sans);color:var(--foreground);background:var(--card);border:1px solid var(--input);border-radius:var(--radius);outline:none;width:100%" style-focus="border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in srgb, var(--ring) 22%, transparent)">
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">repos → focus</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:var(--text-sm);line-height:var(--leading-sm);font-weight:500;color:var(--foreground)">TJM cible</label>
+              <div style="display:flex;align-items:center;height:28px;border:1px solid var(--input);border-radius:var(--radius);background:var(--card);overflow:hidden">
+                <input type="text" value="850,00" style="flex:1;height:100%;padding:0 8px;font:400 var(--text-base)/1 var(--font-sans);color:var(--foreground);background:transparent;border:none;outline:none;text-align:right;font-variant-numeric:tabular-nums">
+                <span style="display:inline-flex;align-items:center;height:100%;padding:0 8px;font-size:var(--text-base);color:var(--muted-foreground);background:var(--muted);border-left:1px solid var(--border)">€</span>
+              </div>
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">montant : aligné à droite, tabulaire</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:var(--text-sm);line-height:var(--leading-sm);font-weight:500;color:var(--foreground)">Clôture prévue</label>
+              <button type="button" style="display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;font:400 var(--text-base)/1 var(--font-sans);color:var(--foreground);background:var(--card);border:1px solid var(--input);border-radius:var(--radius);cursor:pointer;text-align:left" style-hover="border-color:var(--border-strong)"><i class="ph ph-calendar-blank" style="font-size:13px;color:var(--muted-foreground)"></i><span style="font-variant-numeric:tabular-nums">30 sept. 2026</span></button>
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">ouvre un Calendar en Popover</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:var(--text-sm);line-height:var(--leading-sm);font-weight:500;color:var(--foreground)">Client <span style="color:var(--muted-foreground);font-weight:400">— objet lié</span></label>
+              <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;background:var(--card);border:1px solid var(--input);border-radius:var(--radius)">
+                <span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;font:600 9px var(--font-sans);color:var(--primary-subtle-foreground);background:var(--primary-subtle);border-radius:var(--radius-sm)">BS</span>
+                <span style="font-size:var(--text-base);color:var(--foreground)">Banque Solveige</span>
+                <div style="flex:1"></div>
+                <i class="ph ph-magnifying-glass" style="font-size:12px;color:var(--muted-foreground)"></i>
+              </div>
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">recherche dans un Command inline</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:var(--text-sm);line-height:var(--leading-sm);font-weight:500;color:var(--foreground)">Modules Workday</label>
+              <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-height:28px;padding:3px 6px;background:var(--card);border:1px solid var(--input);border-radius:var(--radius)">
+                <span style="display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 5px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--primary-subtle-foreground);background:var(--primary-subtle);border-radius:var(--radius-sm)">Payroll<i class="ph ph-x" style="font-size:9px"></i></span>
+                <span style="display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 5px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--primary-subtle-foreground);background:var(--primary-subtle);border-radius:var(--radius-sm)">Absence<i class="ph ph-x" style="font-size:9px"></i></span>
+                <span style="font-size:var(--text-base);color:var(--muted-foreground)">+ ajouter</span>
+              </div>
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">choix multiple, saisie au clavier</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:var(--text-sm);line-height:var(--leading-sm);font-weight:500;color:var(--foreground)">Étape</label>
+              <button type="button" style="display:flex;align-items:center;justify-content:space-between;height:28px;padding:0 8px;font:400 var(--text-base)/1 var(--font-sans);color:var(--foreground);background:var(--card);border:1px solid var(--input);border-radius:var(--radius);cursor:pointer">Proposition envoyée<i class="ph ph-caret-up-down" style="font-size:12px;color:var(--muted-foreground)"></i></button>
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">Select — 7 étapes du pipeline</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:var(--text-sm);line-height:var(--leading-sm);font-weight:500;color:var(--danger)">SIREN <span style="font-weight:400">— erreur</span></label>
+              <input type="text" value="812 445 09" style="height:28px;padding:0 8px;font:400 var(--text-base)/1 var(--font-sans);color:var(--foreground);background:var(--card);border:1px solid var(--danger);border-radius:var(--radius);outline:none;box-shadow:0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent);font-variant-numeric:tabular-nums;width:100%">
+              <span style="display:flex;align-items:center;gap:4px;font-size:var(--text-xs);color:var(--danger)"><i class="ph ph-warning-circle" style="font-size:11px"></i>9 chiffres attendus</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:var(--text-sm);line-height:var(--leading-sm);font-weight:500;color:var(--muted-foreground)">Responsable <span style="font-weight:400">— désactivé</span></label>
+              <div style="display:flex;align-items:center;height:28px;padding:0 8px;font-size:var(--text-base);color:var(--muted-foreground);background:var(--muted);border:1px solid var(--border);border-radius:var(--radius);opacity:.65">Julien Marest</div>
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">non modifiable par un membre</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:var(--text-sm);line-height:var(--leading-sm);font-weight:500;color:var(--foreground)">Pièce jointe</label>
+              <div style="display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;background:var(--subtle);border:1px dashed var(--border-strong);border-radius:var(--radius)">
+                <i class="ph ph-paperclip" style="font-size:12px;color:var(--muted-foreground)"></i>
+                <span style="font-size:var(--text-base);color:var(--muted-foreground)">Déposer un PDF</span>
+              </div>
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">contrat, CV, justificatif de CRA</span>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Création rapide — Dialog · ⌘⇧N</div>
+              <div style="background:var(--popover);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden">
+                <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)">
+                  <span style="font-size:var(--text-md);font-weight:600">Nouvelle opportunité</span>
+                  <div style="flex:1"></div>
+                  <i class="ph ph-x" style="font-size:13px;color:var(--muted-foreground)"></i>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:10px;padding:14px">
+                  <input type="text" placeholder="Titre" style="height:28px;padding:0 8px;font:400 var(--text-base)/1 var(--font-sans);color:var(--foreground);background:var(--card);border:1px solid var(--input);border-radius:var(--radius);outline:none">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                    <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;font-size:var(--text-base);color:var(--muted-foreground);border:1px solid var(--input);border-radius:var(--radius)"><i class="ph ph-buildings" style="font-size:12px"></i>Client</div>
+                    <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;font-size:var(--text-base);color:var(--muted-foreground);border:1px solid var(--input);border-radius:var(--radius)"><i class="ph ph-currency-eur" style="font-size:12px"></i>TJM cible</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--subtle);border-top:1px solid var(--border)">
+                  <span style="font-size:var(--text-xs);color:var(--muted-foreground)">Échap pour fermer · ⌘↵ pour créer</span>
+                  <div style="flex:1"></div>
+                  <span style="display:inline-flex;align-items:center;height:26px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--muted-foreground)">Annuler</span>
+                  <span style="display:inline-flex;align-items:center;height:26px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--primary-foreground);background:var(--primary);border-radius:var(--radius)">Créer</span>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Édition longue — Sheet, 420 px</div>
+              <div style="display:flex;height:100%;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;background:var(--background)">
+                <div style="flex:1;background:var(--muted);opacity:.5"></div>
+                <div style="width:66%;background:var(--card);border-left:1px solid var(--border);box-shadow:var(--shadow-md);display:flex;flex-direction:column">
+                  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)"><i class="ph ph-arrow-line-right" style="font-size:13px;color:var(--muted-foreground)"></i><span style="font-size:var(--text-md);font-weight:600">Mission — édition</span></div>
+                  <div style="display:flex;flex-direction:column;gap:8px;padding:12px">
+                    <div style="display:flex;justify-content:space-between;font-size:var(--text-base)"><span style="color:var(--muted-foreground)">Consultant</span><span>Naïma Oulhadj</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:var(--text-base)"><span style="color:var(--muted-foreground)">TJM vente</span><span style="font-variant-numeric:tabular-nums">920,00 €</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:var(--text-base)"><span style="color:var(--muted-foreground)">Coût jour</span><span style="font-variant-numeric:tabular-nums">640,00 €</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:var(--text-base)"><span style="color:var(--muted-foreground)">Marge</span><span style="font-variant-numeric:tabular-nums;color:var(--success);font-weight:600">30,4 %</span></div>
+                  </div>
+                  <div style="flex:1"></div>
+                  <div style="display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--border)"><span style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:26px;font:500 var(--text-base)/1 var(--font-sans);color:var(--primary-foreground);background:var(--primary);border-radius:var(--radius)">Enregistrer</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div data-spec="1" style="display:flex;flex-direction:column;gap:12px;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md)">
+          <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Spécification</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:var(--text-base);line-height:var(--leading-base)">
+            <div><span style="color:var(--muted-foreground)">États </span>repos · survol (bordure <code style="font-family:var(--font-mono);font-size:11px">--border-strong</code>) · focus (bordure <code style="font-family:var(--font-mono);font-size:11px">--ring</code> + halo 3 px) · erreur (bordure <code style="font-family:var(--font-mono);font-size:11px">--danger</code> + message) · désactivé (fond <code style="font-family:var(--font-mono);font-size:11px">--muted</code>, 65 %) · lecture seule (sans bordure).</div>
+            <div><span style="color:var(--muted-foreground)">Libellé </span>toujours au-dessus, 12 px / 500. Aide et erreur sous le champ, 11 px, jamais en tooltip seul.</div>
+            <div><span style="color:var(--muted-foreground)">Modale </span>pour créer (5 champs maximum, ⌘⇧N). <span style="color:var(--muted-foreground)">Sheet</span> pour éditer en long (420 px, la liste reste visible derrière).</div>
+            <div><span style="color:var(--muted-foreground)">Clavier </span>Tab avance, ⌘↵ valide, Échap ferme et demande confirmation si le formulaire est sale.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= SIGNALEMENT / STATUTS ===================== -->
+    <section style="display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:baseline;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+        <span style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">05</span>
+        <h2 style="margin:0;font-size:var(--text-lg);line-height:var(--leading-lg);font-weight:600">Signalement</h2>
+        <span style="font-size:var(--text-xs);color:var(--muted-foreground)">Badge · bannière · Toast · état vide · squelette</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:18px">
+          <div style="padding:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);display:flex;flex-direction:column;gap:12px">
+            <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Badges — une teinte par famille de statut</div>
+            <div style="display:grid;grid-template-columns:120px 1fr;gap:10px 14px;align-items:center">
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">neutre — inerte</span>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);background:var(--neutral-subtle);border:1px solid var(--neutral-border);border-radius:var(--radius-full)"><span style="width:5px;height:5px;border:1px solid currentColor;border-radius:50%"></span>Brouillon</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);background:var(--neutral-subtle);border:1px solid var(--neutral-border);border-radius:var(--radius-full)"><span style="width:5px;height:5px;border:1px solid currentColor;border-radius:50%"></span>Terminée</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);background:var(--neutral-subtle);border:1px solid var(--neutral-border);border-radius:var(--radius-full)"><span style="width:5px;height:5px;border:1px solid currentColor;border-radius:50%"></span>Écarté</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);background:var(--neutral-subtle);border:1px solid var(--neutral-border);border-radius:var(--radius-full)"><span style="width:5px;height:5px;border:1px solid currentColor;border-radius:50%"></span>Indisponible</span>
+              </div>
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">information — en cours</span>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--info);background:var(--info-subtle);border:1px solid var(--info-border);border-radius:var(--radius-full)"><span style="width:5px;height:5px;background:currentColor;border-radius:50%"></span>En cours</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--info);background:var(--info-subtle);border:1px solid var(--info-border);border-radius:var(--radius-full)"><span style="width:5px;height:5px;background:currentColor;border-radius:50%"></span>Envoyée</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--info);background:var(--info-subtle);border:1px solid var(--info-border);border-radius:var(--radius-full)"><span style="width:5px;height:5px;background:currentColor;border-radius:50%"></span>Reçu</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--info);background:var(--info-subtle);border:1px solid var(--info-border);border-radius:var(--radius-full)"><span style="width:5px;height:5px;background:currentColor;border-radius:50%"></span>Qualifié</span>
+              </div>
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">succès — abouti</span>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--success);background:var(--success-subtle);border:1px solid var(--success-border);border-radius:var(--radius-full)"><i class="ph ph-check" style="font-size:9px"></i>Gagnée</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--success);background:var(--success-subtle);border:1px solid var(--success-border);border-radius:var(--radius-full)"><i class="ph ph-check" style="font-size:9px"></i>Payée</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--success);background:var(--success-subtle);border:1px solid var(--success-border);border-radius:var(--radius-full)"><i class="ph ph-check" style="font-size:9px"></i>Signé</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--success);background:var(--success-subtle);border:1px solid var(--success-border);border-radius:var(--radius-full)"><i class="ph ph-check" style="font-size:9px"></i>Validé client</span>
+              </div>
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">avertissement — à traiter</span>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--warning);background:var(--warning-subtle);border:1px solid var(--warning-border);border-radius:var(--radius-full)"><i class="ph ph-clock" style="font-size:9px"></i>Attendu</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--warning);background:var(--warning-subtle);border:1px solid var(--warning-border);border-radius:var(--radius-full)"><i class="ph ph-clock" style="font-size:9px"></i>Renouvellement</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--warning);background:var(--warning-subtle);border:1px solid var(--warning-border);border-radius:var(--radius-full)"><i class="ph ph-clock" style="font-size:9px"></i>À démarrer</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--warning);background:var(--warning-subtle);border:1px solid var(--warning-border);border-radius:var(--radius-full)"><i class="ph ph-clock" style="font-size:9px"></i>Affaire qui dort</span>
+              </div>
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">danger — en défaut</span>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--danger);background:var(--danger-subtle);border:1px solid var(--danger-border);border-radius:var(--radius-full)"><i class="ph ph-warning" style="font-size:9px"></i>En retard</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--danger);background:var(--danger-subtle);border:1px solid var(--danger-border);border-radius:var(--radius-full)"><i class="ph ph-warning" style="font-size:9px"></i>Perdue</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--danger);background:var(--danger-subtle);border:1px solid var(--danger-border);border-radius:var(--radius-full)"><i class="ph ph-warning" style="font-size:9px"></i>Expiré</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--danger);background:var(--danger-subtle);border:1px solid var(--danger-border);border-radius:var(--radius-full)"><i class="ph ph-warning" style="font-size:9px"></i>Salarié sans mission</span>
+              </div>
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">variantes de forme</span>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+                <span style="display:inline-flex;align-items:center;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--primary-foreground);background:var(--primary);border-radius:var(--radius-full)">solid</span>
+                <span style="display:inline-flex;align-items:center;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--foreground);border:1px solid var(--input);border-radius:var(--radius-full)">outline</span>
+                <span style="display:inline-flex;align-items:center;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);background:var(--muted);border-radius:var(--radius-sm)">carré — compteur</span>
+                <span style="display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;font:600 10px var(--font-sans);color:var(--danger-foreground);background:var(--danger);border-radius:var(--radius-full);font-variant-numeric:tabular-nums">3</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Bannières de fiche — discrètes, une seule à la fois</div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--danger-subtle);border:1px solid var(--danger-border);border-left:3px solid var(--danger);border-radius:var(--radius)">
+              <i class="ph-fill ph-warning-circle" style="font-size:15px;color:var(--danger)"></i>
+              <span style="font-size:var(--text-base);line-height:var(--leading-base);color:var(--foreground)"><strong style="font-weight:600">Facture FA-2026-0184 échue depuis 12 jours.</strong> Deux relances envoyées, la dernière le <span style="font-variant-numeric:tabular-nums">28 août 2026</span>.</span>
+              <div style="flex:1"></div>
+              <span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--danger);border:1px solid var(--danger-border);border-radius:var(--radius);background:var(--card)">Relancer</span>
+              <i class="ph ph-x" style="font-size:12px;color:var(--muted-foreground)"></i>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--warning-subtle);border:1px solid var(--warning-border);border-left:3px solid var(--warning);border-radius:var(--radius)">
+              <i class="ph-fill ph-clock-countdown" style="font-size:15px;color:var(--warning)"></i>
+              <span style="font-size:var(--text-base);line-height:var(--leading-base);color:var(--foreground)"><strong style="font-weight:600">Mission terminée dans 38 jours.</strong> Le renouvellement n'a pas encore été proposé au client.</span>
+              <div style="flex:1"></div>
+              <span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--warning);border:1px solid var(--warning-border);border-radius:var(--radius);background:var(--card)">Créer la tâche</span>
+              <i class="ph ph-x" style="font-size:12px;color:var(--muted-foreground)"></i>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--info-subtle);border:1px solid var(--info-border);border-left:3px solid var(--info);border-radius:var(--radius)">
+              <i class="ph-fill ph-info" style="font-size:15px;color:var(--info)"></i>
+              <span style="font-size:var(--text-base);line-height:var(--leading-base);color:var(--foreground)">Contrat de sous-traitance en attente de signature depuis <span style="font-variant-numeric:tabular-nums">6 jours</span>.</span>
+              <div style="flex:1"></div>
+              <span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--info);border:1px solid var(--info-border);border-radius:var(--radius);background:var(--card)">Voir le contrat</span>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Toasts — bas droite, 4 s</div>
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--popover);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md)">
+                <i class="ph-fill ph-check-circle" style="font-size:15px;color:var(--success)"></i>
+                <div style="display:flex;flex-direction:column;gap:1px"><span style="font-size:var(--text-base);font-weight:500">Relance envoyée</span><span style="font-size:var(--text-xs);color:var(--muted-foreground)">à c.perrin@banque-solveige.fr</span></div>
+                <div style="flex:1"></div>
+                <span style="font-size:var(--text-xs);color:var(--primary);font-weight:500">Annuler</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--popover);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md)">
+                <i class="ph-fill ph-x-circle" style="font-size:15px;color:var(--danger)"></i>
+                <div style="display:flex;flex-direction:column;gap:1px"><span style="font-size:var(--text-base);font-weight:500">Envoi impossible</span><span style="font-size:var(--text-xs);color:var(--muted-foreground)">adresse de facturation manquante</span></div>
+                <div style="flex:1"></div>
+                <span style="font-size:var(--text-xs);color:var(--primary);font-weight:500">Corriger</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--popover);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md)">
+                <span style="width:13px;height:13px;border:1.5px solid var(--muted-foreground);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite"></span>
+                <span style="font-size:var(--text-base);font-weight:500">Génération du PDF Factur-X…</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">État vide · squelette</div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:24px 16px;background:var(--card);border:1px dashed var(--border-strong);border-radius:var(--radius-md);text-align:center">
+                <i class="ph ph-tray" style="font-size:22px;color:var(--muted-foreground)"></i>
+                <span style="font-size:var(--text-md);font-weight:500">Aucune opportunité dans cette vue</span>
+                <span style="font-size:var(--text-base);color:var(--muted-foreground);max-width:280px;text-wrap:pretty">Les filtres « en négociation » et « clôture ce mois » ne renvoient rien.</span>
+                <div style="display:flex;gap:6px;margin-top:4px">
+                  <span style="display:inline-flex;align-items:center;height:26px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--primary-foreground);background:var(--primary);border-radius:var(--radius)">Nouvelle opportunité</span>
+                  <span style="display:inline-flex;align-items:center;height:26px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--foreground);border:1px solid var(--input);border-radius:var(--radius)">Effacer les filtres</span>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden">
+                <div style="display:flex;align-items:center;gap:12px;height:32px;padding:0 12px;border-bottom:1px solid var(--border);animation:shimmer 1.4s ease-in-out infinite"><span style="width:14px;height:14px;background:var(--muted);border-radius:var(--radius-sm)"></span><span style="width:130px;height:9px;background:var(--muted);border-radius:var(--radius-full)"></span><div style="flex:1"></div><span style="width:64px;height:9px;background:var(--muted);border-radius:var(--radius-full)"></span></div>
+                <div style="display:flex;align-items:center;gap:12px;height:32px;padding:0 12px;border-bottom:1px solid var(--border);animation:shimmer 1.4s ease-in-out .15s infinite"><span style="width:14px;height:14px;background:var(--muted);border-radius:var(--radius-sm)"></span><span style="width:98px;height:9px;background:var(--muted);border-radius:var(--radius-full)"></span><div style="flex:1"></div><span style="width:64px;height:9px;background:var(--muted);border-radius:var(--radius-full)"></span></div>
+                <div style="display:flex;align-items:center;gap:12px;height:32px;padding:0 12px;animation:shimmer 1.4s ease-in-out .3s infinite"><span style="width:14px;height:14px;background:var(--muted);border-radius:var(--radius-sm)"></span><span style="width:150px;height:9px;background:var(--muted);border-radius:var(--radius-full)"></span><div style="flex:1"></div><span style="width:64px;height:9px;background:var(--muted);border-radius:var(--radius-full)"></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div data-spec="1" style="display:flex;flex-direction:column;gap:12px;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md)">
+          <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Spécification</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:var(--text-base);line-height:var(--leading-base)">
+            <div><span style="color:var(--muted-foreground)">Cinq familles, pas trente valeurs. </span>Un statut nouveau se range dans une famille existante : inerte, en cours, abouti, à traiter, en défaut.</div>
+            <div><span style="color:var(--muted-foreground)">Badge </span>20 px, 11 px / 500, point ou icône à gauche. Le point est plein en cours, creux si inerte ; l'icône remplace le point pour les familles fortes.</div>
+            <div><span style="color:var(--muted-foreground)">Bannière </span>en haut du contenu de la fiche, au-dessus des onglets. Bordure gauche 3 px, fond discret, une action, fermeture possible. Deux alertes → on empile, et on n'en montre que la plus grave plus un compteur.</div>
+            <div><span style="color:var(--muted-foreground)">Toast </span>succès 4 s, erreur persistante jusqu'à action. Toujours une action de retour quand l'opération est réversible.</div>
+            <div><span style="color:var(--muted-foreground)">Squelette </span>même hauteur de ligne que le contenu réel (32 px) pour que rien ne saute. Pulsation d'opacité, pas de dégradé qui glisse.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================== LISTE DENSE =========================== -->
+    <section style="display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:baseline;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+        <span style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">06</span>
+        <h2 style="margin:0;font-size:var(--text-lg);line-height:var(--leading-lg);font-weight:600">Liste dense — anatomie d'une ligne</h2>
+        <span style="font-size:var(--text-xs);color:var(--muted-foreground)">Table · édition en place · sélection · puces de filtres</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+            <span style="display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--primary-subtle-foreground);background:var(--primary-subtle);border:1px solid var(--primary);border-radius:var(--radius)">Étape <span style="color:var(--muted-foreground);font-weight:400">est</span> Négociation<i class="ph ph-x" style="font-size:10px"></i></span>
+            <span style="display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--foreground);background:var(--card);border:1px solid var(--input);border-radius:var(--radius)">TJM <span style="color:var(--muted-foreground);font-weight:400">≥</span> <span style="font-variant-numeric:tabular-nums">800,00 €</span><i class="ph ph-x" style="font-size:10px"></i></span>
+            <span style="display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);background:transparent;border:1px dashed var(--border-strong);border-radius:var(--radius)"><i class="ph ph-plus" style="font-size:10px"></i>Filtre</span>
+            <span style="width:1px;height:18px;background:var(--border);margin:0 2px"></span>
+            <span style="display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground)"><i class="ph ph-floppy-disk" style="font-size:11px"></i>Enregistrer la vue</span>
+          </div>
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden">
+            <div style="display:grid;grid-template-columns:28px 1fr 150px 110px 96px 88px 92px 28px;align-items:center;height:28px;padding:0 8px;background:var(--subtle);border-bottom:1px solid var(--border);font:600 var(--text-sm)/1 var(--font-sans);color:var(--muted-foreground)">
+              <span style="display:inline-flex;align-items:center;justify-content:center"><span style="width:12px;height:12px;border:1px solid var(--border-strong);border-radius:3px"></span></span>
+              <span style="display:flex;align-items:center;gap:4px;padding:0 6px;color:var(--foreground)">Opportunité<i class="ph ph-arrow-down" style="font-size:10px;color:var(--primary)"></i></span>
+              <span style="padding:0 6px">Client</span>
+              <span style="padding:0 6px">Étape</span>
+              <span style="padding:0 6px;text-align:right">TJM</span>
+              <span style="padding:0 6px;text-align:right">Proba.</span>
+              <span style="padding:0 6px;text-align:right">Clôture</span>
+              <span></span>
+            </div>
+            <div style="display:grid;grid-template-columns:28px 1fr 150px 110px 96px 88px 92px 28px;align-items:center;height:32px;padding:0 8px;border-bottom:1px solid var(--border);font-size:var(--text-base)">
+              <span style="display:inline-flex;align-items:center;justify-content:center"><span style="width:12px;height:12px;border:1px solid var(--border-strong);border-radius:3px"></span></span>
+              <span style="padding:0 6px;font-weight:500">Refonte Payroll 2027</span>
+              <span style="padding:0 6px;color:var(--muted-foreground)">Banque Solveige</span>
+              <span style="padding:0 6px"><span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--info);background:var(--info-subtle);border:1px solid var(--info-border);border-radius:var(--radius-full)"><span style="width:5px;height:5px;background:currentColor;border-radius:50%"></span>Négociation</span></span>
+              <span style="padding:0 6px;text-align:right;font-variant-numeric:tabular-nums">920,00 €</span>
+              <span style="padding:0 6px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted-foreground)">70 %</span>
+              <span style="padding:0 6px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted-foreground)">30 sept. 2026</span>
+              <span style="display:inline-flex;align-items:center;justify-content:center;color:var(--muted-foreground);opacity:0"><i class="ph ph-dots-three" style="font-size:13px"></i></span>
+            </div>
+            <div style="display:grid;grid-template-columns:28px 1fr 150px 110px 96px 88px 92px 28px;align-items:center;height:32px;padding:0 8px;border-bottom:1px solid var(--border);font-size:var(--text-base);background:var(--accent)">
+              <span style="display:inline-flex;align-items:center;justify-content:center"><span style="width:12px;height:12px;border:1px solid var(--border-strong);border-radius:3px"></span></span>
+              <span style="padding:0 6px;font-weight:500">Intégration SIRH — vague 2</span>
+              <span style="padding:0 6px;color:var(--muted-foreground)">Assurances Vaubourg</span>
+              <span style="padding:0 6px"><span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--info);background:var(--info-subtle);border:1px solid var(--info-border);border-radius:var(--radius-full)"><span style="width:5px;height:5px;background:currentColor;border-radius:50%"></span>Entretien</span></span>
+              <span style="padding:0 6px;text-align:right;font-variant-numeric:tabular-nums">780,00 €</span>
+              <span style="padding:0 6px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted-foreground)">50 %</span>
+              <span style="padding:0 6px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted-foreground)">15 oct. 2026</span>
+              <span style="display:inline-flex;align-items:center;justify-content:center;color:var(--muted-foreground)"><i class="ph ph-dots-three" style="font-size:13px"></i></span>
+            </div>
+            <div style="display:grid;grid-template-columns:28px 1fr 150px 110px 96px 88px 92px 28px;align-items:center;height:32px;padding:0 8px;border-bottom:1px solid var(--border);font-size:var(--text-base);background:var(--primary-subtle);box-shadow:inset 2px 0 0 var(--primary)">
+              <span style="display:inline-flex;align-items:center;justify-content:center"><span style="display:inline-flex;align-items:center;justify-content:center;width:12px;height:12px;background:var(--primary);border:1px solid var(--primary);border-radius:3px;color:var(--primary-foreground)"><i class="ph-fill ph-check" style="font-size:8px"></i></span></span>
+              <span style="padding:0 6px;font-weight:500">Support Absence — renfort</span>
+              <span style="padding:0 6px;color:var(--muted-foreground)">Groupe Ferrandi</span>
+              <span style="padding:0 6px"><span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--warning);background:var(--warning-subtle);border:1px solid var(--warning-border);border-radius:var(--radius-full)"><i class="ph ph-clock" style="font-size:9px"></i>Qui dort</span></span>
+              <span style="padding:0 6px;text-align:right;font-variant-numeric:tabular-nums">640,00 €</span>
+              <span style="padding:0 6px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted-foreground)">20 %</span>
+              <span style="padding:0 6px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted-foreground)">28 nov. 2026</span>
+              <span style="display:inline-flex;align-items:center;justify-content:center;color:var(--muted-foreground)"><i class="ph ph-dots-three" style="font-size:13px"></i></span>
+            </div>
+            <div style="display:grid;grid-template-columns:28px 1fr 150px 110px 96px 88px 92px 28px;align-items:center;height:32px;padding:0 8px;border-bottom:1px solid var(--border);font-size:var(--text-base)">
+              <span style="display:inline-flex;align-items:center;justify-content:center"><span style="width:12px;height:12px;border:1px solid var(--border-strong);border-radius:3px"></span></span>
+              <span style="padding:0 6px;font-weight:500">Migration Compensation</span>
+              <span style="padding:0 6px;color:var(--muted-foreground)">Mutuelle Arvel</span>
+              <span style="padding:0 6px"><span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--info);background:var(--info-subtle);border:1px solid var(--info-border);border-radius:var(--radius-full)"><span style="width:5px;height:5px;background:currentColor;border-radius:50%"></span>Proposition</span></span>
+              <span style="padding:0 6px;display:flex;justify-content:flex-end"><span style="display:inline-flex;align-items:center;justify-content:flex-end;height:24px;width:100%;padding:0 5px;font-size:var(--text-base);font-variant-numeric:tabular-nums;background:var(--card);border:1px solid var(--ring);border-radius:var(--radius-sm);box-shadow:0 0 0 3px color-mix(in srgb, var(--ring) 22%, transparent)">870,00<span style="width:1px;height:13px;background:var(--foreground);margin-left:1px;animation:caret 1s steps(1) infinite"></span></span></span>
+              <span style="padding:0 6px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted-foreground)">60 %</span>
+              <span style="padding:0 6px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted-foreground)">10 oct. 2026</span>
+              <span style="display:inline-flex;align-items:center;justify-content:center;color:var(--muted-foreground);opacity:0"><i class="ph ph-dots-three" style="font-size:13px"></i></span>
+            </div>
+            <div style="display:grid;grid-template-columns:28px 1fr 150px 110px 96px 88px 92px 28px;align-items:center;height:32px;padding:0 8px;font-size:var(--text-base);opacity:.5">
+              <span style="display:inline-flex;align-items:center;justify-content:center"><span style="width:12px;height:12px;border:1px solid var(--border-strong);border-radius:3px"></span></span>
+              <span style="padding:0 6px;font-weight:500;text-decoration:line-through">Refonte Time Tracking</span>
+              <span style="padding:0 6px;color:var(--muted-foreground)">Transports Delmar</span>
+              <span style="padding:0 6px"><span style="display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--danger);background:var(--danger-subtle);border:1px solid var(--danger-border);border-radius:var(--radius-full)"><i class="ph ph-warning" style="font-size:9px"></i>Perdue</span></span>
+              <span style="padding:0 6px;text-align:right;font-variant-numeric:tabular-nums">—</span>
+              <span style="padding:0 6px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted-foreground)">0 %</span>
+              <span style="padding:0 6px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted-foreground)">22 août 2026</span>
+              <span></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;height:32px;padding:0 12px;background:var(--subtle);border-top:1px solid var(--border);font-size:var(--text-xs);color:var(--muted-foreground)">
+              <span><span style="color:var(--foreground);font-weight:500;font-variant-numeric:tabular-nums">1</span> sélectionnée</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;color:var(--foreground)"><i class="ph ph-user-switch" style="font-size:11px"></i>Réassigner</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;color:var(--foreground)"><i class="ph ph-arrow-right" style="font-size:11px"></i>Changer d'étape</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;color:var(--danger)"><i class="ph ph-trash" style="font-size:11px"></i>Supprimer</span>
+              <div style="flex:1"></div>
+              <span style="font-variant-numeric:tabular-nums">42 opportunités · <span style="color:var(--foreground)">1 284 000,00 €</span> pondéré</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:14px">
+            <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+              <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Menu d'en-tête de colonne</div>
+              <div style="width:220px;padding:4px;background:var(--popover);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md);display:flex;flex-direction:column;gap:1px">
+                <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);border-radius:var(--radius-sm);background:var(--accent)"><i class="ph ph-sort-ascending" style="font-size:13px;color:var(--muted-foreground)"></i>Trier croissant<div style="flex:1"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">⇧S</span></div>
+                <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);border-radius:var(--radius-sm)"><i class="ph ph-sort-descending" style="font-size:13px;color:var(--muted-foreground)"></i>Trier décroissant</div>
+                <div style="height:1px;background:var(--border);margin:3px 0"></div>
+                <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);border-radius:var(--radius-sm)"><i class="ph ph-funnel" style="font-size:13px;color:var(--muted-foreground)"></i>Filtrer sur cette colonne</div>
+                <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);border-radius:var(--radius-sm)"><i class="ph ph-arrows-left-right" style="font-size:13px;color:var(--muted-foreground)"></i>Déplacer</div>
+                <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);border-radius:var(--radius-sm)"><i class="ph ph-eye-slash" style="font-size:13px;color:var(--muted-foreground)"></i>Masquer<div style="flex:1"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">⇧H</span></div>
+              </div>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+              <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Carte kanban compacte</div>
+              <div style="width:260px;padding:8px 10px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-xs);display:flex;flex-direction:column;gap:6px">
+                <div style="display:flex;align-items:flex-start;gap:6px">
+                  <span style="font-size:var(--text-base);line-height:var(--leading-base);font-weight:500;text-wrap:pretty">Refonte Payroll 2027</span>
+                  <div style="flex:1"></div>
+                  <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;font:600 9px var(--font-sans);color:var(--primary-subtle-foreground);background:var(--primary-subtle);border-radius:50%">JM</span>
+                </div>
+                <span style="font-size:var(--text-xs);color:var(--muted-foreground)">Banque Solveige · Payroll</span>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <span style="font-size:var(--text-base);font-weight:600;font-variant-numeric:tabular-nums">920,00 €</span>
+                  <span style="font-size:var(--text-xs);color:var(--muted-foreground);font-variant-numeric:tabular-nums">· 70 % · 30 sept.</span>
+                  <div style="flex:1"></div>
+                  <span style="display:inline-flex;align-items:center;gap:3px;font-size:var(--text-xs);color:var(--muted-foreground)"><i class="ph ph-chat-circle" style="font-size:11px"></i>4</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div data-spec="1" style="display:flex;flex-direction:column;gap:12px;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md)">
+          <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Spécification</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:var(--text-base);line-height:var(--leading-base)">
+            <div><span style="color:var(--muted-foreground)">Ligne </span>32 px, bordure basse 1 px, pas de zébrage. Survol → <code style="font-family:var(--font-mono);font-size:11px">--accent</code> et apparition du menu <i class="ph ph-dots-three" style="font-size:11px"></i>. Sélection → <code style="font-family:var(--font-mono);font-size:11px">--primary-subtle</code> + filet gauche 2 px.</div>
+            <div><span style="color:var(--muted-foreground)">Édition en place </span>double-clic ou ↵ sur la cellule ; Tab passe à la cellule suivante et enregistre ; Échap annule ; l'erreur de validation garde la cellule ouverte et affiche le message en tooltip.</div>
+            <div><span style="color:var(--muted-foreground)">Colonnes </span>tri au clic sur l'en-tête (flèche accent), réordonnables par glissé, masquables depuis le menu. La première colonne est figée au défilement horizontal.</div>
+            <div><span style="color:var(--muted-foreground)">Sélection </span>case par ligne, ⇧-clic pour une plage, ⌘A pour tout. La barre d'actions groupées remplace le pied de tableau.</div>
+            <div><span style="color:var(--muted-foreground)">Pied </span>compteur d'objets + total en euros de la vue courante. Défilement continu ; pagination seulement au-delà de 500 lignes.</div>
+            <div><span style="color:var(--muted-foreground)">Puce de filtre </span>champ + opérateur + valeur, en 24 px. Active = bordure accent. La combinaison filtres + tri + type de vue s'enregistre comme vue épinglée.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== COQUE ============================== -->
+    <section style="display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:baseline;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+        <span style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">07</span>
+        <h2 style="margin:0;font-size:var(--text-lg);line-height:var(--leading-lg);font-weight:600">Coque et palette de commandes</h2>
+        <span style="font-size:var(--text-xs);color:var(--muted-foreground)">Sidebar 224 / 48 px · barre 40 px · Command ⌘K</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start">
+        <div style="display:flex;gap:14px;align-items:flex-start">
+          <div style="width:224px;flex:none;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:8px;height:40px;padding:0 10px;border-bottom:1px solid var(--border)">
+              <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;background:var(--primary);border-radius:var(--radius-sm);color:var(--primary-foreground);font:600 10px var(--font-sans)">CW</span>
+              <span style="font-size:var(--text-base);font-weight:600">Cabinet Wandel</span>
+              <div style="flex:1"></div>
+              <i class="ph ph-caret-up-down" style="font-size:11px;color:var(--muted-foreground)"></i>
+            </div>
+            <div style="padding:8px">
+              <div style="display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;background:var(--muted);border:1px solid var(--border);border-radius:var(--radius);font-size:var(--text-base);color:var(--muted-foreground)"><i class="ph ph-magnifying-glass" style="font-size:12px"></i>Rechercher<div style="flex:1"></div><span style="font-family:var(--font-mono);font-size:10px;padding:1px 4px;background:var(--card);border:1px solid var(--border);border-radius:3px">⌘K</span></div>
+            </div>
+            <div style="padding:0 8px 8px;display:flex;flex-direction:column;gap:1px">
+              <div style="padding:6px 8px 3px;font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Objets</div>
+              <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);color:var(--foreground);border-radius:var(--radius-sm)"><i class="ph ph-gauge" style="font-size:14px;color:var(--muted-foreground)"></i>Tableau de bord</div>
+              <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);color:var(--primary-subtle-foreground);background:var(--primary-subtle);border-radius:var(--radius-sm);font-weight:500"><i class="ph-fill ph-target" style="font-size:14px"></i>Opportunités<div style="flex:1"></div><span style="font-size:var(--text-xs);font-variant-numeric:tabular-nums">42</span></div>
+              <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);color:var(--foreground);border-radius:var(--radius-sm);background:var(--accent)"><i class="ph ph-buildings" style="font-size:14px;color:var(--muted-foreground)"></i>Entreprises<div style="flex:1"></div><span style="font-size:var(--text-xs);color:var(--muted-foreground);font-variant-numeric:tabular-nums">87</span></div>
+              <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);color:var(--foreground);border-radius:var(--radius-sm)"><i class="ph ph-address-book" style="font-size:14px;color:var(--muted-foreground)"></i>Contacts</div>
+              <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);color:var(--foreground);border-radius:var(--radius-sm)"><i class="ph ph-identification-badge" style="font-size:14px;color:var(--muted-foreground)"></i>Consultants</div>
+              <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);color:var(--foreground);border-radius:var(--radius-sm)"><i class="ph ph-briefcase" style="font-size:14px;color:var(--muted-foreground)"></i>Missions</div>
+              <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);color:var(--foreground);border-radius:var(--radius-sm)"><i class="ph ph-receipt" style="font-size:14px;color:var(--muted-foreground)"></i>Factures<div style="flex:1"></div><span style="display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;padding:0 4px;font:600 9px var(--font-sans);color:var(--danger-foreground);background:var(--danger);border-radius:var(--radius-full);font-variant-numeric:tabular-nums">3</span></div>
+              <div style="padding:10px 8px 3px;font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Vues épinglées</div>
+              <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);color:var(--foreground);border-radius:var(--radius-sm)"><span style="width:6px;height:6px;background:var(--chart-2);border-radius:50%"></span>Mon pipeline</div>
+              <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);color:var(--foreground);border-radius:var(--radius-sm)"><span style="width:6px;height:6px;background:var(--warning);border-radius:50%"></span>Affaires qui dorment</div>
+              <div style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;font-size:var(--text-base);color:var(--foreground);border-radius:var(--radius-sm)"><span style="width:6px;height:6px;background:var(--danger);border-radius:50%"></span>Factures en retard</div>
+            </div>
+            <div style="flex:1"></div>
+            <div style="display:flex;align-items:center;gap:8px;height:40px;padding:0 10px;border-top:1px solid var(--border)">
+              <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;font:600 10px var(--font-sans);color:var(--primary-subtle-foreground);background:var(--primary-subtle);border-radius:50%">JM</span>
+              <div style="display:flex;flex-direction:column;line-height:1.1"><span style="font-size:var(--text-sm);font-weight:500">Julien Marest</span><span style="font-size:var(--text-xs);color:var(--muted-foreground)">Administrateur</span></div>
+              <div style="flex:1"></div>
+              <i class="ph ph-moon" style="font-size:13px;color:var(--muted-foreground)"></i>
+            </div>
+          </div>
+          <div style="width:48px;flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md)">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;background:var(--primary);border-radius:var(--radius-sm);color:var(--primary-foreground);font:600 10px var(--font-sans);margin-bottom:8px">CW</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:26px;color:var(--muted-foreground)"><i class="ph ph-magnifying-glass" style="font-size:15px"></i></span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:26px;color:var(--muted-foreground)"><i class="ph ph-gauge" style="font-size:15px"></i></span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:26px;color:var(--primary-subtle-foreground);background:var(--primary-subtle);border-radius:var(--radius-sm)"><i class="ph-fill ph-target" style="font-size:15px"></i></span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:26px;color:var(--muted-foreground)"><i class="ph ph-buildings" style="font-size:15px"></i></span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:26px;color:var(--muted-foreground)"><i class="ph ph-identification-badge" style="font-size:15px"></i></span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:26px;color:var(--muted-foreground)"><i class="ph ph-briefcase" style="font-size:15px"></i></span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:26px;color:var(--muted-foreground)"><i class="ph ph-receipt" style="font-size:15px"></i></span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md)">
+              <i class="ph ph-sidebar-simple" style="font-size:14px;color:var(--muted-foreground)"></i>
+              <span style="font-size:var(--text-xs);color:var(--muted-foreground)">Opportunités</span>
+              <i class="ph ph-caret-right" style="font-size:10px;color:var(--muted-foreground)"></i>
+              <span style="font-size:var(--text-base);font-weight:500">Mon pipeline</span>
+              <div style="flex:1"></div>
+              <span style="display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground)"><i class="ph ph-bell" style="font-size:12px"></i>2</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--primary-foreground);background:var(--primary);border-radius:var(--radius)"><i class="ph ph-plus" style="font-size:11px"></i>Nouveau<span style="font-family:var(--font-mono);font-size:9px;opacity:.7">⌘⇧N</span></span>
+            </div>
+            <div style="background:var(--popover);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden">
+              <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)">
+                <i class="ph ph-magnifying-glass" style="font-size:14px;color:var(--muted-foreground)"></i>
+                <span style="font-size:var(--text-md);color:var(--foreground)">solvei<span style="display:inline-block;width:1px;height:14px;background:var(--foreground);vertical-align:-2px;animation:caret 1s steps(1) infinite"></span></span>
+                <div style="flex:1"></div>
+                <span style="font-family:var(--font-mono);font-size:10px;padding:1px 5px;color:var(--muted-foreground);background:var(--muted);border:1px solid var(--border);border-radius:3px">Échap</span>
+              </div>
+              <div style="padding:6px;display:flex;flex-direction:column;gap:1px">
+                <div style="padding:5px 8px 3px;font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Résultats</div>
+                <div style="display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;font-size:var(--text-base);background:var(--accent);border-radius:var(--radius-sm)"><i class="ph ph-buildings" style="font-size:14px;color:var(--muted-foreground)"></i><span style="font-weight:500">Banque Solveige</span><span style="color:var(--muted-foreground)">— client, 4 missions</span><div style="flex:1"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">↵</span></div>
+                <div style="display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;font-size:var(--text-base);border-radius:var(--radius-sm)"><i class="ph ph-target" style="font-size:14px;color:var(--muted-foreground)"></i>Refonte Payroll 2027<span style="color:var(--muted-foreground)">— opportunité, Négociation</span></div>
+                <div style="display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;font-size:var(--text-base);border-radius:var(--radius-sm)"><i class="ph ph-receipt" style="font-size:14px;color:var(--muted-foreground)"></i>FA-2026-0184<span style="color:var(--muted-foreground)">— facture, <span style="color:var(--danger)">en retard</span></span></div>
+                <div style="height:1px;background:var(--border);margin:4px 0"></div>
+                <div style="padding:5px 8px 3px;font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Actions</div>
+                <div style="display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;font-size:var(--text-base);border-radius:var(--radius-sm)"><i class="ph ph-plus-circle" style="font-size:14px;color:var(--muted-foreground)"></i>Créer une opportunité chez Banque Solveige<div style="flex:1"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">⌘⇧N</span></div>
+                <div style="display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;font-size:var(--text-base);border-radius:var(--radius-sm)"><i class="ph ph-moon" style="font-size:14px;color:var(--muted-foreground)"></i>Basculer le thème<div style="flex:1"></div><span style="font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground)">⌘⇧L</span></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:7px 12px;background:var(--subtle);border-top:1px solid var(--border);font-size:var(--text-xs);color:var(--muted-foreground)">
+                <span>↑↓ naviguer</span><span>↵ ouvrir</span><span>⌘↵ nouvel onglet</span><div style="flex:1"></div><span>18 résultats</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div data-spec="1" style="display:flex;flex-direction:column;gap:12px;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md)">
+          <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Spécification</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:var(--text-base);line-height:var(--leading-base)">
+            <div><span style="color:var(--muted-foreground)">Sidebar </span>224 px, repliée à 48 px (icônes + tooltip), <code style="font-family:var(--font-mono);font-size:11px">⌘\</code>. Trois groupes : objets, vues épinglées, compte. Item 26 px ; actif = fond <code style="font-family:var(--font-mono);font-size:11px">--primary-subtle</code> ; compteur à droite, rouge seulement pour ce qui est en défaut.</div>
+            <div><span style="color:var(--muted-foreground)">Barre supérieure </span>40 px : bascule de sidebar, fil d'Ariane objet → vue, notifications, action de création. Rien d'autre.</div>
+            <div><span style="color:var(--muted-foreground)">⌘K </span>560 px, deux sections : résultats (objets, tous types, préfixés de leur icône et qualifiés) puis actions. Première ligne présélectionnée, ↑↓ ↵, pied de page qui montre les touches.</div>
+            <div><span style="color:var(--muted-foreground)">Thème </span>bascule dans le pied de sidebar et dans ⌘K (<code style="font-family:var(--font-mono);font-size:11px">⌘⇧L</code>), suit le système par défaut.</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;padding-top:10px;border-top:1px solid var(--border)">
+            <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Raccourcis visibles</div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>Palette</span><span style="font-family:var(--font-mono);color:var(--foreground)">⌘K</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>Créer</span><span style="font-family:var(--font-mono);color:var(--foreground)">⌘⇧N</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>Replier la sidebar</span><span style="font-family:var(--font-mono);color:var(--foreground)">⌘\</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>Thème</span><span style="font-family:var(--font-mono);color:var(--foreground)">⌘⇧L</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>Vue liste / kanban</span><span style="font-family:var(--font-mono);color:var(--foreground)">G L · G K</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--muted-foreground)"><span>Note rapide sur la fiche</span><span style="font-family:var(--font-mono);color:var(--foreground)">N</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== FICHE, TIMELINE, CALENDRIER ================= -->
+    <section style="display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:baseline;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+        <span style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">08</span>
+        <h2 style="margin:0;font-size:var(--text-lg);line-height:var(--leading-lg);font-weight:600">Briques de fiche, de timeline et de calendrier</h2>
+        <span style="font-size:var(--text-xs);color:var(--muted-foreground)">assemblées en grand dans les écrans-types</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Item de fil d'activité — 5 types</div>
+            <div style="display:flex;flex-direction:column;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 12px;gap:10px">
+              <div style="display:flex;gap:8px"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;flex:none;background:var(--muted);border-radius:50%;color:var(--muted-foreground)"><i class="ph ph-note" style="font-size:11px"></i></span><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:var(--text-base);line-height:var(--leading-base)"><strong style="font-weight:600">Julien</strong> a laissé une note</span><span style="font-size:var(--text-base);line-height:var(--leading-base);color:var(--muted-foreground);text-wrap:pretty">Le client valide le renouvellement sur 6 mois, à confirmer par bon de commande.</span><span style="font-size:var(--text-xs);color:var(--muted-foreground);font-variant-numeric:tabular-nums">2 sept. 2026, 14:12</span></div></div>
+              <div style="display:flex;gap:8px"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;flex:none;background:var(--info-subtle);border-radius:50%;color:var(--info)"><i class="ph ph-envelope" style="font-size:11px"></i></span><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:var(--text-base);line-height:var(--leading-base)">Relance <span style="color:var(--muted-foreground)">envoyée à Camille Perrin</span></span><span style="font-size:var(--text-xs);color:var(--muted-foreground);font-variant-numeric:tabular-nums">28 août 2026, 09:00 · automatique</span></div></div>
+              <div style="display:flex;gap:8px"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;flex:none;background:var(--muted);border-radius:50%;color:var(--muted-foreground)"><i class="ph ph-phone" style="font-size:11px"></i></span><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:var(--text-base);line-height:var(--leading-base)">Appel <span style="color:var(--muted-foreground)">— 12 min</span></span><span style="font-size:var(--text-xs);color:var(--muted-foreground);font-variant-numeric:tabular-nums">26 août 2026, 16:40</span></div></div>
+              <div style="display:flex;gap:8px"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;flex:none;background:var(--warning-subtle);border-radius:50%;color:var(--warning)"><i class="ph ph-check-square" style="font-size:11px"></i></span><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:var(--text-base);line-height:var(--leading-base)">Tâche <span style="color:var(--muted-foreground)">— proposer le renouvellement</span></span><span style="font-size:var(--text-xs);color:var(--muted-foreground);font-variant-numeric:tabular-nums">échéance 12 sept. 2026 · Julien</span></div></div>
+              <div style="display:flex;gap:8px"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;flex:none;background:var(--muted);border-radius:50%;color:var(--muted-foreground)"><i class="ph ph-arrows-left-right" style="font-size:11px"></i></span><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:var(--text-base);line-height:var(--leading-base);color:var(--muted-foreground)">Étape <span style="color:var(--foreground)">Proposition</span> → <span style="color:var(--foreground)">Négociation</span></span><span style="font-size:var(--text-xs);color:var(--muted-foreground);font-variant-numeric:tabular-nums">21 août 2026, 11:05</span></div></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius)">
+              <span style="display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--primary-subtle-foreground);background:var(--primary-subtle);border-radius:var(--radius-full)">Tout</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);border-radius:var(--radius-full)">Notes</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);border-radius:var(--radius-full)">Emails</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);border-radius:var(--radius-full)">Appels</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);border-radius:var(--radius-full)">Tâches</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);border-radius:var(--radius-full)">Changements</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--card);border:1px solid var(--ring);border-radius:var(--radius);box-shadow:0 0 0 3px color-mix(in srgb, var(--ring) 20%, transparent)">
+              <span style="font-size:var(--text-base);color:var(--muted-foreground)">Écrire une note… <span style="font-family:var(--font-mono);font-size:10px">N</span></span>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--foreground);background:var(--muted);border-radius:var(--radius-sm)"><i class="ph ph-note" style="font-size:11px"></i>Note</span>
+                <span style="display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);border-radius:var(--radius-sm)"><i class="ph ph-check-square" style="font-size:11px"></i>Tâche</span>
+                <span style="display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground);border-radius:var(--radius-sm)"><i class="ph ph-paperclip" style="font-size:11px"></i></span>
+                <div style="flex:1"></div>
+                <span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--primary-foreground);background:var(--primary);border-radius:var(--radius-sm)">Enregistrer ⌘↵</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Barre de timeline · types d'événement</div>
+            <div style="display:flex;flex-direction:column;gap:8px;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md)">
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:110px;font-size:var(--text-base);color:var(--muted-foreground)">en cours</span><span style="flex:1;height:18px;background:var(--info-subtle);border:1px solid var(--info-border);border-left:3px solid var(--info);border-radius:var(--radius-sm);display:flex;align-items:center;padding:0 6px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--foreground)">Banque Solveige · Payroll</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:110px;font-size:var(--text-base);color:var(--muted-foreground)">à démarrer</span><span style="flex:1;height:18px;background:transparent;border:1px dashed var(--info-border);border-radius:var(--radius-sm);display:flex;align-items:center;padding:0 6px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground)">Mutuelle Arvel · 1er oct.</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:110px;font-size:var(--text-base);color:var(--muted-foreground)">renouvellement</span><span style="flex:1;height:18px;background:var(--warning-subtle);border:1px solid var(--warning-border);border-left:3px solid var(--warning);border-radius:var(--radius-sm);display:flex;align-items:center;gap:4px;padding:0 6px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--foreground)"><i class="ph ph-clock" style="font-size:9px"></i>fin dans 38 j</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:110px;font-size:var(--text-base);color:var(--danger)">sans mission</span><span style="flex:1;height:18px;background:repeating-linear-gradient(135deg, var(--danger-subtle) 0 5px, transparent 5px 10px);border:1px solid var(--danger-border);border-radius:var(--radius-sm);display:flex;align-items:center;gap:4px;padding:0 6px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--danger)"><i class="ph ph-warning" style="font-size:9px"></i>salarié à replacer</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:110px;font-size:var(--text-base);color:var(--muted-foreground)">terminée</span><span style="flex:1;height:18px;background:var(--muted);border:1px solid var(--border);border-radius:var(--radius-sm);display:flex;align-items:center;padding:0 6px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--muted-foreground)">Groupe Ferrandi</span></div>
+              <div style="height:1px;background:var(--border);margin:2px 0"></div>
+              <div style="display:flex;align-items:center;gap:10px;font-size:var(--text-xs);color:var(--muted-foreground)"><span style="display:flex;align-items:center;gap:4px"><span style="width:2px;height:12px;background:var(--primary)"></span>aujourd'hui</span><span style="display:flex;align-items:center;gap:4px"><i class="ph ph-flag" style="font-size:11px"></i>jalon</span><span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-left:1px dashed var(--border-strong)"></span>limite de semaine</span></div>
+            </div>
+            <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground);margin-top:4px">Calendrier · types d'événement</div>
+            <div style="display:flex;flex-direction:column;gap:6px;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md)">
+              <div style="display:flex;align-items:center;gap:6px;height:20px;padding:0 6px;background:var(--muted);border-left:3px solid var(--chart-5);border-radius:var(--radius-sm);font-size:var(--text-xs)"><i class="ph ph-check-square" style="font-size:10px"></i>Tâche — relancer Ferrandi</div>
+              <div style="display:flex;align-items:center;gap:6px;height:20px;padding:0 6px;background:var(--info-subtle);border-left:3px solid var(--info);border-radius:var(--radius-sm);font-size:var(--text-xs)"><i class="ph ph-users" style="font-size:10px"></i>Entretien client — 14:00</div>
+              <div style="display:flex;align-items:center;gap:6px;height:20px;padding:0 6px;background:var(--danger-subtle);border-left:3px solid var(--danger);border-radius:var(--radius-sm);font-size:var(--text-xs)"><i class="ph ph-receipt" style="font-size:10px"></i>Échéance facture — <span style="font-variant-numeric:tabular-nums">18 400,00 €</span></div>
+              <div style="display:flex;align-items:center;gap:6px;height:20px;padding:0 6px;background:var(--warning-subtle);border-left:3px solid var(--warning);border-radius:var(--radius-sm);font-size:var(--text-xs)"><i class="ph ph-briefcase" style="font-size:10px"></i>Fin de mission — Naïma O.</div>
+              <div style="display:flex;align-items:center;gap:6px;height:20px;padding:0 6px;background:var(--success-subtle);border-left:3px solid var(--success);border-radius:var(--radius-sm);font-size:var(--text-xs)"><i class="ph ph-file-text" style="font-size:10px"></i>CRA reçu — août</div>
+            </div>
+            <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground);margin-top:4px">Onglets de fiche</div>
+            <div style="display:flex;align-items:center;gap:2px;padding:0 4px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md)">
+              <span style="display:inline-flex;align-items:center;height:32px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--foreground);box-shadow:inset 0 -2px 0 var(--primary)">Vue d'ensemble</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--muted-foreground)">CRA<span style="display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;padding:0 4px;font:600 9px var(--font-sans);color:var(--muted-foreground);background:var(--muted);border-radius:var(--radius-full)">12</span></span>
+              <span style="display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--muted-foreground)">Factures<span style="display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;padding:0 4px;font:600 9px var(--font-sans);color:var(--danger-foreground);background:var(--danger);border-radius:var(--radius-full)">1</span></span>
+              <span style="display:inline-flex;align-items:center;height:32px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--muted-foreground)">Contrats</span>
+              <span style="display:inline-flex;align-items:center;height:32px;padding:0 10px;font:500 var(--text-base)/1 var(--font-sans);color:var(--muted-foreground);opacity:.45">Documents</span>
+            </div>
+          </div>
+        </div>
+        <div data-spec="1" style="display:flex;flex-direction:column;gap:12px;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md)">
+          <div style="font:600 var(--text-2xs)/1 var(--font-sans);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--muted-foreground)">Spécification</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:var(--text-base);line-height:var(--leading-base)">
+            <div><span style="color:var(--muted-foreground)">Fiche </span>trois colonnes : relations 260 px à gauche, champs au centre (élastique), fil d'activité 380 px à droite. Sous 1280 px la colonne de gauche se replie ; sous 900 px tout passe en une colonne et le fil devient un onglet.</div>
+            <div><span style="color:var(--muted-foreground)">Fil </span>ordre antéchronologique, groupé par jour, filtres par type en puces. Les événements automatiques portent la mention « automatique » — jamais un simple gris pour les distinguer.</div>
+            <div><span style="color:var(--muted-foreground)">Saisie rapide </span>toujours en haut du fil, <code style="font-family:var(--font-mono);font-size:11px">N</code> pour une note, <code style="font-family:var(--font-mono);font-size:11px">T</code> pour une tâche, ⌘↵ pour envoyer.</div>
+            <div><span style="color:var(--muted-foreground)">Timeline </span>ligne de 28 px par consultant, barre de 18 px. Quatre états de barre, distingués par la teinte <em style="font-style:normal;font-weight:600">et</em> par le trait (plein, tireté, hachuré). La ligne d'un salarié sans mission remonte en tête et porte le libellé « à replacer ».</div>
+            <div><span style="color:var(--muted-foreground)">Calendrier </span>cinq types d'événement, chacun avec sa teinte, son icône et son libellé. Mois et semaine ; sur téléphone, agenda en liste.</div>
+            <div><span style="color:var(--muted-foreground)">Onglets </span>32 px, soulignement accent de 2 px, compteur à droite du libellé. Un onglet vide reste visible, à 45 %.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer style="display:flex;align-items:center;gap:12px;padding-top:24px;border-top:1px solid var(--border);font-size:var(--text-xs);color:var(--muted-foreground)">
+      <span>CRM Workday — système de design v1</span>
+      <span>·</span>
+      <a href="Ecrans-types.dc.html">écrans-types</a>
+      <span>·</span>
+      <a href="Facture A4.dc.html">gabarit de facture</a>
+      <span>·</span>
+      <span>tokens.css</span>
+    </footer>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;clair&quot;,&quot;sombre&quot;],&quot;default&quot;:&quot;clair&quot;,&quot;tsType&quot;:&quot;'clair' | 'sombre'&quot;,&quot;section&quot;:&quot;Affichage&quot;},&quot;showSpecs&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Affichage&quot;},&quot;rowHeight&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:32,&quot;min&quot;:28,&quot;max&quot;:36,&quot;step&quot;:2,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Densité&quot;}}">
+class Component extends DCLogic {
+  componentDidMount() {
+    const s = document.getElementById('surface');
+    if (!s) return;
+    if ((this.props.theme ?? 'clair') === 'sombre') s.classList.add('dark');
+    const row = this.props.rowHeight;
+    if (row) s.style.setProperty('--row-h', row + 'px');
+    if (this.props.showSpecs === false) {
+      s.querySelectorAll('[data-spec]').forEach(el => { el.style.display = 'none'; });
+      s.querySelectorAll('[style*="1fr 300px"]').forEach(el => { el.style.gridTemplateColumns = '1fr'; });
+    }
+  }
+  renderVals() {
+    const surface = () => document.getElementById('surface');
+    return {
+      setLight: () => surface() && surface().classList.remove('dark'),
+      setDark: () => surface() && surface().classList.add('dark')
+    };
+  }
+}
+</script>
+</body>
+</html>
