@@ -4,6 +4,7 @@ import { POST as createInvitation } from "@/app/api/invitations/route";
 import { POST as acceptInvitation } from "@/app/api/invitations/[token]/route";
 import { invitation, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { hashToken } from "@/features/auth/invitations";
 import { getAuth } from "@/lib/auth";
 import { closeDb, db } from "@/lib/db";
 import { lastEmailTo } from "../helpers/mailbox";
@@ -98,5 +99,22 @@ describe("API des invitations (CRM-15)", () => {
     const [row] = await db.select().from(invitation).where(eq(invitation.userId, activated.id));
     expect(row.usedAt).not.toBeNull();
     await sessionCookie(email, "MotDePasse-Invite-1");
+  });
+
+  it("refuse un lien déjà utilisé ou expiré avec « lien invalide » sans rien changer (contrat 12)", async () => {
+    const used = await inviteAndReadToken("invitee-utilise@exemple.fr");
+    expect((await accept(used, "MotDePasse-Invite-1")).status).toBe(200);
+    const again = await accept(used, "MotDePasse-Autre-1");
+    expect(again.status).toBe(410);
+    expect(await again.json()).toMatchObject({ error: "lien_invalide" });
+    expect(again.headers.get("set-cookie")).toBeNull();
+
+    const expiredEmail = "invitee-expire@exemple.fr";
+    const expired = await inviteAndReadToken(expiredEmail);
+    await db.update(invitation).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(invitation.tokenHash, hashToken(expired)));
+    const late = await accept(expired, "MotDePasse-Invite-1");
+    expect(late.status).toBe(410);
+    const [stillInvited] = await db.select().from(user).where(eq(user.email, expiredEmail));
+    expect(stillInvited.status).toBe("invite");
   });
 });
