@@ -6,12 +6,15 @@
  */
 import { randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
+import { eq } from "drizzle-orm";
 import { account, user } from "@/db/schema";
 import { closeDb, db } from "@/lib/db";
 
 export type SeedAdminInput = { email: string; firstName: string; lastName: string; password: string };
 
 export async function seedAdmin(input: SeedAdminInput): Promise<{ id: string }> {
+  const existing = await db.select({ id: user.id }).from(user).where(eq(user.role, "administrateur")).limit(1);
+  if (existing.length > 0) throw new Error("seed:admin : un administrateur existe déjà, la commande ne fait rien.");
   const id = randomUUID();
   await db.transaction(async (tx) => {
     await tx.insert(user).values({
