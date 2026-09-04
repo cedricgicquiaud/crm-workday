@@ -14,7 +14,7 @@ test.describe("connexion et session (CRM-14, contrats 6, 14, 19)", () => {
     await page.getByLabel("Email").fill("inconnu@exemple.fr");
     await page.getByLabel("Mot de passe").fill("MotDePasse-Faux-1");
     await page.getByRole("button", { name: "Se connecter" }).click();
-    const alert = page.getByRole("alert");
+    const alert = page.getByRole("form", { name: "Formulaire de connexion" }).getByRole("alert");
     await expect(alert).toHaveText("Email ou mot de passe incorrect.");
     await page.getByLabel("Email").fill(ADMIN.email);
     await page.getByRole("button", { name: "Se connecter" }).click();
