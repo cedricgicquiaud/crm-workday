@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { seedAdmin } from "../../scripts/seed-admin";
-import { session, user } from "@/db/schema";
+import { loginAttempt, session, user } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
+import { HttpError, requireSession } from "@/lib/auth/session";
 import { closeDb, db } from "@/lib/db";
 
 const ADMIN = { email: "admin-connexion@exemple.fr", firstName: "Alice", lastName: "Durand", password: "MotDePasse-Connexion-1" };
@@ -59,6 +60,21 @@ describe("connexion (CRM-14)", () => {
     expect(sixth.setCookie).toBeNull();
   });
 
+  it("accepte de nouveau le bon mot de passe une fois le délai de 15 minutes écoulé (contrat 15)", async () => {
+    const target = { email: "cible-deverrouillage@exemple.fr", firstName: "Bob", lastName: "Martin", password: "MotDePasse-Cible-2" };
+    await db.delete(user);
+    await seedAdmin(target);
+    for (let i = 0; i < 5; i++) await signIn(target.email, "MotDePasse-Faux-1");
+    expect((await signIn(target.email, target.password)).status).toBe(401);
+
+    // Seize minutes plus tard : les échecs sont sortis de la fenêtre, le verrou est levé.
+    const sixteenMinutesAgo = new Date(Date.now() - 16 * 60 * 1000);
+    await db.update(loginAttempt).set({ createdAt: sixteenMinutesAgo }).where(eq(loginAttempt.email, target.email));
+    const unlocked = await signIn(target.email, target.password);
+    expect(unlocked.status).toBe(200);
+    expect(unlocked.setCookie).toMatch(/session_token/);
+  });
+
   it("refuse un compte désactivé avec le même message qu'un mot de passe faux (D12, contrat 14)", async () => {
     const disabled = { email: "desactive@exemple.fr", firstName: "Dan", lastName: "Petit", password: "MotDePasse-Desactive-1" };
     await db.delete(user);
@@ -69,6 +85,25 @@ describe("connexion (CRM-14)", () => {
     expect(attempt.status).toBe(401);
     expect(attempt.body).toEqual(refused.body);
     expect(attempt.setCookie).toBeNull();
+  });
+
+  it("refuse un compte désactivé dont la session est encore ouverte : requireSession() répond 401 (D12)", async () => {
+    const target = { email: "desactive-session@exemple.fr", firstName: "Eve", lastName: "Morel", password: "MotDePasse-Session-1" };
+    await db.delete(user);
+    await seedAdmin(target);
+    const login = await signIn(target.email, target.password);
+    expect(login.status).toBe(200);
+    const cookie = cookieHeader(login.setCookie);
+    const request = () => new Request("http://localhost:3000/api/invitations", { headers: { cookie } });
+    expect((await requireSession(request())).user.email).toBe(target.email);
+
+    await db.update(user).set({ status: "desactive" }).where(eq(user.email, target.email));
+    const refused = await requireSession(request()).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(refused).toBeInstanceOf(HttpError);
+    expect((refused as HttpError).status).toBe(401);
   });
 
   it("garde connecté un membre actif au jour 29 jusqu'au jour 45, et déconnecte un membre inactif 31 jours (contrat 8)", async () => {
