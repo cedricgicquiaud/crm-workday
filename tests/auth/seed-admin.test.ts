@@ -1,4 +1,6 @@
+import { execFileSync } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { seedAdmin } from "../../scripts/seed-admin";
 import { user } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
@@ -26,5 +28,19 @@ describe("premier administrateur par commande (CRM-17)", () => {
     await expect(seedAdmin({ ...ADMIN, email: "second-admin@exemple.fr" })).rejects.toThrowError(/administrateur existe déjà/);
     const rows = await db.select().from(user);
     expect(rows).toHaveLength(1);
+  });
+
+  it("en ligne de commande, lit email, prénom, nom et mot de passe dans ses arguments", async () => {
+    await db.delete(user);
+    const out = execFileSync(
+      "npx",
+      ["tsx", "scripts/seed-admin.ts", "--email", "cli@exemple.fr", "--prenom", "Chloé", "--nom", "Bernard", "--mot-de-passe", "MotDePasse-Cli-1"],
+      { env: { ...process.env, NODE_ENV: "test" }, encoding: "utf8" },
+    );
+    expect(out).toContain("Administrateur créé");
+    const [row] = await db.select().from(user).where(eq(user.email, "cli@exemple.fr"));
+    expect(row.firstName).toBe("Chloé");
+    expect(row.lastName).toBe("Bernard");
+    expect(row.role).toBe("administrateur");
   });
 });
