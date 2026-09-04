@@ -41,17 +41,17 @@ export async function signInAs(request: APIRequestContext, account: Account) {
   return request.storageState();
 }
 
-async function pageAs(browser: Browser, account: Account, use: (page: Page) => Promise<void>) {
+async function pageAs(browser: Browser, account: Account, run: (page: Page) => Promise<void>) {
   const context = await browser.newContext();
   await signInAs(context.request, account);
   const page = await context.newPage();
-  await use(page);
+  await run(page);
   await context.close();
 }
 
 export const test = base.extend<{ adminPage: Page; memberPage: Page }>({
-  adminPage: ({ browser }, use) => pageAs(browser, ADMIN, use),
-  memberPage: ({ browser }, use) => pageAs(browser, MEMBER, use),
+  adminPage: ({ browser }, run) => pageAs(browser, ADMIN, run),
+  memberPage: ({ browser }, run) => pageAs(browser, MEMBER, run),
 });
 
 export { expect } from "@playwright/test";
