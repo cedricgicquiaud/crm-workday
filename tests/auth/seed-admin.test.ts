@@ -21,4 +21,10 @@ describe("premier administrateur par commande (CRM-17)", () => {
     expect(row.status).toBe("actif");
     expect(row.firstName).toBe("Alice");
   });
+
+  it("refuse de s'exécuter si un administrateur existe déjà (contrat 20)", async () => {
+    await expect(seedAdmin({ ...ADMIN, email: "second-admin@exemple.fr" })).rejects.toThrowError(/administrateur existe déjà/);
+    const rows = await db.select().from(user);
+    expect(rows).toHaveLength(1);
+  });
 });
