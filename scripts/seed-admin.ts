@@ -5,6 +5,7 @@
  * SEED_ADMIN_PASSWORD. Refuse de s'exécuter si un administrateur existe déjà.
  */
 import { randomUUID } from "node:crypto";
+import { parseArgs } from "node:util";
 import { hashPassword } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
 import { account, user } from "@/db/schema";
@@ -39,15 +40,30 @@ export async function seedAdmin(input: SeedAdminInput): Promise<{ id: string }> 
   return { id };
 }
 
+/** Les arguments priment sur l'environnement ; un champ absent arrête la commande en le nommant. */
+export function readSeedAdminInput(argv: string[], env: NodeJS.ProcessEnv): SeedAdminInput {
+  const { values } = parseArgs({
+    args: argv,
+    options: { email: { type: "string" }, prenom: { type: "string" }, nom: { type: "string" }, "mot-de-passe": { type: "string" } },
+    strict: true,
+  });
+  const input = {
+    email: values.email ?? env.SEED_ADMIN_EMAIL ?? "",
+    firstName: values.prenom ?? env.SEED_ADMIN_FIRST_NAME ?? "",
+    lastName: values.nom ?? env.SEED_ADMIN_LAST_NAME ?? "",
+    password: values["mot-de-passe"] ?? env.SEED_ADMIN_PASSWORD ?? "",
+  };
+  const missing = (Object.keys(input) as (keyof SeedAdminInput)[]).filter((key) => input[key].trim() === "");
+  if (missing.length > 0) {
+    throw new Error(`seed:admin : champ requis absent : ${missing.join(", ")} (arguments --email, --prenom, --nom, --mot-de-passe ou variables SEED_ADMIN_*).`);
+  }
+  return input;
+}
+
 async function main() {
   const { loadDotenv } = await import("@/lib/dotenv");
   loadDotenv();
-  await seedAdmin({
-    email: process.env.SEED_ADMIN_EMAIL ?? "",
-    firstName: process.env.SEED_ADMIN_FIRST_NAME ?? "",
-    lastName: process.env.SEED_ADMIN_LAST_NAME ?? "",
-    password: process.env.SEED_ADMIN_PASSWORD ?? "",
-  });
+  await seedAdmin(readSeedAdminInput(process.argv.slice(2), process.env));
   console.log("Administrateur créé.");
   await closeDb();
 }
