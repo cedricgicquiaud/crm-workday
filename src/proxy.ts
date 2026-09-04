@@ -7,8 +7,11 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse, type NextRequest } from "next/server";
 
-/** `/` décide seule entre Accueil et connexion (`src/app/page.tsx`). */
-const PUBLIC_PATHS = ["/", "/connexion", "/invitation", "/reinitialisation", "/api/health", "/api/auth"];
+/**
+ * `/` décide seule entre Accueil et connexion (`src/app/page.tsx`). Les API d'invitation se
+ * gardent elles-mêmes (`requireAdmin()`) : l'acceptation par jeton se fait sans session.
+ */
+const PUBLIC_PATHS = ["/", "/connexion", "/invitation", "/reinitialisation", "/api/health", "/api/auth", "/api/invitations"];
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
