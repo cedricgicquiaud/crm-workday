@@ -125,4 +125,16 @@ describe("API des invitations (CRM-15)", () => {
     expect(await short.json()).toMatchObject({ message: "Le mot de passe doit contenir 12 caractères au moins." });
     expect((await accept(token, "MotDePasse-Invite-1")).status).toBe(200);
   });
+
+  it("refuse d'inviter un email qui a déjà un compte (409) et dit s'il est désactivé (D12)", async () => {
+    const body = { email: MEMBER.email, firstName: "X", lastName: "Y", role: "membre" };
+    const active = await createInvitation(post("/api/invitations", body, adminCookie));
+    expect(active.status).toBe(409);
+    expect(await active.json()).toMatchObject({ error: "email_deja_utilise", status: "actif" });
+    await db.update(user).set({ status: "desactive" }).where(eq(user.email, MEMBER.email));
+    const disabled = await createInvitation(post("/api/invitations", body, adminCookie));
+    expect(disabled.status).toBe(409);
+    expect(await disabled.json()).toMatchObject({ error: "email_deja_utilise", status: "desactive" });
+    await db.update(user).set({ status: "actif" }).where(eq(user.email, MEMBER.email));
+  });
 });
