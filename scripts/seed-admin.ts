@@ -4,11 +4,10 @@
  * ou, sans arguments, depuis SEED_ADMIN_EMAIL, SEED_ADMIN_FIRST_NAME, SEED_ADMIN_LAST_NAME,
  * SEED_ADMIN_PASSWORD. Refuse de s'exécuter si un administrateur existe déjà.
  */
-import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
-import { hashPassword } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
-import { account, user } from "@/db/schema";
+import { user } from "@/db/schema";
+import { createUserWithPassword } from "@/features/auth/accounts";
 import { closeDb, db } from "@/lib/db";
 
 export type SeedAdminInput = { email: string; firstName: string; lastName: string; password: string };
@@ -16,28 +15,7 @@ export type SeedAdminInput = { email: string; firstName: string; lastName: strin
 export async function seedAdmin(input: SeedAdminInput): Promise<{ id: string }> {
   const existing = await db.select({ id: user.id }).from(user).where(eq(user.role, "administrateur")).limit(1);
   if (existing.length > 0) throw new Error("seed:admin : un administrateur existe déjà, la commande ne fait rien.");
-  const id = randomUUID();
-  await db.transaction(async (tx) => {
-    await tx.insert(user).values({
-      id,
-      name: `${input.firstName} ${input.lastName}`.trim(),
-      email: input.email.trim().toLowerCase(),
-      emailVerified: true,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      role: "administrateur",
-      status: "actif",
-    });
-    await tx.insert(account).values({
-      id: randomUUID(),
-      issuer: "local:credential",
-      accountId: id,
-      providerId: "credential",
-      userId: id,
-      password: await hashPassword(input.password),
-    });
-  });
-  return { id };
+  return createUserWithPassword({ ...input, role: "administrateur" });
 }
 
 /** Les arguments priment sur l'environnement ; un champ absent arrête la commande en le nommant. */
