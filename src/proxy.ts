@@ -7,10 +7,11 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PREFIXES = ["/connexion", "/invitation/", "/reinitialisation", "/api/health", "/api/auth/"];
+/** `/` décide seule entre Accueil et connexion (`src/app/page.tsx`). */
+const PUBLIC_PATHS = ["/", "/connexion", "/invitation", "/reinitialisation", "/api/health", "/api/auth"];
 
 export function isPublicPath(pathname: string): boolean {
-  return pathname === "/" || PUBLIC_PREFIXES.some((prefix) => pathname === prefix.replace(/\/$/, "") || pathname.startsWith(prefix));
+  return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
 export function proxy(request: NextRequest) {
