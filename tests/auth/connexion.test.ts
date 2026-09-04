@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { seedAdmin } from "../../scripts/seed-admin";
 import { user } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
@@ -44,5 +45,17 @@ describe("connexion (CRM-14)", () => {
     expect(sixth.status).toBe(401);
     expect(sixth.body).toEqual(refused.body);
     expect(sixth.setCookie).toBeNull();
+  });
+
+  it("refuse un compte désactivé avec le même message qu'un mot de passe faux (D12, contrat 14)", async () => {
+    const disabled = { email: "desactive@exemple.fr", firstName: "Dan", lastName: "Petit", password: "MotDePasse-Desactive-1" };
+    await db.delete(user);
+    await seedAdmin(disabled);
+    await db.update(user).set({ status: "desactive" }).where(eq(user.email, disabled.email));
+    const refused = await signIn("inconnu@exemple.fr", "MotDePasse-Faux-1");
+    const attempt = await signIn(disabled.email, disabled.password);
+    expect(attempt.status).toBe(401);
+    expect(attempt.body).toEqual(refused.body);
+    expect(attempt.setCookie).toBeNull();
   });
 });
