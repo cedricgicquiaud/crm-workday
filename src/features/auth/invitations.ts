@@ -22,6 +22,25 @@ export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+/** Nouveau lien pour cet utilisateur ; les liens encore ouverts expirent à l'instant. */
+async function issueInvitationLink(target: { id: string; email: string; firstName: string; lastName: string }, authorId: string) {
+  await db.update(invitation).set({ expiresAt: new Date() }).where(and(eq(invitation.userId, target.id), isNull(invitation.usedAt)));
+  const token = randomBytes(32).toString("base64url");
+  await db.insert(invitation).values({
+    userId: target.id,
+    tokenHash: hashToken(token),
+    expiresAt: new Date(Date.now() + INVITATION_TTL_MS),
+    createdBy: authorId,
+  });
+  await sendTemplatedEmail({
+    to: target.email,
+    template: "invitation",
+    variables: { prenom: target.firstName, nom: target.lastName, cabinet: CABINET, lien: `${getEnv().APP_URL}/invitation/${token}` },
+    authorId,
+    objectRef: { type: "user", id: target.id },
+  });
+}
+
 export async function createInvitation(input: NewInvitation): Promise<{ userId: string }> {
   const email = input.email.trim().toLowerCase();
   const [existing] = await db.select({ status: user.status }).from(user).where(eq(user.email, email)).limit(1);
@@ -38,21 +57,20 @@ export async function createInvitation(input: NewInvitation): Promise<{ userId: 
     role: input.role,
     status: "invite",
   });
-  const token = randomBytes(32).toString("base64url");
-  await db.insert(invitation).values({
-    userId,
-    tokenHash: hashToken(token),
-    expiresAt: new Date(Date.now() + INVITATION_TTL_MS),
-    createdBy: input.authorId,
-  });
-  await sendTemplatedEmail({
-    to: input.email,
-    template: "invitation",
-    variables: { prenom: input.firstName, nom: input.lastName, cabinet: CABINET, lien: `${getEnv().APP_URL}/invitation/${token}` },
-    authorId: input.authorId,
-    objectRef: { type: "user", id: userId },
-  });
+  await issueInvitationLink({ id: userId, email, firstName: input.firstName, lastName: input.lastName }, input.authorId);
   return { userId };
+}
+
+/** « Renvoyer l'invitation » d'un compte encore invité (D7). */
+export async function resendInvitation(email: string, authorId: string): Promise<{ userId: string }> {
+  const [target] = await db
+    .select({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, status: user.status })
+    .from(user)
+    .where(eq(user.email, email.trim().toLowerCase()))
+    .limit(1);
+  if (!target || target.status !== "invite") throw new HttpError(404, "invitation_introuvable", "Aucun compte invité pour cet email.");
+  await issueInvitationLink(target, authorId);
+  return { userId: target.id };
 }
 
 /** Invitation encore valable pour ce jeton : ni utilisée, ni expirée. */
