@@ -155,7 +155,7 @@ test.describe("fermeture des sessions et rôle (CRM-19, contrat 11, D11)", () =>
 });
 
 test.describe("Mon profil (CRM-21, contrat 13, D13)", () => {
-  test("un prénom modifié apparaît dans la salutation d'Accueil ; un mot de passe de 11 caractères est rejeté avec la règle ; le bon change le mot de passe", async ({ memberPage }) => {
+  test("un prénom modifié apparaît dans la salutation d'Accueil ; un mot de passe de 11 caractères est rejeté avec la règle ; le bon change le mot de passe", async ({ memberPage, request }) => {
     await memberPage.goto("/profil");
     await expect(memberPage.getByRole("heading", { level: 1 })).toHaveText("Mon profil");
     const identity = memberPage.getByRole("form", { name: "Identité" });
@@ -184,7 +184,8 @@ test.describe("Mon profil (CRM-21, contrat 13, D13)", () => {
     await password.getByLabel("Mot de passe actuel").fill(MEMBER.password);
     await password.getByRole("button", { name: "Changer le mot de passe" }).click();
     await expect(password.getByRole("status")).toHaveText("Mot de passe modifié.");
-    expect((await memberPage.request.post("/api/auth/sign-in/email", { data: { email: MEMBER.email, password: MEMBER.password } })).status()).toBe(401);
-    expect((await memberPage.request.post("/api/auth/sign-in/email", { data: { email: MEMBER.email, password: "MotDePasse-Membre-E2E-2" } })).status()).toBe(200);
+    // Depuis un navigateur vierge (sans cookie : Better Auth exige un en-tête Origin dès qu'une session est présente).
+    expect((await request.post("/api/auth/sign-in/email", { data: { email: MEMBER.email, password: MEMBER.password } })).status()).toBe(401);
+    expect((await request.post("/api/auth/sign-in/email", { data: { email: MEMBER.email, password: "MotDePasse-Membre-E2E-2" } })).status()).toBe(200);
   });
 });
