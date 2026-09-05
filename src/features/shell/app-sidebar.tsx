@@ -18,6 +18,7 @@ import {
 import { ROLE_LABELS } from "@/features/accounts/labels";
 import type { Role } from "@/features/auth/accounts";
 import { isCurrentPage, SHELL_NAV } from "@/features/shell/nav-entries";
+import { SignOutButton } from "@/features/shell/sign-out";
 import { ThemeToggle } from "@/features/theme/theme-toggle";
 
 export type ShellUser = { firstName: string; lastName: string; role: Role };
@@ -73,6 +74,9 @@ export function AppSidebar({ user }: { user: ShellUser }) {
         <SidebarMenu>
           <SidebarMenuItem>
             <ThemeToggle />
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SignOutButton />
           </SidebarMenuItem>
         </SidebarMenu>
         <div className="flex items-center gap-2 px-1 py-1 group-data-[collapsible=icon]:px-0" title={fullName}>
