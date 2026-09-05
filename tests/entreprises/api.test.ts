@@ -177,3 +177,14 @@ describe("API des entreprises — type des valeurs (CRM-34, D24)", () => {
     expect(await db.select({ id: company.id }).from(company).where(eq(company.name, "[object Object]"))).toEqual([]);
   });
 });
+
+describe("API des entreprises — identifiant qui n'est pas un UUID (CRM-34, D24)", () => {
+  it("répond 404 fiche_introuvable, jamais 500, en lecture comme en modification", async () => {
+    const read = await getCompany(jsonRequest("GET", "/api/entreprises/abc", undefined, memberCookie), byId("abc"));
+    expect(read.status).toBe(404);
+    expect(await read.json()).toMatchObject({ error: "fiche_introuvable" });
+    const patched = await patchCompany(jsonRequest("PATCH", "/api/entreprises/abc", { type: "client" }, memberCookie), byId("abc"));
+    expect(patched.status).toBe(404);
+    expect(await patched.json()).toMatchObject({ error: "fiche_introuvable" });
+  });
+});

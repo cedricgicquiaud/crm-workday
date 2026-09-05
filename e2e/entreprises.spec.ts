@@ -164,3 +164,12 @@ test.describe("téléphone, 375 px (contrat 25 de la feature 1, D9)", () => {
     for (const region of ["Liens", "Champs", "Historique"]) await expect(memberPage.getByRole("region", { name: region })).toBeVisible();
   });
 });
+
+test.describe("identifiant qui n'est pas un UUID (CRM-34, D24)", () => {
+  test("la fiche /entreprises/abc répond 404 et affiche l'écran « introuvable », pas une erreur", async ({ memberPage }) => {
+    const response = await memberPage.goto("/entreprises/abc");
+    expect(response?.status()).toBe(404);
+    await expect(memberPage.getByRole("heading", { name: "404" })).toBeVisible();
+    await expect(memberPage.getByText(/Internal Server Error|Application error|Unhandled Runtime Error/)).toHaveCount(0);
+  });
+});

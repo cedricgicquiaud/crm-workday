@@ -42,7 +42,7 @@ describe("historique des changements (CRM-33, D12)", () => {
 });
 
 describe("API générique de l'historique (CRM-36, contrat 15, D24)", () => {
-  it("GET rend les entrées d'une fiche, chacune avec auteur et date ; PATCH et DELETE répondent 405 ; un type inconnu 404 ; sans session 401", async () => {
+  it("GET rend les entrées d'une fiche, chacune avec auteur et date ; PATCH et DELETE répondent 405 ; un type inconnu ou un identifiant qui n'est pas un UUID 404 ; sans session 401", async () => {
     const cookie = await sessionCookie(AUTHOR.email, AUTHOR.password);
     const created = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "Historique SAS", type: "client" }, cookie));
     const { id } = (await created.json()) as { id: string };
@@ -62,6 +62,9 @@ describe("API générique de l'historique (CRM-36, contrat 15, D24)", () => {
       expect(refused.headers.get("allow")).toBe("GET");
     }
     expect((await getHistory(jsonRequest("GET", `/api/objets/inconnu/${id}/historique`, undefined, cookie), { params: Promise.resolve({ type: "inconnu", id }) })).status).toBe(404);
+    const notUuid = await getHistory(jsonRequest("GET", "/api/objets/company/abc/historique", undefined, cookie), { params: Promise.resolve({ type: "company", id: "abc" }) });
+    expect(notUuid.status).toBe(404);
+    expect(await notUuid.json()).toMatchObject({ error: "fiche_introuvable" });
     expect((await getHistory(jsonRequest("GET", `/api/objets/company/${id}/historique`), context)).status).toBe(401);
   });
 });
