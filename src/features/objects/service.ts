@@ -4,7 +4,7 @@
  * par champ modifié (D12), refus d'une fiche archivée (D21). Il ne connaît que la clé d'objet.
  */
 import "@/features/objects/manifest.server";
-import { and, eq, getTableColumns, ne, type SQL } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, isNull, ne, type SQL } from "drizzle-orm";
 import { recordHistory } from "@/features/history/history";
 import { validateValues, type FieldValues } from "@/features/objects/fields";
 import { getObject } from "@/features/objects/registry";
@@ -91,6 +91,18 @@ export async function getObjectRecord(type: string, id: string): Promise<ObjectR
 /** Une fiche archivée est en lecture seule : toute écriture répond 409 (D21). */
 export function assertWritable(type: string, record: ObjectRecord): void {
   if (record.archivedAt) throw new HttpError(409, "fiche_archivee", `${getObject(type).labels.singular} archivée : elle ne se modifie plus.`, { id: record.id });
+}
+
+/** Fiches non archivées, la dernière modifiée en tête (D6) ; `includeArchived` les rend toutes (filtre « archivées », 2.5a). */
+export async function listObjectRecords(type: string, { includeArchived = false } = {}): Promise<ObjectRecord[]> {
+  const { table } = getServerObject(type);
+  const columns = getTableColumns(table);
+  const rows = await db
+    .select()
+    .from(table)
+    .where(includeArchived ? undefined : isNull(columns.archivedAt))
+    .orderBy(desc(columns.updatedAt), desc(columns.id));
+  return rows as ObjectRecord[];
 }
 
 const same = (a: unknown, b: unknown) => (a ?? null) === (b ?? null) || String(a ?? "") === String(b ?? "");
