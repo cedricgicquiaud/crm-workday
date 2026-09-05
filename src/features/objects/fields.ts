@@ -15,20 +15,29 @@ export type FieldErrors = Record<string, string>;
 /** Messages des règles communes ; le descripteur d'un champ peut porter les siens (`pattern.message`). */
 const MESSAGES = {
   required: (label: string) => `« ${label} » est obligatoire.`,
+  invalid: (label: string) => `Valeur invalide pour « ${label} ».`,
   outOfList: (label: string) => `Valeur hors liste pour « ${label} ».`,
   tooLong: (label: string, max: number) => `« ${label} » dépasse ${max} caractères.`,
 };
 
-const asText = (value: unknown): string | null => {
-  if (value === undefined || value === null) return null;
-  const text = String(value).trim();
-  return text === "" ? null : text;
-};
+/** Une valeur absente et une chaîne vide (ou blanche) sont la même chose : rien. */
+const blank = (value: unknown): boolean => value === undefined || value === null || (typeof value === "string" && value.trim() === "");
+
+/**
+ * Lit la valeur brute d'un champ selon son type. Une valeur qui n'est pas du bon type (objet, tableau,
+ * nombre dans un champ texte…) est refusée : `String(value)` enregistrerait « [object Object] ».
+ */
+function parseValue(field: FieldDescriptor, raw: unknown): { value: string | null } | { error: string } {
+  if (blank(raw)) return { value: null };
+  if (typeof raw !== "string") return { error: MESSAGES.invalid(field.label) };
+  return { value: raw.trim() };
+}
 
 /** Normalisation propre au champ (espaces d'un SIREN…), avant toute règle ; une valeur vidée par elle reste vide. */
 function normalize(field: FieldDescriptor, value: string | null): string | null {
   if (value === null || !field.normalize) return value;
-  return asText(field.normalize(value));
+  const text = field.normalize(value).trim();
+  return text === "" ? null : text;
 }
 
 /**
@@ -43,7 +52,12 @@ export function validateValues(fields: readonly FieldDescriptor[], input: unknow
   for (const field of fields) {
     const present = field.key in raw;
     if (!present && partial) continue;
-    const value = normalize(field, asText(raw[field.key]));
+    const parsed = parseValue(field, raw[field.key]);
+    if ("error" in parsed) {
+      errors[field.key] = parsed.error;
+      continue;
+    }
+    const value = normalize(field, parsed.value);
     if (value === null) {
       if (field.required && (present || field.default === undefined)) errors[field.key] = MESSAGES.required(field.label);
       else if (present) values[field.key] = null;
