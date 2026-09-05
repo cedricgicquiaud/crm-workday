@@ -30,6 +30,12 @@ describe("premier administrateur par commande (CRM-17)", () => {
     expect(rows).toHaveLength(1);
   });
 
+  it("refuse un mot de passe de moins de 12 caractères, comme partout ailleurs (contrat 13)", async () => {
+    await db.delete(user);
+    await expect(seedAdmin({ ...ADMIN, password: "MDPTEST1234" })).rejects.toThrowError(/12 caractères/);
+    expect(await db.select().from(user)).toHaveLength(0);
+  });
+
   it("en ligne de commande, lit email, prénom, nom et mot de passe dans ses arguments", async () => {
     await db.delete(user);
     const out = execFileSync(
