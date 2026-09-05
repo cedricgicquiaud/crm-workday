@@ -140,3 +140,21 @@ describe("API des entreprises — accès et inconnues (CRM-34, D24)", () => {
     expect(patchMissing.status).toBe(404);
   });
 });
+
+describe("API des entreprises — responsable (CRM-34, D1)", () => {
+  it("change le responsable pour un autre utilisateur et refuse (400) un utilisateur inconnu", async () => {
+    const other = { email: "autre-entreprises@exemple.fr", firstName: "Inès", lastName: "Roux", password: "MotDePasse-Autre-1", role: "membre" as const };
+    await db.delete(user).where(eq(user.email, other.email));
+    const otherId = (await createUserWithPassword(other)).id;
+    const created = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "Responsable SA", type: "client" }, memberCookie));
+    const { id } = (await created.json()) as { id: string };
+
+    const moved = await patchCompany(jsonRequest("PATCH", `/api/entreprises/${id}`, { ownerId: otherId }, memberCookie), byId(id));
+    expect(moved.status).toBe(200);
+    expect(await moved.json()).toMatchObject({ ownerId: otherId });
+
+    const unknown = await patchCompany(jsonRequest("PATCH", `/api/entreprises/${id}`, { ownerId: "00000000-0000-4000-8000-000000000000" }, memberCookie), byId(id));
+    expect(unknown.status).toBe(400);
+    expect(await unknown.json()).toMatchObject({ fields: { ownerId: "« Responsable » ne désigne aucun utilisateur." } });
+  });
+});
