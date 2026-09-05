@@ -46,6 +46,11 @@ async function openPaletteWithKeyboard(page: import("@playwright/test").Page) {
 
 test.describe("palette Cmd+K (CRM-28, contrat 22)", () => {
   test("Cmd+K ouvre la palette ; « para » puis Entrée ouvre Paramètres ; « sombre » bascule le thème et l'enregistre", async ({ memberPage }) => {
+    /* Le serveur de la CI met plusieurs centaines de millisecondes à enregistrer : le rechargement qui suit la bascule doit trouver la valeur en base. */
+    await memberPage.route("**/api/theme", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await route.continue();
+    });
     await memberPage.goto("/accueil");
     const html = memberPage.locator("html");
     await expect(html).not.toHaveClass(/dark/);
