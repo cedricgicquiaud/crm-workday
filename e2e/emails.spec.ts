@@ -1,4 +1,5 @@
-import { expect, lastEmailTo, seedAccounts, test } from "./fixtures/auth";
+import { ADMIN, MEMBER, expect, lastEmailTo, seedAccounts, test } from "./fixtures/auth";
+import { insertFailedEmail } from "./helpers/mailbox";
 
 test.beforeAll(() => seedAccounts());
 
@@ -90,5 +91,62 @@ test.describe("modèles d'emails (CRM-23, contrats 28, 31, 32)", () => {
     } finally {
       expect((await adminPage.request.put("/api/emails/modeles/invitation", { data: original })).status()).toBe(200);
     }
+  });
+});
+
+test.describe("journal des envois (CRM-24, contrat 29, D23)", () => {
+  test("chaque envoi a sa ligne avec destinataire, sujet, modèle, date, statut et auteur ; un échec porte son motif et « Renvoyer » ; les filtres réduisent la liste", async ({ adminPage }) => {
+    const invitee = `invitee-journal-${Date.now()}-e2e@exemple.fr`;
+    expect((await adminPage.request.post("/api/accounts", { data: { email: invitee, firstName: "Inès", lastName: "Roux", role: "membre" } })).status()).toBe(201);
+    expect((await adminPage.request.post("/api/auth/request-password-reset", { data: { email: MEMBER.email } })).status()).toBe(200);
+    const failed = { to: `echec-${Date.now()}-e2e@exemple.fr`, subject: "Relance de facture", reason: "Domaine non vérifié chez Resend" };
+    await insertFailedEmail(failed);
+
+    await adminPage.goto("/parametres/journal");
+    await expect(adminPage.getByRole("heading", { level: 2, name: "Journal des envois" })).toBeVisible();
+    const table = adminPage.getByRole("table", { name: "Journal des envois" });
+    const invitationRow = table.getByRole("row", { name: new RegExp(invitee) });
+    await expect(invitationRow).toContainText("Invitation");
+    await expect(invitationRow).toContainText(`${ADMIN.firstName} ${ADMIN.lastName}`);
+    await expect(invitationRow.getByText("Capturé", { exact: true })).toBeVisible();
+    await expect(invitationRow).toContainText(/\d{1,2} \S+ \d{4}, \d{2}:\d{2}/);
+    const resetRow = table.getByRole("row", { name: new RegExp(MEMBER.email) }).first();
+    await expect(resetRow).toContainText("Réinitialisation");
+    await expect(resetRow).toContainText("Système");
+    const failedRow = table.getByRole("row", { name: new RegExp(failed.to) });
+    await expect(failedRow.getByText("Échec", { exact: true })).toBeVisible();
+    await expect(failedRow).toContainText(failed.reason);
+    await expect(adminPage.getByText(/^\d+ envois?$/)).toBeVisible();
+
+    await failedRow.getByRole("button", { name: "Renvoyer" }).click();
+    await expect(adminPage.getByRole("status")).toHaveText(`Email renvoyé à ${failed.to}.`);
+    await expect(table.getByRole("row", { name: new RegExp(failed.to) })).toHaveCount(2);
+    await expect(table.getByRole("row", { name: new RegExp(failed.to) }).filter({ hasText: "Capturé" })).toHaveCount(1);
+
+    const filters = adminPage.getByRole("form", { name: "Filtres du journal" });
+    await filters.getByRole("combobox", { name: "Statut" }).click();
+    await adminPage.getByRole("option", { name: "Échec" }).click();
+    await filters.getByRole("button", { name: "Filtrer" }).click();
+    await expect(table.getByRole("row", { name: new RegExp(failed.to) })).toHaveCount(1);
+    await expect(table.getByRole("row", { name: new RegExp(invitee) })).toHaveCount(0);
+
+    await filters.getByRole("combobox", { name: "Statut" }).click();
+    await adminPage.getByRole("option", { name: "Tous" }).click();
+    await filters.getByLabel("Type d'objet").fill("user");
+    await filters.getByRole("button", { name: "Filtrer" }).click();
+    await expect(table.getByRole("row", { name: new RegExp(invitee) })).toHaveCount(1);
+    await expect(table.getByRole("row", { name: new RegExp(failed.to) })).toHaveCount(0);
+
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    await filters.getByLabel("Type d'objet").fill("");
+    await filters.getByLabel("Du").fill(tomorrow);
+    await filters.getByRole("button", { name: "Filtrer" }).click();
+    await expect(adminPage.getByText("Aucun envoi ne correspond aux filtres.")).toBeVisible();
+  });
+
+  test("un membre lit le journal mais n'a pas « Renvoyer »", async ({ memberPage }) => {
+    await memberPage.goto("/parametres/journal");
+    await expect(memberPage.getByRole("table", { name: "Journal des envois" })).toBeVisible();
+    await expect(memberPage.getByRole("button", { name: "Renvoyer" })).toHaveCount(0);
   });
 });
