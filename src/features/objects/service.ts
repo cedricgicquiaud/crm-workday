@@ -9,6 +9,7 @@ import { recordHistory } from "@/features/history/history";
 import { validateValues, type FieldValues } from "@/features/objects/fields";
 import { getObject } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
+import { user } from "@/db/schema";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
@@ -34,9 +35,22 @@ function withDefaults(type: string, values: FieldValues, actor: Actor): FieldVal
   return filled;
 }
 
-function validateOrThrow(type: string, input: unknown, options: { partial: boolean }): FieldValues {
+/** Un champ `user` doit désigner un utilisateur existant : la clé étrangère ne suffit pas, il faut un 400 rattaché au champ. */
+async function assertUsersExist(type: string, values: FieldValues): Promise<void> {
+  const errors: Record<string, string> = {};
+  for (const field of getObject(type).fields) {
+    const value = values[field.key];
+    if (field.type !== "user" || value == null) continue;
+    const [found] = await db.select({ id: user.id }).from(user).where(eq(user.id, value)).limit(1);
+    if (!found) errors[field.key] = `« ${field.label} » ne désigne aucun utilisateur.`;
+  }
+  if (Object.keys(errors).length > 0) throw new HttpError(400, "donnees_invalides", Object.values(errors)[0], { fields: errors });
+}
+
+async function validateOrThrow(type: string, input: unknown, options: { partial: boolean }): Promise<FieldValues> {
   const { values, errors } = validateValues(getObject(type).fields, input, options);
   if (Object.keys(errors).length > 0) throw new HttpError(400, "donnees_invalides", Object.values(errors)[0], { fields: errors });
+  await assertUsersExist(type, values);
   return values;
 }
 
@@ -68,7 +82,7 @@ async function assertUnique(type: string, values: FieldValues, currentId: string
 
 export async function createObject(type: string, input: unknown, actor: Actor): Promise<ObjectRecord> {
   const { table } = getServerObject(type);
-  const values = withDefaults(type, validateOrThrow(type, input, { partial: false }), actor);
+  const values = withDefaults(type, await validateOrThrow(type, input, { partial: false }), actor);
   await assertUnique(type, values, null);
   const [row] = await db
     .insert(table)
@@ -112,7 +126,7 @@ export async function updateObject(type: string, id: string, patch: unknown, act
   const columns = getTableColumns(table);
   const current = await getObjectRecord(type, id);
   assertWritable(type, current);
-  const values = validateOrThrow(type, patch, { partial: true });
+  const values = await validateOrThrow(type, patch, { partial: true });
   await assertUnique(type, values, id);
   const changed = Object.entries(values).filter(([key, value]) => !same(current[key], value));
   if (changed.length === 0) return current;
