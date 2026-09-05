@@ -69,7 +69,7 @@ export function AppSidebar({ user }: { user: ShellUser }) {
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
           <SidebarGroupLabel className="h-6 text-2xs font-semibold uppercase tracking-(--tracking-caps)">Objets</SidebarGroupLabel>
           <SidebarGroupContent>
-            <p className="px-2 py-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">Clients, consultants, missions et factures arrivent avec les features suivantes.</p>
+            <p className="px-2 py-1 text-xs text-muted-foreground">Clients, consultants, missions et factures arrivent avec les features suivantes.</p>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

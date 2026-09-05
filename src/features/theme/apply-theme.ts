@@ -1,18 +1,12 @@
 /**
- * Thème côté navigateur : application immédiate sur `<html>` (classe `dark`, `data-theme`),
- * enregistrement par l'API, et lecture par les composants (`useTheme`).
+ * Thème côté navigateur : application immédiate sur `<html>` (classe `dark`, `data-theme`
+ * que le serveur a posés, contrat 26), enregistrement par l'API, abonnement des composants.
  */
-import { isTheme, type Theme } from "@/features/theme/theme";
+import type { Theme } from "@/features/theme/theme";
 
 const listeners = new Set<() => void>();
 
 const root = () => document.documentElement;
-
-/** Thème préféré, tel que le serveur l'a écrit dans `data-theme` (contrat 26) ; « système » à défaut. */
-export function readTheme(): Theme {
-  const value = root().dataset.theme;
-  return isTheme(value) ? value : "systeme";
-}
 
 const prefersDark = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
 
