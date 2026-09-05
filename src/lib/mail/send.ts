@@ -11,6 +11,7 @@ import { Resend } from "resend";
 import { emailLog } from "@/db/schema";
 import { db } from "@/lib/db";
 import { getEnv, isProduction } from "@/lib/env";
+import { getCabinetSettings } from "@/lib/mail/settings";
 import { InvitationEmail, invitationSubject } from "@/emails/invitation";
 import { ReinitialisationEmail, reinitialisationSubject } from "@/emails/reinitialisation";
 
@@ -45,11 +46,17 @@ export async function renderTemplate(template: TemplateName, variables: Template
   }
 }
 
+/** Le nom du cabinet enregistré prime sur la valeur passée par l'appelant (contrat 27). */
+async function withCabinetName(variables: TemplateVariables): Promise<TemplateVariables> {
+  const settings = await getCabinetSettings();
+  return settings ? { ...variables, cabinet: settings.name } : variables;
+}
+
 export async function sendTemplatedEmail(input: SendTemplatedEmailInput): Promise<SendTemplatedEmailResult> {
   if (!isValidEmail(input.to)) {
     throw new Error(`Destinataire invalide : « ${input.to} »`);
   }
-  const { subject, html } = await renderTemplate(input.template, input.variables);
+  const { subject, html } = await renderTemplate(input.template, await withCabinetName(input.variables));
   const base = {
     to: input.to.trim(),
     subject,
