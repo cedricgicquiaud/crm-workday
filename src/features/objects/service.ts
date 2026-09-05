@@ -61,12 +61,18 @@ export async function getObjectRecord(type: string, id: string): Promise<ObjectR
   return row as ObjectRecord;
 }
 
+/** Une fiche archivée est en lecture seule : toute écriture répond 409 (D21). */
+export function assertWritable(type: string, record: ObjectRecord): void {
+  if (record.archivedAt) throw new HttpError(409, "fiche_archivee", `${getObject(type).labels.singular} archivée : elle ne se modifie plus.`, { id: record.id });
+}
+
 const same = (a: unknown, b: unknown) => (a ?? null) === (b ?? null) || String(a ?? "") === String(b ?? "");
 
 export async function updateObject(type: string, id: string, patch: unknown, actor: Actor): Promise<ObjectRecord> {
   const { table } = getServerObject(type);
   const columns = getTableColumns(table);
   const current = await getObjectRecord(type, id);
+  assertWritable(type, current);
   const values = validateOrThrow(type, patch, { partial: true });
   const changed = Object.entries(values).filter(([key, value]) => !same(current[key], value));
   if (changed.length === 0) return current;
