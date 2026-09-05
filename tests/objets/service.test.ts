@@ -57,3 +57,12 @@ describe("service générique — modification (CRM-33, D12)", () => {
     expect(changes.every((e) => e.author?.id === actorId && e.createdAt instanceof Date)).toBe(true);
   });
 });
+
+describe("service générique — fiche archivée (CRM-33, D21)", () => {
+  it("refuse (409) de modifier une fiche dont archived_at est posé, sans rien écrire dans l'historique", async () => {
+    const created = await createObject("company", { name: "Archivée SA", type: "client" }, { id: actorId });
+    await db.update(company).set({ archivedAt: new Date() }).where(eq(company.id, created.id));
+    await expect(updateObject("company", created.id, { type: "prospect" }, { id: actorId })).rejects.toMatchObject({ status: 409, code: "fiche_archivee" });
+    expect((await listHistory("company", created.id)).map((e) => e.action)).toEqual(["creee"]);
+  });
+});
