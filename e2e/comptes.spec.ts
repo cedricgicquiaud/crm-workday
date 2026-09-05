@@ -189,3 +189,21 @@ test.describe("Mon profil (CRM-21, contrat 13, D13)", () => {
     expect((await request.post("/api/auth/sign-in/email", { data: { email: MEMBER.email, password: "MotDePasse-Membre-E2E-2" } })).status()).toBe(200);
   });
 });
+
+test.describe("écrans à 375 px", () => {
+  test("les comptes et le profil n'ont aucun défilement horizontal et un seul titre h1", async ({ adminPage }) => {
+    await adminPage.setViewportSize({ width: 375, height: 800 });
+    for (const path of ["/parametres/comptes", "/profil"]) {
+      await adminPage.goto(path);
+      await expect(adminPage.getByRole("heading", { level: 1 })).toHaveCount(1);
+      const overflow = await adminPage.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow, path).toBe(0);
+    }
+    await adminPage.goto("/parametres/comptes");
+    await adminPage.getByRole("button", { name: "Inviter" }).click();
+    const dialog = adminPage.getByRole("dialog", { name: "Inviter une personne" });
+    await expect(dialog).toBeVisible();
+    const overflow = await adminPage.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBe(0);
+  });
+});
