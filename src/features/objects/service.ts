@@ -97,12 +97,17 @@ export async function createObject(type: string, input: unknown, actor: Actor): 
   return record;
 }
 
-/** Lit une fiche ; une fiche inconnue est une ressource inexistante (404). */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const notFound = (type: string) => new HttpError(404, "fiche_introuvable", `${getObject(type).labels.singular} introuvable.`);
+
+/** Lit une fiche ; une fiche inconnue est une ressource inexistante (404), et un identifiant qui n'est pas un UUID aussi : Postgres n'est jamais interrogé avec. */
 export async function getObjectRecord(type: string, id: string): Promise<ObjectRecord> {
   const { table } = getServerObject(type);
+  if (!UUID.test(id)) throw notFound(type);
   const columns = getTableColumns(table);
   const [row] = await db.select().from(table).where(eq(columns.id, id)).limit(1);
-  if (!row) throw new HttpError(404, "fiche_introuvable", `${getObject(type).labels.singular} introuvable.`);
+  if (!row) throw notFound(type);
   return row as ObjectRecord;
 }
 
