@@ -1,8 +1,13 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Role } from "@/features/auth/accounts";
+import { AccountActions, type Outcome } from "./account-actions";
 import type { AccountStatus } from "./accounts";
+import { InviteDialog } from "./invite-dialog";
 import { fullName, ROLE_LABELS } from "./labels";
 import { StatusBadge } from "./status-badge";
 
@@ -12,12 +17,34 @@ type Props = { accounts: AccountRow[] };
 
 /** Écran Paramètres → Comptes : liste dense (ligne 32 px, pas de zébrage), un compte par ligne. */
 export function AccountsScreen({ accounts }: Props) {
+  const router = useRouter();
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
+
+  /** Après chaque action, la liste est relue côté serveur et le résultat annoncé. */
+  function done(next: Outcome) {
+    setOutcome(next);
+    router.refresh();
+  }
+
   return (
     <div className="grid gap-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-base font-medium">Comptes</h2>
-        <p className="text-sm text-muted-foreground">{accounts.length === 1 ? "1 compte" : `${accounts.length} comptes`}</p>
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-base font-medium">Comptes</h2>
+          <p className="text-sm text-muted-foreground">{accounts.length === 1 ? "1 compte" : `${accounts.length} comptes`}</p>
+        </div>
+        <InviteDialog onInvited={(email) => done({ kind: "status", text: `Invitation envoyée à ${email}.` })} />
       </div>
+      {outcome?.kind === "status" && (
+        <p role="status" className="text-sm">
+          {outcome.text}
+        </p>
+      )}
+      {outcome?.kind === "alert" && (
+        <Alert variant="destructive">
+          <AlertDescription>{outcome.text}</AlertDescription>
+        </Alert>
+      )}
       <Table aria-label="Comptes">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
@@ -25,6 +52,9 @@ export function AccountsScreen({ accounts }: Props) {
             <TableHead className="h-7">Email</TableHead>
             <TableHead className="h-7">Rôle</TableHead>
             <TableHead className="h-7">État</TableHead>
+            <TableHead className="h-7 w-10">
+              <span className="sr-only">Actions</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -35,6 +65,9 @@ export function AccountsScreen({ accounts }: Props) {
               <TableCell className="py-1">{ROLE_LABELS[account.role]}</TableCell>
               <TableCell className="py-1">
                 <StatusBadge status={account.status} />
+              </TableCell>
+              <TableCell className="py-0 text-right">
+                <AccountActions account={account} onDone={done} />
               </TableCell>
             </TableRow>
           ))}
