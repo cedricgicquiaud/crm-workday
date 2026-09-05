@@ -15,10 +15,13 @@ export type AccountRow = { id: string; email: string; firstName: string; lastNam
 
 type Props = { accounts: AccountRow[] };
 
+const isActiveAdmin = (a: AccountRow) => a.role === "administrateur" && a.status === "actif";
+
 /** Écran Paramètres → Comptes : liste dense (ligne 32 px, pas de zébrage), un compte par ligne. */
 export function AccountsScreen({ accounts }: Props) {
   const router = useRouter();
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const activeAdminCount = accounts.filter(isActiveAdmin).length;
 
   /** Après chaque action, la liste est relue côté serveur et le résultat annoncé. */
   function done(next: Outcome) {
@@ -70,7 +73,7 @@ export function AccountsScreen({ accounts }: Props) {
                 <StatusBadge status={account.status} />
               </TableCell>
               <TableCell className="py-0 text-right">
-                <AccountActions account={account} onDone={done} />
+                <AccountActions account={account} activeAdminCount={activeAdminCount} onDone={done} />
               </TableCell>
             </TableRow>
           ))}

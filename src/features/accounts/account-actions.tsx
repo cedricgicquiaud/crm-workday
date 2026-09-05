@@ -1,33 +1,47 @@
 "use client";
 
 import { MoreHorizontalIcon } from "lucide-react";
+import { Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import type { Role } from "@/features/auth/accounts";
 import type { AccountRow } from "./accounts-screen";
+import { accountActions, type AccountAction } from "./actions";
 import { callApi } from "./api-client";
-import { fullName, ROLE_LABELS } from "./labels";
+import { fullName } from "./labels";
 
 export type Outcome = { kind: "status" | "alert"; text: string };
 
-type Props = { account: AccountRow; onDone: (outcome: Outcome) => void };
+type Props = { account: AccountRow; activeAdminCount: number; onDone: (outcome: Outcome) => void };
 
-/** Actions d'une ligne, groupées dans un menu (liste dense). */
-export function AccountActions({ account, onDone }: Props) {
-  /** Lance l'appel et annonce le résultat : la phrase de succès, ou le message d'erreur du serveur. */
-  async function run(call: Promise<Awaited<ReturnType<typeof callApi>>>, success: string) {
+/** Actions d'une ligne, groupées dans un menu (liste dense) ; la liste vient de `accountActions`. */
+export function AccountActions({ account, activeAdminCount, onDone }: Props) {
+  const accountPath = `/api/accounts/${encodeURIComponent(account.id)}`;
+  const name = fullName(account);
+
+  /** L'appel de chaque action et la phrase annoncée quand il réussit. */
+  function perform(action: AccountAction): { call: ReturnType<typeof callApi>; success: string } {
+    switch (action.id) {
+      case "renvoyer":
+        return { call: callApi("/api/invitations/renvoyer", { method: "POST", body: { email: account.email } }), success: `Invitation renvoyée à ${account.email}.` };
+      case "changer-role":
+        return { call: callApi(accountPath, { method: "PATCH", body: { role: action.role } }), success: `${name} est maintenant ${action.role}.` };
+      case "fermer-sessions":
+        return { call: callApi(`${accountPath}/sessions`, { method: "DELETE" }), success: `Sessions de ${name} fermées : il devra se reconnecter.` };
+      case "desactiver":
+        return { call: callApi(accountPath, { method: "PATCH", body: { status: "desactive" } }), success: `Compte de ${name} désactivé.` };
+      case "reactiver":
+        return { call: callApi(accountPath, { method: "PATCH", body: { status: "actif" } }), success: `Compte de ${name} réactivé.` };
+    }
+  }
+
+  async function run(action: AccountAction) {
+    const { call, success } = perform(action);
     const result = await call;
     onDone(result.ok ? { kind: "status", text: success } : { kind: "alert", text: result.failure.message });
   }
 
-  const accountPath = `/api/accounts/${encodeURIComponent(account.id)}`;
-  const name = fullName(account);
-  const resend = () => run(callApi("/api/invitations/renvoyer", { method: "POST", body: { email: account.email } }), `Invitation renvoyée à ${account.email}.`);
-  const deactivate = () => run(callApi(accountPath, { method: "PATCH", body: { status: "desactive" } }), `Compte de ${name} désactivé.`);
-  const reactivate = () => run(callApi(accountPath, { method: "PATCH", body: { status: "actif" } }), `Compte de ${name} réactivé.`);
-  const closeSessions = () => run(callApi(`${accountPath}/sessions`, { method: "DELETE" }), `Sessions de ${name} fermées : il devra se reconnecter.`);
-  const otherRole: Role = account.role === "administrateur" ? "membre" : "administrateur";
-  const changeRole = () => run(callApi(accountPath, { method: "PATCH", body: { role: otherRole } }), `${name} est maintenant ${otherRole}.`);
+  const actions = accountActions(account, { activeAdminCount });
+  const finalIndex = actions.findIndex((a) => a.id === "desactiver" || a.id === "reactiver");
 
   return (
     <DropdownMenu>
@@ -35,17 +49,20 @@ export function AccountActions({ account, onDone }: Props) {
         <MoreHorizontalIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {account.status === "invite" && <DropdownMenuItem onClick={resend}>Renvoyer l&apos;invitation</DropdownMenuItem>}
-        <DropdownMenuItem onClick={changeRole}>Passer {ROLE_LABELS[otherRole].toLowerCase()}</DropdownMenuItem>
-        <DropdownMenuItem onClick={closeSessions}>Fermer toutes les sessions</DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {account.status === "desactive" ? (
-          <DropdownMenuItem onClick={reactivate}>Réactiver</DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem variant="destructive" onClick={deactivate}>
-            Désactiver
-          </DropdownMenuItem>
-        )}
+        {actions.map((action, index) => (
+          <Fragment key={action.id}>
+            {index === finalIndex && index > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuItem
+              variant={action.destructive ? "destructive" : "default"}
+              disabled={Boolean(action.disabledReason)}
+              onClick={() => run(action)}
+              className="flex-col items-start gap-0"
+            >
+              {action.label}
+              {action.disabledReason && <span className="text-xs text-muted-foreground">{action.disabledReason}</span>}
+            </DropdownMenuItem>
+          </Fragment>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
