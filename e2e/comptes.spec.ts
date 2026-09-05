@@ -123,3 +123,33 @@ test.describe("désactivation et réactivation (CRM-19, contrat 10)", () => {
     await expect(memberPage).toHaveURL(/\/accueil$/);
   });
 });
+
+test.describe("fermeture des sessions et rôle (CRM-19, contrat 11, D11)", () => {
+  test("« Fermer toutes les sessions » force la reconnexion du compte ; « Passer administrateur » puis « Passer membre » changent le rôle affiché", async ({ adminPage, memberPage }) => {
+    await memberPage.goto("/accueil");
+    await expect(memberPage.getByRole("heading", { level: 1 })).toHaveText(`Bonjour ${MEMBER.firstName}`);
+
+    await adminPage.goto("/parametres/comptes");
+    const row = adminPage.getByRole("table", { name: "Comptes" }).getByRole("row", { name: new RegExp(MEMBER.email) });
+    await row.getByRole("button", { name: "Actions" }).click();
+    await adminPage.getByRole("menuitem", { name: "Fermer toutes les sessions" }).click();
+    await expect(adminPage.getByRole("status")).toContainText(`Sessions de ${MEMBER.firstName} ${MEMBER.lastName} fermées`);
+    await expect(row.getByText("Actif", { exact: true })).toBeVisible();
+
+    await memberPage.reload();
+    await expect(memberPage).toHaveURL(/\/connexion/);
+    await memberPage.getByLabel("Email").fill(MEMBER.email);
+    await memberPage.getByLabel("Mot de passe").fill(MEMBER.password);
+    await memberPage.getByRole("button", { name: "Se connecter" }).click();
+    await expect(memberPage).toHaveURL(/\/accueil$/);
+
+    await row.getByRole("button", { name: "Actions" }).click();
+    await adminPage.getByRole("menuitem", { name: "Passer administrateur" }).click();
+    await expect(adminPage.getByRole("status")).toContainText(`${MEMBER.firstName} ${MEMBER.lastName} est maintenant administrateur`);
+    await expect(row).toContainText("Administrateur");
+    await row.getByRole("button", { name: "Actions" }).click();
+    await adminPage.getByRole("menuitem", { name: "Passer membre" }).click();
+    await expect(adminPage.getByRole("status")).toContainText(`${MEMBER.firstName} ${MEMBER.lastName} est maintenant membre`);
+    await expect(row).toContainText("Membre");
+  });
+});
