@@ -117,6 +117,31 @@ test.describe("thème mémorisé (CRM-29, contrats 24 et 26)", () => {
   });
 });
 
+test.describe("thème : échec d'enregistrement (retour du verifier 1.3)", () => {
+  test("quand l'API échoue, le pied de la barre latérale le dit et le thème revient à sa valeur ; même chose depuis la palette", async ({ memberPage }) => {
+    await memberPage.route("**/api/theme", (route) => route.fulfill({ status: 500, contentType: "application/json", body: "{}" }));
+    await memberPage.goto("/accueil");
+    const html = memberPage.locator("html");
+    const wasDark = await html.evaluate((el) => el.classList.contains("dark"));
+    const sidebar = memberPage.locator('[data-slot="sidebar"]');
+    /* Dans la barre latérale : Next.js pose son propre `role="alert"` (annonce de route), toujours présent et vide. */
+    const alert = sidebar.getByRole("alert");
+
+    await sidebar.getByRole("button", { name: /Passer en thème/ }).click();
+    await expect(alert).toHaveText("Le thème n'a pas pu être enregistré.");
+    expect(await html.evaluate((el) => el.classList.contains("dark"))).toBe(wasDark);
+
+    await memberPage.reload();
+    await expect(alert).toHaveCount(0);
+    const palette = await openPaletteWithKeyboard(memberPage);
+    await palette.getByPlaceholder(PALETTE_INPUT).fill("sombre");
+    await expect(palette.getByRole("option", { name: THEME_ENTRY })).toHaveAttribute("aria-selected", "true");
+    await memberPage.keyboard.press("Enter");
+    await expect(alert).toHaveText("Le thème n'a pas pu être enregistré.");
+    expect(await html.evaluate((el) => el.classList.contains("dark"))).toBe(wasDark);
+  });
+});
+
 test.describe("sous-navigation Paramètres (CRM-30, contrat 16)", () => {
   test("un membre voit Journal seulement, un administrateur les cinq entrées ; l'entrée courante est marquée ; une entrée masquée reste protégée", async ({ memberPage, adminPage }) => {
     await memberPage.goto("/parametres/journal");
