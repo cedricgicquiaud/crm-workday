@@ -7,13 +7,15 @@
  * Rien ne part sans ligne de journal.
  */
 import { render } from "@react-email/render";
-import { Resend } from "resend";
 import { emailLog } from "@/db/schema";
 import { db } from "@/lib/db";
 import { getEnv, isProduction } from "@/lib/env";
-import { getCabinetSettings } from "@/lib/mail/settings";
+import { getCabinetSettings, type CabinetSettings } from "@/lib/mail/settings";
 import { getTemplate, renderVariables, type TemplateText } from "@/lib/mail/templates";
+import { resendTransport, type MailTransport } from "@/lib/mail/transport";
 import { TemplateEmail } from "@/emails/template";
+
+export type { MailTransport } from "@/lib/mail/transport";
 
 /** Clé d'un modèle en base ; les deux modèles système sont toujours présents. */
 export type TemplateName = "invitation" | "reinitialisation" | (string & {});
@@ -31,6 +33,11 @@ export type SendTemplatedEmailInput = {
 };
 
 export type SendTemplatedEmailResult = { id: string; status: EmailStatus; errorReason?: string };
+
+/** Un transport injecté force le chemin d'envoi réel (tests) ; sinon il dépend de l'environnement. */
+export type SendOptions = { transport?: MailTransport };
+
+export const SENDER_NOT_CONFIGURED = "expéditeur non configuré";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -56,21 +63,51 @@ export async function renderTemplate(template: TemplateName, variables: Template
 export const SAMPLE_VARIABLES: TemplateVariables = { prenom: "Ana", nom: "Martin", cabinet: "Cabinet Exemple", lien: "https://crm.exemple.fr/invitation/exemple" };
 
 export async function previewText(text: TemplateText): Promise<{ subject: string; html: string }> {
-  return renderText(text, await withCabinetName(SAMPLE_VARIABLES));
+  return renderText(text, withCabinetName(SAMPLE_VARIABLES, await getCabinetSettings()));
 }
 
 /** Le nom du cabinet enregistré prime sur la valeur passée par l'appelant (contrat 27). */
-async function withCabinetName(variables: TemplateVariables): Promise<TemplateVariables> {
-  const settings = await getCabinetSettings();
+function withCabinetName(variables: TemplateVariables, settings: CabinetSettings | null): TemplateVariables {
   return settings ? { ...variables, cabinet: settings.name } : variables;
 }
 
-export async function sendTemplatedEmail(input: SendTemplatedEmailInput): Promise<SendTemplatedEmailResult> {
+/** `Nom d'affichage <adresse>`, ou null tant que le cabinet n'a pas d'expéditeur (D21). */
+function senderOf(settings: CabinetSettings | null): string | null {
+  if (!settings?.senderEmail) return null;
+  return settings.senderName ? `${settings.senderName} <${settings.senderEmail}>` : settings.senderEmail;
+}
+
+type LogEntry = Omit<typeof emailLog.$inferInsert, "id" | "createdAt" | "status" | "errorReason" | "providerId">;
+
+async function log(entry: LogEntry, outcome: { status: EmailStatus; errorReason?: string; providerId?: string }): Promise<SendTemplatedEmailResult> {
+  const [row] = await db
+    .insert(emailLog)
+    .values({ ...entry, status: outcome.status, errorReason: outcome.errorReason ?? null, providerId: outcome.providerId ?? null })
+    .returning({ id: emailLog.id });
+  return { id: row.id, status: outcome.status, ...(outcome.errorReason ? { errorReason: outcome.errorReason } : {}) };
+}
+
+/**
+ * Envoi réel : une seule tentative, jamais de nouvelle tentative automatique (D24). Le refus
+ * de l'expéditeur absent et le motif du fournisseur finissent tous deux dans le journal.
+ */
+async function deliver(entry: LogEntry, from: string | null, transport: MailTransport): Promise<SendTemplatedEmailResult> {
+  if (!from) return log(entry, { status: "echec", errorReason: SENDER_NOT_CONFIGURED });
+  try {
+    const { id } = await transport.send({ from, to: entry.to, subject: entry.subject, html: entry.body });
+    return log(entry, { status: "envoye", providerId: id });
+  } catch (error) {
+    return log(entry, { status: "echec", errorReason: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+export async function sendTemplatedEmail(input: SendTemplatedEmailInput, options: SendOptions = {}): Promise<SendTemplatedEmailResult> {
   if (!isValidEmail(input.to)) {
     throw new Error(`Destinataire invalide : « ${input.to} »`);
   }
-  const { subject, html } = await renderTemplate(input.template, await withCabinetName(input.variables));
-  const base = {
+  const settings = await getCabinetSettings();
+  const { subject, html } = await renderTemplate(input.template, withCabinetName(input.variables, settings));
+  const entry: LogEntry = {
     to: input.to.trim(),
     subject,
     body: html,
@@ -79,33 +116,7 @@ export async function sendTemplatedEmail(input: SendTemplatedEmailInput): Promis
     objectType: input.objectRef?.type ?? null,
     objectId: input.objectRef?.id ?? null,
   };
-
-  if (!isProduction()) {
-    const [row] = await db.insert(emailLog).values({ ...base, status: "capture" }).returning({ id: emailLog.id });
-    return { id: row.id, status: "capture" };
-  }
-
-  const env = getEnv();
-  const from = env.MAIL_FROM;
-  if (!from) {
-    const [row] = await db
-      .insert(emailLog)
-      .values({ ...base, status: "echec", errorReason: "expéditeur non configuré" })
-      .returning({ id: emailLog.id });
-    return { id: row.id, status: "echec", errorReason: "expéditeur non configuré" };
-  }
-  try {
-    const resend = new Resend(env.RESEND_API_KEY);
-    const { data, error } = await resend.emails.send({ from, to: base.to, subject, html });
-    if (error) throw new Error(error.message);
-    const [row] = await db
-      .insert(emailLog)
-      .values({ ...base, status: "envoye", providerId: data?.id ?? null })
-      .returning({ id: emailLog.id });
-    return { id: row.id, status: "envoye" };
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    const [row] = await db.insert(emailLog).values({ ...base, status: "echec", errorReason: reason }).returning({ id: emailLog.id });
-    return { id: row.id, status: "echec", errorReason: reason };
-  }
+  const transport = options.transport ?? (isProduction() ? resendTransport(getEnv().RESEND_API_KEY ?? "") : null);
+  if (!transport) return log(entry, { status: "capture" });
+  return deliver(entry, senderOf(settings), transport);
 }
