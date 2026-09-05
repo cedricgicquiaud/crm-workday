@@ -16,6 +16,7 @@ export type FieldErrors = Record<string, string>;
 const MESSAGES = {
   required: (label: string) => `« ${label} » est obligatoire.`,
   outOfList: (label: string) => `Valeur hors liste pour « ${label} ».`,
+  tooLong: (label: string, max: number) => `« ${label} » dépasse ${max} caractères.`,
 };
 
 const asText = (value: unknown): string | null => {
@@ -50,6 +51,10 @@ export function validateValues(fields: readonly FieldDescriptor[], input: unknow
     }
     if (field.type === "list" && !field.values?.some((v) => v.value === value)) {
       errors[field.key] = MESSAGES.outOfList(field.label);
+      continue;
+    }
+    if (field.maxLength !== undefined && value.length > field.maxLength) {
+      errors[field.key] = MESSAGES.tooLong(field.label, field.maxLength);
       continue;
     }
     values[field.key] = value;
