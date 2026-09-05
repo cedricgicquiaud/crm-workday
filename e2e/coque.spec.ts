@@ -1,4 +1,4 @@
-import { ADMIN, expect, seedAccounts, signInAs, test } from "./fixtures/auth";
+import { ADMIN, expect, MEMBER, seedAccounts, signInAs, test } from "./fixtures/auth";
 
 test.beforeAll(() => seedAccounts());
 
@@ -128,5 +128,28 @@ test.describe("sous-navigation Paramètres (CRM-30, contrat 16)", () => {
     await expect(adminNav.getByRole("link", { name: "Comptes" })).not.toHaveAttribute("aria-current", "page");
     await adminPage.goto("/parametres");
     await expect(adminPage).toHaveURL(/\/parametres\/comptes$/);
+  });
+});
+
+test.describe("déconnexion (D16)", () => {
+  test("« Se déconnecter » dans le pied de la barre latérale mène à la connexion, et la palette propose la même action", async ({ browser }) => {
+    const context = await browser.newContext();
+    await signInAs(context.request, MEMBER);
+    const page = await context.newPage();
+    await page.goto("/accueil");
+    await page.locator('[data-slot="sidebar"]').getByRole("button", { name: "Se déconnecter" }).click();
+    await expect(page).toHaveURL(/\/connexion$/);
+    await page.goto("/accueil");
+    await expect(page).toHaveURL(/\/connexion/);
+
+    await signInAs(context.request, MEMBER);
+    await page.goto("/profil");
+    await page.keyboard.press("ControlOrMeta+k");
+    const palette = page.getByRole("dialog", { name: "Palette de commandes" });
+    await palette.getByPlaceholder(PALETTE_INPUT).fill("déco");
+    await expect(palette.getByRole("option", { name: "Se déconnecter" })).toHaveAttribute("aria-selected", "true");
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/connexion$/);
+    await context.close();
   });
 });
