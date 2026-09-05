@@ -45,3 +45,11 @@ describe("déclaration de l'entreprise dans le registre (CRM-33, D4, D23)", () =
     expect(await search("zzz")).toEqual([]);
   });
 });
+
+describe("clé de doublon (D19, préparée pour 2.6a)", () => {
+  it("donne la même clé à deux raisons sociales qui ne diffèrent que par la casse et les espaces", () => {
+    const { duplicateKey } = getServerObject("company");
+    expect(duplicateKey({ name: "  ACME   SAS " })).toBe(duplicateKey({ name: "acme sas" }));
+    expect(duplicateKey({ name: "ACME SAS" })).not.toBe(duplicateKey({ name: "Acmé Conseil" }));
+  });
+});
