@@ -4,6 +4,7 @@
  * par champ modifié (D12), refus d'une fiche archivée (D21). Il ne connaît que la clé d'objet.
  */
 import "@/features/objects/manifest.server";
+import { eq, getTableColumns } from "drizzle-orm";
 import { recordHistory } from "@/features/history/history";
 import { validateValues, type FieldValues } from "@/features/objects/fields";
 import { getObject } from "@/features/objects/registry";
@@ -49,4 +50,33 @@ export async function createObject(type: string, input: unknown, actor: Actor): 
   const record = row as ObjectRecord;
   await recordHistory([{ objectType: type, objectId: record.id, action: "creee", authorId: actor.id }]);
   return record;
+}
+
+/** Lit une fiche ; une fiche inconnue est une ressource inexistante (404). */
+export async function getObjectRecord(type: string, id: string): Promise<ObjectRecord> {
+  const { table } = getServerObject(type);
+  const columns = getTableColumns(table);
+  const [row] = await db.select().from(table).where(eq(columns.id, id)).limit(1);
+  if (!row) throw new HttpError(404, "fiche_introuvable", `${getObject(type).labels.singular} introuvable.`);
+  return row as ObjectRecord;
+}
+
+const same = (a: unknown, b: unknown) => (a ?? null) === (b ?? null) || String(a ?? "") === String(b ?? "");
+
+export async function updateObject(type: string, id: string, patch: unknown, actor: Actor): Promise<ObjectRecord> {
+  const { table } = getServerObject(type);
+  const columns = getTableColumns(table);
+  const current = await getObjectRecord(type, id);
+  const values = validateOrThrow(type, patch, { partial: true });
+  const changed = Object.entries(values).filter(([key, value]) => !same(current[key], value));
+  if (changed.length === 0) return current;
+  const [row] = await db
+    .update(table)
+    .set({ ...Object.fromEntries(changed), updatedAt: new Date() })
+    .where(eq(columns.id, id))
+    .returning();
+  await recordHistory(
+    changed.map(([field, value]) => ({ objectType: type, objectId: id, action: "modifiee" as const, field, oldValue: current[field] == null ? null : String(current[field]), newValue: value, authorId: actor.id })),
+  );
+  return row as ObjectRecord;
 }
