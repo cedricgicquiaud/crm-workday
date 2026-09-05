@@ -214,3 +214,11 @@ test.describe("téléphone, 375 px (CRM-27, contrat 25)", () => {
     await expect(adminPage.getByRole("form", { name: "Filtres du journal" }).getByRole("button", { name: "Filtrer" })).toBeInViewport();
   });
 });
+
+test.describe("Accueil (retour de recette 1.2a)", () => {
+  test("la date du jour est courte : « 5 sept. 2026 »", async ({ adminPage }) => {
+    await adminPage.goto("/accueil");
+    const expected = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Paris" }).format(new Date());
+    await expect(adminPage.getByText(expected, { exact: true })).toBeVisible();
+  });
+});
