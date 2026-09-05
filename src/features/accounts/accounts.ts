@@ -48,6 +48,7 @@ export async function inviteAccount(input: NewInvitation): Promise<{ userId: str
     throw new HttpError(409, "email_deja_utilise", `Un compte existe déjà pour ${email} : ${name} (${STATUS_LABELS[status]}).`, {
       status,
       accountId: existing.id,
+      name,
     });
   }
   return createInvitation({ ...input, email });

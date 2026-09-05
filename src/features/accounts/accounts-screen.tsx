@@ -33,7 +33,10 @@ export function AccountsScreen({ accounts }: Props) {
           <h2 className="text-base font-medium">Comptes</h2>
           <p className="text-sm text-muted-foreground">{accounts.length === 1 ? "1 compte" : `${accounts.length} comptes`}</p>
         </div>
-        <InviteDialog onInvited={(email) => done({ kind: "status", text: `Invitation envoyée à ${email}.` })} />
+        <InviteDialog
+          onInvited={(email) => done({ kind: "status", text: `Invitation envoyée à ${email}.` })}
+          onReactivated={(name) => done({ kind: "status", text: `Compte de ${name} réactivé.` })}
+        />
       </div>
       {outcome?.kind === "status" && (
         <p role="status" className="text-sm">
