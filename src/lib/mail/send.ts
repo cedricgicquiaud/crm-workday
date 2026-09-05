@@ -12,10 +12,11 @@ import { emailLog } from "@/db/schema";
 import { db } from "@/lib/db";
 import { getEnv, isProduction } from "@/lib/env";
 import { getCabinetSettings } from "@/lib/mail/settings";
-import { InvitationEmail, invitationSubject } from "@/emails/invitation";
-import { ReinitialisationEmail, reinitialisationSubject } from "@/emails/reinitialisation";
+import { getTemplate, renderVariables } from "@/lib/mail/templates";
+import { TemplateEmail } from "@/emails/template";
 
-export type TemplateName = "invitation" | "reinitialisation";
+/** Clé d'un modèle en base ; les deux modèles système sont toujours présents. */
+export type TemplateName = "invitation" | "reinitialisation" | (string & {});
 export type TemplateVariables = { prenom: string; nom: string; cabinet: string; lien: string };
 export type EmailStatus = "capture" | "envoye" | "echec";
 
@@ -37,13 +38,13 @@ export function isValidEmail(value: string): boolean {
   return EMAIL_RE.test(value.trim());
 }
 
+/** Sujet et HTML d'un modèle en base, variables remplacées, dans le cadre React Email. */
 export async function renderTemplate(template: TemplateName, variables: TemplateVariables) {
-  switch (template) {
-    case "invitation":
-      return { subject: invitationSubject(variables), html: await render(InvitationEmail(variables)) };
-    case "reinitialisation":
-      return { subject: reinitialisationSubject(), html: await render(ReinitialisationEmail(variables)) };
-  }
+  const found = await getTemplate(template);
+  if (!found) throw new Error(`Modèle inconnu : « ${template} »`);
+  const subject = renderVariables(found.subject, variables);
+  const body = renderVariables(found.body, variables);
+  return { subject, html: await render(TemplateEmail({ preview: subject, cabinet: variables.cabinet, body })) };
 }
 
 /** Le nom du cabinet enregistré prime sur la valeur passée par l'appelant (contrat 27). */

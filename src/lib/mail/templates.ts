@@ -3,7 +3,7 @@
  * `{{cabinet}}`, `{{lien}}`. Les deux modèles système sont amorcés au premier besoin avec les
  * textes historiques de `src/emails/`.
  */
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { emailTemplate } from "@/db/schema";
 import { db } from "@/lib/db";
 
@@ -54,4 +54,24 @@ export async function ensureSystemTemplates(): Promise<void> {
 export async function listTemplates(): Promise<EmailTemplate[]> {
   await ensureSystemTemplates();
   return db.select().from(emailTemplate).orderBy(asc(emailTemplate.key));
+}
+
+export async function getTemplate(key: string): Promise<EmailTemplate | null> {
+  await ensureSystemTemplates();
+  const [row] = await db.select().from(emailTemplate).where(eq(emailTemplate.key, key)).limit(1);
+  return row ?? null;
+}
+
+export type TemplateText = { subject: string; body: string };
+
+export async function updateTemplate(key: string, text: TemplateText): Promise<void> {
+  await ensureSystemTemplates();
+  await db.update(emailTemplate).set({ subject: text.subject, body: text.body, updatedAt: new Date() }).where(eq(emailTemplate.key, key));
+}
+
+const VARIABLE_RE = /\{\{\s*([^{}]*?)\s*\}\}/g;
+
+/** Remplace chaque `{{variable}}` par sa valeur ; une variable absente des valeurs reste telle quelle. */
+export function renderVariables(text: string, variables: Record<string, string>): string {
+  return text.replace(VARIABLE_RE, (whole, name: string) => (name in variables ? variables[name] : whole));
 }
