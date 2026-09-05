@@ -14,6 +14,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { ROLE_LABELS } from "@/features/accounts/labels";
 import type { Role } from "@/features/auth/accounts";
@@ -28,6 +29,7 @@ const initials = (user: ShellUser) => `${user.firstName[0] ?? ""}${user.lastName
 /** Barre latérale (D15) : navigation, section « Objets » encore vide, pied avec le compte. 224 px, 48 px repliée. */
 export function AppSidebar({ user }: { user: ShellUser }) {
   const pathname = usePathname();
+  const { setOpenMobile } = useSidebar();
   const fullName = `${user.firstName} ${user.lastName}`.trim();
   return (
     <Sidebar collapsible="icon">
@@ -50,7 +52,8 @@ export function AppSidebar({ user }: { user: ShellUser }) {
                         isActive={current}
                         tooltip={entry.label}
                         className="h-(--sidebar-item-h)"
-                        render={<Link href={entry.href} aria-current={current ? "page" : undefined} />}
+                        /* Sur téléphone, choisir une page referme le tiroir. */
+                        render={<Link href={entry.href} aria-current={current ? "page" : undefined} onClick={() => setOpenMobile(false)} />}
                       >
                         <entry.icon />
                         <span>{entry.label}</span>
