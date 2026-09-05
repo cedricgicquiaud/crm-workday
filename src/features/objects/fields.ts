@@ -24,6 +24,12 @@ const asText = (value: unknown): string | null => {
   return text === "" ? null : text;
 };
 
+/** Normalisation propre au champ (espaces d'un SIREN…), avant toute règle ; une valeur vidée par elle reste vide. */
+function normalize(field: FieldDescriptor, value: string | null): string | null {
+  if (value === null || !field.normalize) return value;
+  return asText(field.normalize(value));
+}
+
 /**
  * Valide et normalise des valeurs saisies par les descripteurs, côté formulaire comme côté API.
  * `partial` : seuls les champs présents sont validés (modification) ; sinon les champs obligatoires
@@ -36,7 +42,7 @@ export function validateValues(fields: readonly FieldDescriptor[], input: unknow
   for (const field of fields) {
     const present = field.key in raw;
     if (!present && partial) continue;
-    const value = asText(raw[field.key]);
+    const value = normalize(field, asText(raw[field.key]));
     if (value === null) {
       if (field.required && (present || field.default === undefined)) errors[field.key] = MESSAGES.required(field.label);
       else if (present) values[field.key] = null;
