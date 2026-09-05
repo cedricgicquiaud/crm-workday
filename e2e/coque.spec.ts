@@ -10,9 +10,8 @@ test.describe("barre latérale (CRM-27, contrat 21)", () => {
     const nav = adminPage.getByRole("navigation", { name: "Navigation principale" });
     for (const name of ["Accueil", "Paramètres", "Mon profil"]) await expect(nav.getByRole("link", { name })).toBeVisible();
     await expect(nav.getByRole("link", { name: "Accueil" })).toHaveAttribute("aria-current", "page");
-    await expect(adminPage.getByText(ADMIN.firstName, { exact: false })).toBeVisible();
-
     const sidebar = adminPage.locator('[data-slot="sidebar"]');
+    await expect(sidebar.getByText(`${ADMIN.firstName} ${ADMIN.lastName}`)).toBeVisible();
     await expect(sidebar).toHaveAttribute("data-state", "expanded");
     await adminPage.getByRole("button", { name: SIDEBAR_TOGGLE }).click();
     await expect(sidebar).toHaveAttribute("data-state", "collapsed");
