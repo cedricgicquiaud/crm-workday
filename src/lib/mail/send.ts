@@ -101,16 +101,17 @@ async function deliver(entry: LogEntry, from: string | null, transport: MailTran
   }
 }
 
-export async function sendTemplatedEmail(input: SendTemplatedEmailInput, options: SendOptions = {}): Promise<SendTemplatedEmailResult> {
+export type SendRenderedEmailInput = Omit<SendTemplatedEmailInput, "variables"> & { subject: string; html: string };
+
+/** Envoi d'un contenu déjà rendu (renvoi à l'identique, email de test) : capture hors production, Resend sinon. */
+export async function sendRenderedEmail(input: SendRenderedEmailInput, options: SendOptions = {}): Promise<SendTemplatedEmailResult> {
   if (!isValidEmail(input.to)) {
     throw new Error(`Destinataire invalide : « ${input.to} »`);
   }
-  const settings = await getCabinetSettings();
-  const { subject, html } = await renderTemplate(input.template, withCabinetName(input.variables, settings));
   const entry: LogEntry = {
     to: input.to.trim(),
-    subject,
-    body: html,
+    subject: input.subject,
+    body: input.html,
     template: input.template,
     authorId: input.authorId ?? null,
     objectType: input.objectRef?.type ?? null,
@@ -118,5 +119,14 @@ export async function sendTemplatedEmail(input: SendTemplatedEmailInput, options
   };
   const transport = options.transport ?? (isProduction() ? resendTransport(getEnv().RESEND_API_KEY ?? "") : null);
   if (!transport) return log(entry, { status: "capture" });
-  return deliver(entry, senderOf(settings), transport);
+  return deliver(entry, senderOf(await getCabinetSettings()), transport);
+}
+
+export async function sendTemplatedEmail(input: SendTemplatedEmailInput, options: SendOptions = {}): Promise<SendTemplatedEmailResult> {
+  if (!isValidEmail(input.to)) {
+    throw new Error(`Destinataire invalide : « ${input.to} »`);
+  }
+  const { variables, ...rest } = input;
+  const rendered = await renderTemplate(input.template, withCabinetName(variables, await getCabinetSettings()));
+  return sendRenderedEmail({ ...rest, ...rendered }, options);
 }
