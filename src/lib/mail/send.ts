@@ -12,7 +12,7 @@ import { emailLog } from "@/db/schema";
 import { db } from "@/lib/db";
 import { getEnv, isProduction } from "@/lib/env";
 import { getCabinetSettings } from "@/lib/mail/settings";
-import { getTemplate, renderVariables } from "@/lib/mail/templates";
+import { getTemplate, renderVariables, type TemplateText } from "@/lib/mail/templates";
 import { TemplateEmail } from "@/emails/template";
 
 /** Clé d'un modèle en base ; les deux modèles système sont toujours présents. */
@@ -38,13 +38,25 @@ export function isValidEmail(value: string): boolean {
   return EMAIL_RE.test(value.trim());
 }
 
-/** Sujet et HTML d'un modèle en base, variables remplacées, dans le cadre React Email. */
+/** Sujet et HTML d'un texte de modèle, variables remplacées, dans le cadre React Email. */
+export async function renderText(text: TemplateText, variables: TemplateVariables): Promise<{ subject: string; html: string }> {
+  const subject = renderVariables(text.subject, variables);
+  const body = renderVariables(text.body, variables);
+  return { subject, html: await render(TemplateEmail({ preview: subject, cabinet: variables.cabinet, body })) };
+}
+
+/** Rendu d'un modèle en base. */
 export async function renderTemplate(template: TemplateName, variables: TemplateVariables) {
   const found = await getTemplate(template);
   if (!found) throw new Error(`Modèle inconnu : « ${template} »`);
-  const subject = renderVariables(found.subject, variables);
-  const body = renderVariables(found.body, variables);
-  return { subject, html: await render(TemplateEmail({ preview: subject, cabinet: variables.cabinet, body })) };
+  return renderText(found, variables);
+}
+
+/** Valeurs d'exemple de l'aperçu d'un modèle ; le nom du cabinet est le vrai s'il est enregistré. */
+export const SAMPLE_VARIABLES: TemplateVariables = { prenom: "Ana", nom: "Martin", cabinet: "Cabinet Exemple", lien: "https://crm.exemple.fr/invitation/exemple" };
+
+export async function previewText(text: TemplateText): Promise<{ subject: string; html: string }> {
+  return renderText(text, await withCabinetName(SAMPLE_VARIABLES));
 }
 
 /** Le nom du cabinet enregistré prime sur la valeur passée par l'appelant (contrat 27). */
