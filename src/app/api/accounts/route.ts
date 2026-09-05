@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { listAccounts } from "@/features/accounts/accounts";
-import { createInvitation } from "@/features/auth/invitations";
+import { inviteAccount, listAccounts } from "@/features/accounts/accounts";
 import { HttpError, requireAdmin, withApi } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +23,6 @@ export const POST = withApi(async (request) => {
   const { user: admin } = await requireAdmin(request);
   const parsed = newAccountSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) throw new HttpError(400, "donnees_invalides", "Email, prénom, nom et rôle sont requis.");
-  const { userId } = await createInvitation({ ...parsed.data, authorId: admin.id });
+  const { userId } = await inviteAccount({ ...parsed.data, authorId: admin.id });
   return NextResponse.json({ userId }, { status: 201 });
 });
