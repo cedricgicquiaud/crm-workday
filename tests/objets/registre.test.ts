@@ -45,3 +45,17 @@ describe("ordre des objets", () => {
     expect(keys).toEqual(["test_ordre_a", "test_ordre_b"]);
   });
 });
+
+describe("objet mal déclaré (CRM-33, D4)", () => {
+  const base = { order: 940, labels: { singular: "x", plural: "x", article: "un" }, icon: CircleDashedIcon, href: (id: string) => id, listHref: "/x", apiBase: "/api/x", relations: [], fields: [{ key: "name", label: "Nom", type: "text" as const, order: 10 }] };
+
+  it("refuse à l'enregistrement, avec un message explicite, un champ titre qui ne correspond à aucun champ déclaré", () => {
+    expect(() => registerObject({ ...base, key: "test_titre_absent", titleField: "libelle" })).toThrow("Objet « test_titre_absent » : le champ titre « libelle » n'est pas déclaré dans ses champs.");
+    expect(() => getObject("test_titre_absent")).toThrow("Objet inconnu");
+  });
+
+  it("refuse à l'enregistrement une colonne de liste qui ne correspond à aucun champ déclaré", () => {
+    expect(() => registerObject({ ...base, key: "test_colonne_absente", titleField: "name", listColumns: ["name", "ville"] })).toThrow("Objet « test_colonne_absente » : la colonne de liste « ville » n'est pas déclarée dans ses champs.");
+    expect(() => getObject("test_colonne_absente")).toThrow("Objet inconnu");
+  });
+});
