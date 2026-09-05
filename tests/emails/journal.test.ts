@@ -1,13 +1,17 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
+import { POST as resendRoute } from "@/app/api/emails/journal/[id]/renvoyer/route";
 import { GET as journalRoute } from "@/app/api/emails/journal/route";
 import { cabinetSettings, emailLog, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { createInvitation } from "@/features/auth/invitations";
+import { getAuth } from "@/lib/auth";
 import { closeDb, db } from "@/lib/db";
 import { listEmailLog } from "@/lib/mail/journal";
 import { sendTemplatedEmail } from "@/lib/mail/send";
 import { saveCabinetSettings } from "@/lib/mail/settings";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
+import { lastEmailTo } from "../helpers/mailbox";
 
 const ADMIN = { email: "admin-journal@exemple.fr", firstName: "Alice", lastName: "Durand", password: "MotDePasse-Journal-1", role: "administrateur" as const };
 const MEMBER = { email: "membre-journal@exemple.fr", firstName: "Marc", lastName: "Leroy", password: "MotDePasse-Membre-1", role: "membre" as const };
@@ -77,5 +81,43 @@ describe("API du journal (CRM-24, contrat 16, D11)", () => {
     expect(((await none.json()) as { entries: unknown[] }).entries).toEqual([]);
     expect((await journalRoute(jsonRequest("GET", "/api/emails/journal?status=inconnu", undefined, memberCookie))).status).toBe(400);
     expect((await journalRoute(jsonRequest("GET", "/api/emails/journal?from=hier", undefined, memberCookie))).status).toBe(400);
+  });
+});
+
+describe("« Renvoyer » depuis le journal (CRM-24, D24)", () => {
+  const idParams = (id: string) => ({ params: Promise.resolve({ id }) });
+  const linkOf = async (to: string, path: string) => (await lastEmailTo(to))!.links.find((l) => l.includes(path))!;
+  const logIdOf = async (to: string) => (await db.select({ id: emailLog.id }).from(emailLog).where(eq(emailLog.to, to)).orderBy(emailLog.createdAt))[0].id;
+
+  it("une invitation repart avec un lien neuf, une réinitialisation aussi, un autre email repart à l'identique ; 403 pour un membre, 404 sinon", async () => {
+    const invitee = "invitee-renvoi@exemple.fr";
+    await createInvitation({ email: invitee, firstName: "Inès", lastName: "Roux", role: "membre", authorId: adminId });
+    const firstInvitationLink = await linkOf(invitee, "/invitation/");
+    const invitationLogId = await logIdOf(invitee);
+    expect((await resendRoute(jsonRequest("POST", `/api/emails/journal/${invitationLogId}/renvoyer`, undefined, memberCookie), idParams(invitationLogId))).status).toBe(403);
+    expect((await resendRoute(jsonRequest("POST", `/api/emails/journal/${invitationLogId}/renvoyer`, undefined, adminCookie), idParams(invitationLogId))).status).toBe(200);
+    const secondInvitationLink = await linkOf(invitee, "/invitation/");
+    expect(secondInvitationLink).not.toBe(firstInvitationLink);
+    expect(await db.select().from(emailLog).where(eq(emailLog.to, invitee))).toHaveLength(2);
+
+    await getAuth().api.requestPasswordReset({ body: { email: MEMBER.email } });
+    const firstResetLink = await linkOf(MEMBER.email, "/reinitialisation/");
+    const resetLogId = await logIdOf(MEMBER.email);
+    expect((await resendRoute(jsonRequest("POST", `/api/emails/journal/${resetLogId}/renvoyer`, undefined, adminCookie), idParams(resetLogId))).status).toBe(200);
+    expect(await linkOf(MEMBER.email, "/reinitialisation/")).not.toBe(firstResetLink);
+
+    const [other] = await db
+      .insert(emailLog)
+      .values({ to: "autre-renvoi@exemple.fr", subject: "Un sujet", body: "<p>Un corps</p>", template: "test", status: "echec", errorReason: "refusé" })
+      .returning({ id: emailLog.id });
+    expect((await resendRoute(jsonRequest("POST", `/api/emails/journal/${other.id}/renvoyer`, undefined, adminCookie), idParams(other.id))).status).toBe(200);
+    const resent = await lastEmailTo("autre-renvoi@exemple.fr");
+    expect(resent).toMatchObject({ subject: "Un sujet", body: "<p>Un corps</p>", template: "test", status: "capture" });
+    expect(resent?.id).not.toBe(other.id);
+    const [resentRow] = await db.select().from(emailLog).where(eq(emailLog.id, resent!.id));
+    expect(resentRow.authorId).toBe(adminId);
+
+    const unknown = "00000000-0000-0000-0000-000000000000";
+    expect((await resendRoute(jsonRequest("POST", `/api/emails/journal/${unknown}/renvoyer`, undefined, adminCookie), idParams(unknown))).status).toBe(404);
   });
 });
