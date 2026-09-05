@@ -31,7 +31,8 @@ const asString = (value: unknown) => (value === null || value === undefined ? ""
  * Colonne centrale de la fiche : chaque champ s'édite en place (D6). Un champ texte s'enregistre
  * quand on le quitte ou sur Entrée, Échap annule ; une liste s'enregistre au choix. La valeur
  * affichée ne change qu'après la réponse 2xx du serveur ; un refus s'affiche sous le champ et la
- * valeur enregistrée revient.
+ * valeur enregistrée revient. Les champs s'empilent sur une seule colonne et prennent toute la
+ * largeur de la colonne centrale : une adresse email ou une rue s'y lit en entier.
  */
 export function FieldsSection({ type, record: initial, users }: Props) {
   const router = useRouter();
@@ -72,7 +73,7 @@ export function FieldsSection({ type, record: initial, users }: Props) {
       {sections(fieldsOf(type)).map((section) => (
         <section key={section.name} aria-label={section.name} className="grid gap-3">
           <h2 className="text-base font-medium">{section.name}</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3">
             {section.fields.map((field) => (
               <EditableField key={field.key} type={type} field={field} value={asString(record[field.key])} error={errors[field.key]} users={users} onSave={(value) => save(field, value)} />
             ))}
@@ -97,7 +98,6 @@ function EditableField({ type, field, value: saved, error, users, onSave }: Edit
     setDraft(saved);
   }
   const editable = field.editable !== false;
-  const wide = field.multiline || field.wide;
   const describedBy = error ? errorId : undefined;
 
   async function commit() {
@@ -118,7 +118,7 @@ function EditableField({ type, field, value: saved, error, users, onSave }: Edit
   const options = field.type === "list" ? field.values ?? [] : field.type === "user" ? users.map((u) => ({ value: u.id, label: u.name })) : null;
 
   return (
-    <div className={wide ? "grid gap-1 sm:col-span-2" : "grid gap-1"}>
+    <div className="grid gap-1">
       <Label htmlFor={id}>{field.label}</Label>
       {options ? (
         <Select items={options} value={saved || null} onValueChange={(next) => void onSave(next ?? "")} disabled={!editable}>
