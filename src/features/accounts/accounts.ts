@@ -69,3 +69,10 @@ export async function deactivateAccount(id: string): Promise<void> {
   await db.update(user).set({ status: "desactive", updatedAt: new Date() }).where(eq(user.id, id));
   await revokeAccountSessions(id);
 }
+
+/** Un administrateur réactive un compte désactivé ; le mot de passe reste le même (D12). */
+export async function reactivateAccount(id: string): Promise<void> {
+  const account = await findAccount(id);
+  if (account.status !== "desactive") throw new HttpError(409, "compte_non_desactive", "Ce compte n'est pas désactivé.");
+  await db.update(user).set({ status: "actif", updatedAt: new Date() }).where(eq(user.id, id));
+}
