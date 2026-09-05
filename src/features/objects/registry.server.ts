@@ -14,6 +14,8 @@ export type ServerObjectDefinition = {
   table: PgTable;
   /** fiches non archivées qui répondent à la saisie (sous-chaîne, insensible à la casse et aux accents pour 2.1b) */
   search: (query: string) => Promise<SearchHit[]>;
+  /** clé de rapprochement des doublons probables (D19) : deux fiches de même clé sont signalées (2.6a) ; nulle si la fiche n'en a pas */
+  duplicateKey: (record: Record<string, unknown>) => string | null;
 };
 
 const objects = new Map<string, ServerObjectDefinition>();

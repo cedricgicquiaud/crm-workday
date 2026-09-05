@@ -22,4 +22,10 @@ async function search(query: string) {
   return rows.map((row) => ({ id: row.id, title: row.name, subtitle: COMPANY_TYPES.find((t) => t.value === row.type)?.label }));
 }
 
-registerServerObject({ key: "company", table: company, search });
+/** Raison sociale en minuscules, espaces réduits ; 2.6a y retirera accents, ponctuation et formes juridiques (D19). */
+function duplicateKey(record: Record<string, unknown>): string | null {
+  const name = String(record.name ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  return name || null;
+}
+
+registerServerObject({ key: "company", table: company, search, duplicateKey });
