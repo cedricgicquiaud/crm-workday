@@ -173,3 +173,38 @@ test.describe("identifiant qui n'est pas un UUID (CRM-34, D24)", () => {
     await expect(memberPage.getByText(/Internal Server Error|Application error|Unhandled Runtime Error/)).toHaveCount(0);
   });
 });
+
+test.describe("échec de l'enregistrement en place (CRM-36, idiome : aucune écriture avalée en silence)", () => {
+  test("quand le serveur répond 500 à un PATCH, un message s'affiche sous le champ et la valeur enregistrée revient", async ({ memberPage }) => {
+    const name = `Panne Serveur ${suffix()}`;
+    const created = await memberPage.request.post("/api/entreprises", { data: { name, type: "client", city: "Lyon" } });
+    expect(created.status()).toBe(201);
+    const { id } = (await created.json()) as { id: string };
+    await memberPage.goto(`/entreprises/${id}`);
+    const address = memberPage.getByRole("region", { name: "Adresse" });
+    const city = address.getByLabel("Ville");
+    await expect(city).toHaveValue("Lyon");
+
+    await memberPage.route("**/api/entreprises/*", (route) => (route.request().method() === "PATCH" ? route.fulfill({ status: 500 }) : route.continue()));
+    await city.fill("Paris");
+    await memberPage.keyboard.press("Enter");
+    await expect(address.getByRole("alert")).toHaveText("La modification n'a pas pu être enregistrée.");
+    await expect(city).toHaveValue("Lyon");
+    await expect(city).toHaveAttribute("aria-invalid", "true");
+
+    /* Sur une panne réseau (requête interrompue), même comportement. */
+    await memberPage.unroute("**/api/entreprises/*");
+    await memberPage.route("**/api/entreprises/*", (route) => (route.request().method() === "PATCH" ? route.abort() : route.continue()));
+    await city.fill("Marseille");
+    await memberPage.keyboard.press("Enter");
+    await expect(address.getByRole("alert")).toHaveText("La modification n'a pas pu être enregistrée.");
+    await expect(city).toHaveValue("Lyon");
+
+    /* Le serveur revient : l'enregistrement passe, le message disparaît. */
+    await memberPage.unroute("**/api/entreprises/*");
+    await city.fill("Paris");
+    await memberPage.keyboard.press("Enter");
+    await expect(address.getByRole("alert")).toHaveCount(0);
+    await expect(memberPage.getByRole("region", { name: "Historique" }).getByText("Ville : Lyon → Paris")).toBeVisible();
+  });
+});
