@@ -31,8 +31,10 @@ export async function listEmails(limit = 50): Promise<CapturedEmail[]> {
   return JSON.parse(runDbCommand("list", String(limit))) as CapturedEmail[];
 }
 
-/** Pose une ligne « échec » dans le journal, comme l'aurait fait un refus de Resend en production. */
-export async function insertFailedEmail(input: { to: string; subject: string; reason: string; template?: string }): Promise<{ id: string }> {
+export type FailedEmailInput = { to: string; subject: string; reason: string; template?: string; objectType?: string; objectId?: string };
+
+/** Pose une ligne « échec » dans le journal, comme l'aurait fait un refus de Resend en production ; référence d'objet facultative. */
+export async function insertFailedEmail(input: FailedEmailInput): Promise<{ id: string }> {
   return JSON.parse(runDbCommand("insert-failed", JSON.stringify(input))) as { id: string };
 }
 
@@ -52,10 +54,19 @@ async function main(command: string, arg?: string) {
       process.stdout.write(JSON.stringify(await list(Number(arg ?? "50"))));
     } else if (command === "insert-failed" && arg) {
       const { emailLog } = await import("../../src/db/schema");
-      const input = JSON.parse(arg) as { to: string; subject: string; reason: string; template?: string };
+      const input = JSON.parse(arg) as FailedEmailInput;
       const [row] = await db
         .insert(emailLog)
-        .values({ to: input.to, subject: input.subject, body: `<p>${input.subject}</p>`, template: input.template ?? "test", status: "echec", errorReason: input.reason })
+        .values({
+          to: input.to,
+          subject: input.subject,
+          body: `<p>${input.subject}</p>`,
+          template: input.template ?? "test",
+          status: "echec",
+          errorReason: input.reason,
+          objectType: input.objectType ?? null,
+          objectId: input.objectId ?? null,
+        })
         .returning({ id: emailLog.id });
       process.stdout.write(JSON.stringify(row));
     } else {

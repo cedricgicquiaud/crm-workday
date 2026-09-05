@@ -177,6 +177,34 @@ test.describe("envoi de test (CRM-25, contrats 30, 34, 35)", () => {
   });
 });
 
+test.describe("journal à 1280 px (liste dense, fondations)", () => {
+  test("avec une ligne en échec portant une référence d'objet, la page ne déborde pas, « Renvoyer » reste dans la fenêtre et la ligne tient en 36 px", async ({ adminPage }) => {
+    await adminPage.setViewportSize({ width: 1280, height: 800 });
+    const failed = {
+      to: `echec-large-${Date.now()}-e2e@exemple.fr`,
+      subject: "Relance de la facture de la mission Workday du trimestre en cours",
+      reason: "Domaine non vérifié chez Resend",
+      objectType: "user",
+      objectId: "64978092-bc9b-4f0e-9c1d-1a2b3c4d5e6f",
+    };
+    await insertFailedEmail(failed);
+
+    await adminPage.goto("/parametres/journal");
+    const table = adminPage.getByRole("table", { name: "Journal des envois" });
+    const row = table.getByRole("row", { name: new RegExp(failed.to) });
+    await expect(row).toBeVisible();
+
+    const { scrollWidth, clientWidth } = await adminPage.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+    expect(scrollWidth, "largeur de la page").toBeLessThanOrEqual(clientWidth);
+    const button = (await row.getByRole("button", { name: "Renvoyer" }).boundingBox())!;
+    expect(button.x + button.width, "« Renvoyer » dans la fenêtre").toBeLessThanOrEqual(1280);
+    expect((await row.boundingBox())!.height, "hauteur de la ligne").toBeLessThanOrEqual(36);
+    /* Motif et référence d'objet tronqués, texte complet en infobulle. */
+    await expect(row.getByTitle(failed.reason)).toHaveCount(1);
+    await expect(row.getByTitle(`${failed.objectType} ${failed.objectId}`)).toHaveCount(1);
+  });
+});
+
 test.describe("écrans à 375 px (contrat 25)", () => {
   test("cabinet, modèles, journal et envoi de test n'ont aucun défilement horizontal, un seul h1, et leur action principale est visible", async ({ adminPage }) => {
     await adminPage.setViewportSize({ width: 375, height: 800 });
