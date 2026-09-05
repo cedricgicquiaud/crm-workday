@@ -33,6 +33,7 @@ registerPaletteEntries([
     id: "session-deconnexion",
     label: LABEL,
     group: "actions",
+    order: 20,
     keywords: ["déconnexion", "quitter", "sortir"],
     icon: LogOutIcon,
     run: ({ close, navigate }) => {

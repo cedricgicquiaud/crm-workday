@@ -19,10 +19,11 @@ export function isCurrentPage(pathname: string, href: string): boolean {
 }
 
 registerPaletteEntries(
-  SHELL_NAV.map((entry) => ({
+  SHELL_NAV.map((entry, index) => ({
     id: `aller-${entry.href}`,
     label: `Aller à ${entry.label}`,
     group: "navigation",
+    order: (index + 1) * 10,
     keywords: [entry.label],
     icon: entry.icon,
     run: ({ navigate }) => navigate(entry.href),

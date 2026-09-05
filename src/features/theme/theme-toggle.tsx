@@ -26,6 +26,7 @@ registerPaletteEntries([
     id: "theme-basculer",
     label: "Basculer le thème clair / sombre",
     group: "actions",
+    order: 10,
     keywords: ["sombre", "clair", "thème", "nuit", "jour"],
     icon: SunMoonIcon,
     run: async ({ close }) => {

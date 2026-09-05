@@ -24,6 +24,8 @@ export type PaletteEntry = {
   /** Raccourci affiché à droite du libellé. */
   shortcut?: string;
   icon?: LucideIcon;
+  /** Rang dans sa section : les entrées ordonnées d'abord (croissant), puis les autres par libellé. */
+  order?: number;
   run: (context: PaletteContext) => void | Promise<void>;
 };
 
@@ -32,8 +34,16 @@ const listeners = new Set<() => void>();
 /** Instantané stable entre deux changements : `useSyncExternalStore` compare les références. */
 let snapshot: readonly PaletteEntry[] = [];
 
+/** Ordre déterministe, indépendant de l'ordre de chargement des modules : `order` croissant, puis libellé. */
+function compareEntries(a: PaletteEntry, b: PaletteEntry): number {
+  if (a.order !== undefined && b.order !== undefined && a.order !== b.order) return a.order - b.order;
+  if (a.order !== undefined && b.order === undefined) return -1;
+  if (a.order === undefined && b.order !== undefined) return 1;
+  return a.label.localeCompare(b.label, "fr");
+}
+
 function notify() {
-  snapshot = Array.from(entries.values());
+  snapshot = Array.from(entries.values()).sort(compareEntries);
   for (const listener of listeners) listener();
 }
 
