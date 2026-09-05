@@ -140,7 +140,8 @@ export function ProfileForm() {
   }
 
   return (
-    <div className="grid gap-6">
+    /* `pt-2` : la page espace son titre de section de 8 px ; on complète à 16 px entre le titre et le premier libellé. */
+    <div className="grid gap-6 pt-2">
       <form className="grid max-w-md gap-4" aria-label="Identité" onSubmit={saveIdentity} noValidate>
         {identity ? (
           <>
@@ -169,7 +170,7 @@ export function ProfileForm() {
       </form>
 
       <form className="grid max-w-md gap-4" aria-label="Mot de passe" onSubmit={changePassword} noValidate>
-        <h3 className="text-sm font-medium">Changer le mot de passe</h3>
+        <h3 className="text-base font-medium">Changer le mot de passe</h3>
         {passwordInput("currentPassword", "Mot de passe actuel", "current-password")}
         {passwordInput("newPassword", "Nouveau mot de passe", "new-password", { rule: `${MIN_PASSWORD_LENGTH} caractères au moins.` })}
         {passwordInput("confirmation", "Confirmation du nouveau mot de passe", "new-password")}
