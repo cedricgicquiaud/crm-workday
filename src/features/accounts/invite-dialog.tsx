@@ -13,12 +13,33 @@ import { ROLE_LABELS } from "./labels";
 
 type Props = { onInvited: (email: string) => void; onReactivated: (name: string) => void };
 
+type TextField = "email" | "firstName" | "lastName";
+type FieldErrors = Partial<Record<TextField, string>>;
+
+const FIELDS: { name: TextField; id: string; label: string; type?: string }[] = [
+  { name: "email", id: "invite-email", label: "Email", type: "email" },
+  { name: "firstName", id: "invite-first-name", label: "Prénom" },
+  { name: "lastName", id: "invite-last-name", label: "Nom" },
+];
+
+/** Validation du formulaire avant l'envoi : un message par champ fautif, sous le champ (fondations « Formulaires »). */
+function validate(values: Record<TextField, string>): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!values.email) errors.email = "L'email est requis.";
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) errors.email = "Cet email n'est pas valide.";
+  if (!values.firstName) errors.firstName = "Le prénom est requis.";
+  if (!values.lastName) errors.lastName = "Le nom est requis.";
+  return errors;
+}
+
 /** Création rapide en Dialog (4 champs) : le compte naît « invité », la personne reçoit son lien (D7). */
 export function InviteDialog({ onInvited, onReactivated }: Props) {
   const [open, setOpen] = useState(false);
   const [role, setRole] = useState<Role>("membre");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [pending, setPending] = useState(false);
+  /** Refus du serveur (email déjà pris, erreur inattendue) : le seul message global. */
   const error = failure?.message ?? null;
   /** Email déjà pris par un compte désactivé : on propose de le réactiver plutôt que de le recréer (D12). */
   const reactivable = failure?.status === "desactive" && failure.accountId ? failure : null;
@@ -26,6 +47,7 @@ export function InviteDialog({ onInvited, onReactivated }: Props) {
   function reset(next: boolean) {
     setOpen(next);
     if (!next) {
+      setFieldErrors({});
       setFailure(null);
       setRole("membre");
     }
@@ -43,18 +65,20 @@ export function InviteDialog({ onInvited, onReactivated }: Props) {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const email = String(form.get("email") ?? "").trim();
-    setPending(true);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const values = { email: String(form.get("email") ?? "").trim(), firstName: String(form.get("firstName") ?? "").trim(), lastName: String(form.get("lastName") ?? "").trim() };
     setFailure(null);
-    const result = await callApi("/api/accounts", {
-      method: "POST",
-      body: { email, firstName: String(form.get("firstName") ?? ""), lastName: String(form.get("lastName") ?? ""), role },
-    });
+    const errors = validate(values);
+    setFieldErrors(errors);
+    const firstInvalid = FIELDS.find((f) => errors[f.name]);
+    if (firstInvalid) return formElement.querySelector<HTMLInputElement>(`#${firstInvalid.id}`)?.focus();
+    setPending(true);
+    const result = await callApi("/api/accounts", { method: "POST", body: { ...values, role } });
     setPending(false);
     if (!result.ok) return setFailure(result.failure);
     reset(false);
-    onInvited(email);
+    onInvited(values.email);
   }
 
   return (
@@ -66,18 +90,30 @@ export function InviteDialog({ onInvited, onReactivated }: Props) {
             <DialogTitle>Inviter une personne</DialogTitle>
             <DialogDescription>Elle recevra un email avec un lien de 72 heures pour choisir son mot de passe.</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2">
-            <Label htmlFor="invite-email">Email</Label>
-            <Input id="invite-email" name="email" type="email" autoComplete="off" required aria-invalid={error ? true : undefined} />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="invite-first-name">Prénom</Label>
-            <Input id="invite-first-name" name="firstName" autoComplete="off" required />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="invite-last-name">Nom</Label>
-            <Input id="invite-last-name" name="lastName" autoComplete="off" required />
-          </div>
+          {FIELDS.map((field) => {
+            const fieldError = fieldErrors[field.name];
+            /* Un email déjà pris est un refus du serveur sur ce champ : il se marque en erreur, le message reste global. */
+            const invalid = Boolean(fieldError) || (field.name === "email" && Boolean(error));
+            return (
+              <div key={field.name} className="grid gap-2">
+                <Label htmlFor={field.id}>{field.label}</Label>
+                <Input
+                  id={field.id}
+                  name={field.name}
+                  type={field.type}
+                  autoComplete="off"
+                  required
+                  aria-invalid={invalid || undefined}
+                  aria-describedby={fieldError ? `${field.id}-error` : undefined}
+                />
+                {fieldError && (
+                  <p id={`${field.id}-error`} className="text-xs text-danger">
+                    {fieldError}
+                  </p>
+                )}
+              </div>
+            );
+          })}
           <fieldset className="grid gap-2">
             <legend className="text-sm font-medium">Rôle</legend>
             <RadioGroup value={role} onValueChange={(value) => setRole(value as Role)} className="flex gap-4">
