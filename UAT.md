@@ -108,3 +108,57 @@ Préparation : base migrée, `admin@exemple.fr` / `MotDePasse-Recette-1` créé 
 - [ ] Téléphone (contrat 25) : fenêtre à 375 px de large (outils de développement, « iPhone SE » ou dimension personnalisée 375 × 812). Ouvrir tour à tour `/connexion`, `/reinitialisation`, `/invitation/lien-de-test` (« Lien invalide »), `/accueil`, `/profil`, `/parametres/comptes`, `/parametres/modeles`, `/parametres/journal` : aucune page ne défile horizontalement (pas de barre en bas, `document.documentElement.scrollWidth` égal à `clientWidth` dans la console), un seul titre `<h1>`, et l'action principale visible sans défiler ou après un défilement vertical : « Se connecter », « Envoyer le lien », le lien « réinitialisez votre mot de passe », le bouton de la barre latérale, « Enregistrer », « Inviter », « Modifier Invitation », « Filtrer ».
 - [ ] Toujours à 375 px sur `/accueil` : la barre latérale n'est pas visible ; le bouton en haut à gauche l'ouvre en tiroir par la gauche, par-dessus la page, avec les mêmes liens et le pied (thème, déconnexion, compte). Toucher « Mon profil » : la page change et le tiroir se referme. Toucher hors du tiroir : il se referme (contrat 25).
 - [ ] Refus (contrat 25) : sur `/parametres/comptes` à 375 px, les cinq onglets de Paramètres passent sur deux lignes ; aucun cadre ne défile horizontalement (les comptes sont empilés en cartes, comme en 1.2b).
+
+## Feature 2 — Entreprises et contacts
+
+Chaque livraison remplit uniquement sa sous-section. Les titres ne bougent pas. Ordre de série : 2.1a → 2.1b → 2.2 → 2.3 → 2.5a → 2.5b → 2.4 → 2.6a → 2.6b.
+
+### 2.1a Entreprises : fiche, édition, historique
+
+Préparation : `npm run db:migrate` (ajoute `company` et `audit_log`), `admin@exemple.fr` / `MotDePasse-Recette-1` créé (voir 1.2a), un membre actif (Inès, voir 1.2b), puis `npm run dev`. Écrans : `http://localhost:3000/entreprises` (liste) et `http://localhost:3000/entreprises/<id>` (fiche). Les appels serveur se font avec le cookie de session (`-H 'cookie: better-auth.session_token=<valeur>'`) et `-H 'content-type: application/json'`. Le mot « historique » désigne la colonne de droite de la fiche.
+
+- [ ] Connectée en membre (Inès), la barre latérale a un groupe « Objets » avec l'entrée « Entreprises » ; la cliquer ouvre `/entreprises` : titre « Entreprises », un seul bouton plein « Nouvelle entreprise », un tableau (Raison sociale, Type, Ville, Responsable, Modifiée le) ou, sans entreprise, « Aucune fiche pour l'instant… » ; pied « N entreprises ». Repliée (48 px), la barre garde l'icône d'immeuble d'« Entreprises » avec son infobulle.
+- [ ] Cliquer « Nouvelle entreprise » : dialogue à cinq champs (Raison sociale, Type, SIREN, Site web, Responsable pré-rempli avec Inès). Saisir `Banque Solveige`, Type « Client », puis « Créer » (ou ⌘↵) : la fiche `/entreprises/<id>` s'ouvre avec le titre « Banque Solveige », le badge « Entreprise », la ligne « Créée le <date> · modifiée le <date> · responsable : Inès Roux », et trois colonnes côte à côte à 1280 px : « Liens » (à gauche, « Aucun lien pour l'instant… »), « Champs » et « Adresse » et « Notes » (au centre), « Historique » (à droite) avec « Fiche créée · Inès Roux · <date>, <heure> » (contrat 1).
+- [ ] Revenir sur `/entreprises` : « Banque Solveige » est la première ligne, colonne Type « Client », Responsable « Inès Roux », date du jour ; le pied compte une entreprise de plus (contrat 1, tri par dernière modification).
+- [ ] Sur la fiche, Type → « Prospect », Conditions de paiement → « 60 jours », Rue `12 rue de la Paix` puis Tab, Code postal `75002` puis Tab, Ville `Paris` puis Entrée, Email de facturation `Compta@Solveige.fr` puis Entrée. Recharger : les six valeurs sont relues (l'email en minuscules `compta@solveige.fr`). L'historique, groupé sous la date du jour, montre du plus récent au plus ancien « Email de facturation : vide → compta@solveige.fr », « Ville : vide → Paris », « Code postal : vide → 75002 », « Rue : vide → 12 rue de la Paix », « Conditions de paiement : 30 jours → 60 jours », « Type : Client → Prospect », puis « Fiche créée », chacune avec « Inès Roux · <date>, <heure> » (contrat 2). Sur `/entreprises`, la fiche est remontée en tête.
+- [ ] Refus (contrat 4) : « Nouvelle entreprise », Type choisi, Raison sociale vide, « Créer » : le dialogue reste ouvert, « « Raison sociale » est obligatoire. » (11 px, couleur danger) sous le champ, qui reçoit le focus ; 121 caractères : « « Raison sociale » dépasse 120 caractères. » ; 120 caractères passent. Rien n'est créé dans les deux premiers cas. Même règle par le serveur : `curl -X POST http://localhost:3000/api/entreprises … -d '{"name":"","type":"client"}'` répond `400` avec `"fields":{"name":"« Raison sociale » est obligatoire."}`.
+- [ ] Refus (contrat 4) : dans le dialogue, SIREN `12345678` (huit chiffres) : « Le SIREN doit contenir neuf chiffres. » sous le champ, rien n'est créé. SIREN `123 456 789` avec une raison sociale `Siren Espaces` : créée ; la fiche montre le SIREN `123456789` (espaces retirés) et `curl http://localhost:3000/api/entreprises/<id> …` rend `"siren":"123456789"`.
+- [ ] Refus (contrat 4, D19) : « Nouvelle entreprise » `Seconde` avec le SIREN `123456789` déjà porté par « Siren Espaces » : encadré rouge « Le SIREN 123456789 est déjà porté par « Siren Espaces ». » avec un lien « Ouvrir la fiche » qui mène à la fiche de Siren Espaces ; rien n'est créé. En SQL sur `crm`, `UPDATE company SET archived_at = now() WHERE name = 'Siren Espaces';` puis recommencer : même refus, message « … porté par « Siren Espaces » (fiche archivée). » ; l'appel serveur répond `409` `"error":"valeur_deja_portee"`. Remettre `archived_at = NULL` ensuite.
+- [ ] Refus (contrat 5) : `curl -X POST http://localhost:3000/api/entreprises … -d '{"name":"Hors liste","type":"fournisseur"}'` répond `400` `"fields":{"type":"Valeur hors liste pour « Type »."}` ; avec `-d '{"name":"Hors liste","type":"client","paymentTerms":"90_jours"}'` : `400` sur `paymentTerms`. Les sélecteurs de la fiche ne proposent que les quatre types (Prospect, Client, Partenaire, Société de portage) et les cinq conditions (À réception, 30 jours, 30 jours fin de mois, 45 jours fin de mois, 60 jours).
+- [ ] Refus (CRM-33, D21) : en SQL sur `crm`, `UPDATE company SET archived_at = now() WHERE name = 'Banque Solveige';` puis `curl -X PATCH http://localhost:3000/api/entreprises/<id> … -d '{"type":"client"}'` répond `409` `"error":"fiche_archivee"` ; l'historique n'a pas bougé ; la liste `/entreprises` ne montre plus Banque Solveige. Remettre `archived_at = NULL` : elle revient.
+- [ ] Refus (contrat 15) : `curl -X PATCH http://localhost:3000/api/objets/company/<id>/historique … -d '{"oldValue":"x"}'` et `curl -X DELETE http://localhost:3000/api/objets/company/<id>/historique …` répondent tous deux `405` avec l'en-tête `allow: GET` ; `curl http://localhost:3000/api/objets/company/<id>/historique …` rend les entrées, chacune avec `"author":{"name":"…"}` et `"createdAt"` non vides (CRM-36). Sans cookie : `401` ; avec `/api/objets/inconnu/<id>/historique` : `404`.
+- [ ] Refus (CRM-33, contrat 33 préparé) : `npm test` passe, dont `tests/objets/mecanismes-sans-objet.test.ts` ; écrire le mot `company` dans un commentaire de `src/features/objects/service.ts` et relancer `npx vitest run tests/objets/mecanismes-sans-objet.test.ts` : le test échoue en nommant le fichier. Retirer le mot. `tests/objets/registre.test.ts` enregistre un objet « Objet de test » et obtient ses champs et l'adresse de sa fiche sans toucher aux fichiers des mécanismes.
+- [ ] Téléphone (contrat 25 de la feature 1) : fenêtre à 375 px, `/entreprises` puis une fiche : aucun défilement horizontal, un seul titre `<h1>` (« Entreprises », puis la raison sociale), le bouton « Nouvelle entreprise » visible sans défiler ; la liste ne garde que Raison sociale et Modifiée le ; la fiche empile Liens, Champs, Adresse, Notes, Historique en une colonne (D9 ; la mise en cartes complète de la liste arrive en 2.5a).
+- [ ] Amorce du testeur : `.pilot/amorce-recette.js` crée « Banque Solveige », « Assurances Vaubourg » et « Groupe Ferrandi » (types client, prospect, partenaire) ; relancée, elle n'en crée pas de nouvelles (SIREN déjà portés, refus 409 ignorés) et la liste en compte toujours trois.
+
+### 2.1b Recherche dans la palette
+
+_À remplir par la livraison 2.1b._
+
+### 2.2 Personnes et profil contact
+
+_À remplir par la livraison 2.2._
+
+### 2.3 Fil d'activité, tâches, bannière
+
+_À remplir par la livraison 2.3._
+
+### 2.5a Listes : filtres, tri, colonnes, édition en place, URL
+
+_À remplir par la livraison 2.5a._
+
+### 2.5b Vues sauvegardées et épinglées
+
+_À remplir par la livraison 2.5b._
+
+### 2.4 Champs personnalisés
+
+_À remplir par la livraison 2.4._
+
+### 2.6a Doublons et fusion
+
+_À remplir par la livraison 2.6a._
+
+### 2.6b Archivage et suppression protégée
+
+_À remplir par la livraison 2.6b._
