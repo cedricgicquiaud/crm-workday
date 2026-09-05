@@ -62,3 +62,35 @@ test.describe("invitation depuis l'écran (CRM-18, contrats 5 et 7)", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Choisissez votre mot de passe");
   });
 });
+
+test.describe("refus d'un email déjà pris (CRM-18, contrat 18, D12)", () => {
+  test("inviter un email déjà actif affiche un message qui nomme le compte ; un compte désactivé peut être réactivé depuis le dialogue", async ({ adminPage }) => {
+    await adminPage.goto("/parametres/comptes");
+    await adminPage.getByRole("button", { name: "Inviter" }).click();
+    const dialog = adminPage.getByRole("dialog", { name: "Inviter une personne" });
+    await dialog.getByLabel("Email").fill(MEMBER.email);
+    await dialog.getByLabel("Prénom").fill("X");
+    await dialog.getByLabel("Nom", { exact: true }).fill("Y");
+    await dialog.getByRole("button", { name: "Envoyer l'invitation" }).click();
+    await expect(dialog.getByRole("alert")).toContainText(`Un compte existe déjà pour ${MEMBER.email} : ${MEMBER.firstName} ${MEMBER.lastName} (actif).`);
+    await expect(dialog.getByRole("button", { name: "Réactiver ce compte" })).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Annuler" }).click();
+
+    const disabled = { email: "desactive-dialog-e2e@exemple.fr", firstName: "Dan", lastName: "Petit", role: "membre" };
+    const created = await adminPage.request.post("/api/accounts", { data: disabled });
+    const { userId } = (await created.json()) as { userId: string };
+    expect((await adminPage.request.patch(`/api/accounts/${userId}`, { data: { status: "desactive" } })).status()).toBe(200);
+
+    await adminPage.getByRole("button", { name: "Inviter" }).click();
+    await dialog.getByLabel("Email").fill(disabled.email);
+    await dialog.getByLabel("Prénom").fill("X");
+    await dialog.getByLabel("Nom", { exact: true }).fill("Y");
+    await dialog.getByRole("button", { name: "Envoyer l'invitation" }).click();
+    await expect(dialog.getByRole("alert")).toContainText("Dan Petit (désactivé)");
+    await dialog.getByRole("button", { name: "Réactiver ce compte" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(adminPage.getByRole("status")).toContainText("Compte de Dan Petit réactivé");
+    const row = adminPage.getByRole("table", { name: "Comptes" }).getByRole("row", { name: new RegExp(disabled.email) });
+    await expect(row.getByText("Actif", { exact: true })).toBeVisible();
+  });
+});
