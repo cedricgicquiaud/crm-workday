@@ -48,7 +48,8 @@ export function AccountActions({ account, activeAdminCount, onDone }: Props) {
       <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Actions" />}>
         <MoreHorizontalIcon />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      {/* Assez large pour que « Passer administrateur » et « Fermer toutes les sessions » tiennent sur une ligne. */}
+      <DropdownMenuContent align="end" className="min-w-56">
         {actions.map((action, index) => (
           <Fragment key={action.id}>
             {index === finalIndex && index > 0 && <DropdownMenuSeparator />}
