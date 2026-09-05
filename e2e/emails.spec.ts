@@ -43,3 +43,52 @@ test.describe("paramètres du cabinet (CRM-22, contrat 27)", () => {
     expect(lastEmailTo(invitee)!.subject).toBe(`Votre accès au CRM de ${CABINET.name}`);
   });
 });
+
+test.describe("modèles d'emails (CRM-23, contrats 28, 31, 32)", () => {
+  test("modifier « Invitation » met l'aperçu à jour ; une variable inconnue ou {{lien}} absent est refusé sous le champ ; la prochaine invitation part avec le texte", async ({ adminPage }) => {
+    const { template: original } = (await (await adminPage.request.get("/api/emails/modeles/invitation")).json()) as { template: { subject: string; body: string } };
+    try {
+      await adminPage.goto("/parametres/modeles");
+      await expect(adminPage.getByRole("heading", { level: 2, name: "Modèles d'emails" })).toBeVisible();
+      const list = adminPage.getByRole("list", { name: "Modèles d'emails" });
+      await expect(list.getByRole("listitem")).toHaveCount(2);
+      await expect(list.getByRole("listitem").filter({ hasText: "Invitation" }).getByText("Système")).toBeVisible();
+      await list.getByRole("button", { name: "Modifier Invitation" }).click();
+
+      const editor = adminPage.getByRole("form", { name: "Modèle Invitation" });
+      await expect(editor.getByLabel("Sujet")).toHaveValue(original.subject);
+      const variables = adminPage.getByRole("list", { name: "Variables disponibles" });
+      for (const name of ["{{prenom}}", "{{nom}}", "{{cabinet}}", "{{lien}}"]) await expect(variables.getByText(name, { exact: true })).toBeVisible();
+
+      await editor.getByLabel("Corps").fill("Bonjour {{prenom}} {{nom}},\n\nBienvenue au CRM de {{cabinet}}.\n\n[Ouvrir mon accès]({{lien}})");
+      const preview = adminPage.frameLocator('iframe[title="Aperçu du modèle"]');
+      await expect(preview.getByText(/^Bienvenue au CRM de .+\.$/)).toBeVisible();
+      await expect(preview.getByRole("link", { name: "Ouvrir mon accès" })).toBeVisible();
+      await expect(preview.getByText(/^Bonjour \S+ \S+,$/)).toBeVisible();
+
+      await editor.getByLabel("Corps").fill("Bonjour {{prénom}},\n\n[Ouvrir]({{lien}})");
+      await editor.getByRole("button", { name: "Enregistrer" }).click();
+      await expect(editor.getByRole("alert")).toContainText("La variable {{prénom}} n'existe pas.");
+      await expect(editor.getByLabel("Corps")).toHaveAttribute("aria-invalid", "true");
+      await editor.getByLabel("Corps").fill("Bonjour {{prenom}},");
+      await editor.getByRole("button", { name: "Enregistrer" }).click();
+      await expect(editor.getByRole("alert")).toContainText("Ce modèle doit contenir la variable {{lien}}.");
+
+      await editor.getByLabel("Sujet").fill("Bienvenue chez {{cabinet}}, {{prenom}}");
+      await editor.getByLabel("Corps").fill("Bonjour {{prenom}} {{nom}},\n\nBienvenue au CRM de {{cabinet}}.\n\n[Ouvrir mon accès]({{lien}})");
+      await editor.getByRole("button", { name: "Enregistrer" }).click();
+      await expect(adminPage.getByRole("status")).toHaveText("Modèle « Invitation » enregistré.");
+
+      const { settings } = (await (await adminPage.request.get("/api/cabinet")).json()) as { settings: { name: string } | null };
+      const cabinet = settings?.name ?? "votre cabinet";
+      const invitee = `invitee-modele-${Date.now()}-e2e@exemple.fr`;
+      expect((await adminPage.request.post("/api/accounts", { data: { email: invitee, firstName: "Inès", lastName: "Roux", role: "membre" } })).status()).toBe(201);
+      expect(lastEmailTo(invitee)!.subject).toBe(`Bienvenue chez ${cabinet}, Inès`);
+
+      await expect(list.getByRole("button", { name: /Supprimer/ })).toHaveCount(0);
+      expect((await adminPage.request.delete("/api/emails/modeles/invitation")).status()).toBe(409);
+    } finally {
+      expect((await adminPage.request.put("/api/emails/modeles/invitation", { data: original })).status()).toBe(200);
+    }
+  });
+});
