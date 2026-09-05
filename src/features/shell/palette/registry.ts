@@ -29,8 +29,11 @@ export type PaletteEntry = {
 
 const entries = new Map<string, PaletteEntry>();
 const listeners = new Set<() => void>();
+/** Instantané stable entre deux changements : `useSyncExternalStore` compare les références. */
+let snapshot: readonly PaletteEntry[] = [];
 
 function notify() {
+  snapshot = Array.from(entries.values());
   for (const listener of listeners) listener();
 }
 
@@ -53,5 +56,5 @@ export function subscribePalette(listener: () => void): () => void {
 }
 
 export function getPaletteEntries(): readonly PaletteEntry[] {
-  return Array.from(entries.values());
+  return snapshot;
 }

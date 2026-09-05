@@ -359,6 +359,7 @@
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
   --sidebar-item-h: 26px;   /* item de la barre latérale (fondations : 26 px) */
+  --command-w: 560px;       /* largeur de la palette ⌘K (fondations) */
 }
 
 .dark {

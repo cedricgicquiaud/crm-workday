@@ -26,7 +26,7 @@ async function currentTheme(): Promise<Theme> {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const theme = await currentTheme();
   return (
-    <html lang="fr" className={htmlThemeClass(theme)} suppressHydrationWarning>
+    <html lang="fr" className={htmlThemeClass(theme)} data-theme={theme} suppressHydrationWarning>
       <body className={`${inter.variable} min-h-screen bg-background font-sans text-foreground antialiased`}>{children}</body>
     </html>
   );
