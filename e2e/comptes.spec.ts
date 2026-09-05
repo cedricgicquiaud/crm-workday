@@ -153,3 +153,38 @@ test.describe("fermeture des sessions et rôle (CRM-19, contrat 11, D11)", () =>
     await expect(row).toContainText("Membre");
   });
 });
+
+test.describe("Mon profil (CRM-21, contrat 13, D13)", () => {
+  test("un prénom modifié apparaît dans la salutation d'Accueil ; un mot de passe de 11 caractères est rejeté avec la règle ; le bon change le mot de passe", async ({ memberPage }) => {
+    await memberPage.goto("/profil");
+    await expect(memberPage.getByRole("heading", { level: 1 })).toHaveText("Mon profil");
+    const identity = memberPage.getByRole("form", { name: "Identité" });
+    await expect(identity.getByLabel("Prénom")).toHaveValue(MEMBER.firstName);
+    await expect(identity.getByLabel("Nom", { exact: true })).toHaveValue(MEMBER.lastName);
+    await identity.getByLabel("Prénom").fill("Marco");
+    await identity.getByRole("button", { name: "Enregistrer" }).click();
+    await expect(identity.getByRole("status")).toHaveText("Profil enregistré.");
+    await memberPage.goto("/accueil");
+    await expect(memberPage.getByRole("heading", { level: 1 })).toHaveText("Bonjour Marco");
+
+    await memberPage.goto("/profil");
+    const password = memberPage.getByRole("form", { name: "Mot de passe" });
+    await password.getByLabel("Mot de passe actuel").fill(MEMBER.password);
+    await password.getByLabel("Nouveau mot de passe", { exact: true }).fill("Court-Mdp-1");
+    await password.getByLabel("Confirmation du nouveau mot de passe").fill("Court-Mdp-1");
+    await password.getByRole("button", { name: "Changer le mot de passe" }).click();
+    await expect(password.getByRole("alert")).toHaveText("Le mot de passe doit contenir 12 caractères au moins.");
+
+    await password.getByLabel("Mot de passe actuel").fill("MotDePasse-Faux-1");
+    await password.getByLabel("Nouveau mot de passe", { exact: true }).fill("MotDePasse-Membre-E2E-2");
+    await password.getByLabel("Confirmation du nouveau mot de passe").fill("MotDePasse-Membre-E2E-2");
+    await password.getByRole("button", { name: "Changer le mot de passe" }).click();
+    await expect(password.getByRole("alert")).toHaveText("Le mot de passe actuel est incorrect.");
+
+    await password.getByLabel("Mot de passe actuel").fill(MEMBER.password);
+    await password.getByRole("button", { name: "Changer le mot de passe" }).click();
+    await expect(password.getByRole("status")).toHaveText("Mot de passe modifié.");
+    expect((await memberPage.request.post("/api/auth/sign-in/email", { data: { email: MEMBER.email, password: MEMBER.password } })).status()).toBe(401);
+    expect((await memberPage.request.post("/api/auth/sign-in/email", { data: { email: MEMBER.email, password: "MotDePasse-Membre-E2E-2" } })).status()).toBe(200);
+  });
+});
