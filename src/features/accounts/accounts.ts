@@ -2,7 +2,7 @@
  * Gestion des comptes par un administrateur (D11, D12) : liste avec état invité / actif /
  * désactivé. Un compte se désactive, ne se supprime jamais.
  */
-import { asc, eq } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import { session, user } from "@/db/schema";
 import type { Role } from "@/features/auth/accounts";
 import { createInvitation, type NewInvitation } from "@/features/auth/invitations";
@@ -59,6 +59,18 @@ async function findAccount(id: string) {
   return row;
 }
 
+/** Nombre d'administrateurs actifs : le dernier ne peut être ni désactivé ni rétrogradé (D12). */
+export async function countActiveAdmins(): Promise<number> {
+  const [row] = await db.select({ n: count() }).from(user).where(and(eq(user.role, "administrateur"), eq(user.status, "actif")));
+  return row?.n ?? 0;
+}
+
+async function refuseIfLastActiveAdmin(account: { role: string; status: string }) {
+  if (account.role === "administrateur" && account.status === "actif" && (await countActiveAdmins()) <= 1) {
+    throw new HttpError(409, "dernier_administrateur", "Le dernier administrateur actif ne peut être ni désactivé ni passé membre.");
+  }
+}
+
 /** Ferme toutes les sessions d'un compte : il devra se reconnecter sur chacun de ses navigateurs (D10). */
 export async function revokeAccountSessions(id: string): Promise<void> {
   await db.delete(session).where(eq(session.userId, id));
@@ -66,7 +78,7 @@ export async function revokeAccountSessions(id: string): Promise<void> {
 
 /** Un compte désactivé ne se connecte plus et ses sessions sont fermées ; ce qu'il a créé reste à son nom (D12). */
 export async function deactivateAccount(id: string): Promise<void> {
-  await findAccount(id);
+  await refuseIfLastActiveAdmin(await findAccount(id));
   await db.update(user).set({ status: "desactive", updatedAt: new Date() }).where(eq(user.id, id));
   await revokeAccountSessions(id);
 }
@@ -80,6 +92,7 @@ export async function reactivateAccount(id: string): Promise<void> {
 
 /** Deux rôles, tout le monde voit tout : administrateur ou membre (D11). */
 export async function setAccountRole(id: string, role: Role): Promise<void> {
-  await findAccount(id);
+  const account = await findAccount(id);
+  if (role === "membre") await refuseIfLastActiveAdmin(account);
   await db.update(user).set({ role, updatedAt: new Date() }).where(eq(user.id, id));
 }
