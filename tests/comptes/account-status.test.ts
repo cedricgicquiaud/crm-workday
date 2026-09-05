@@ -67,6 +67,7 @@ describe("réactivation d'un compte (CRM-19, contrat 10, D12)", () => {
 
 describe("fermeture de toutes les sessions d'un compte (CRM-19, contrat 11, D10)", () => {
   it("force la reconnexion sur chacun de ses navigateurs sans changer l'état du compte", async () => {
+    await db.delete(session).where(eq(session.userId, memberId));
     const browserA = await sessionCookie(MEMBER.email, MEMBER.password);
     const browserB = await sessionCookie(MEMBER.email, MEMBER.password);
     expect(await db.select().from(session).where(eq(session.userId, memberId))).toHaveLength(2);
