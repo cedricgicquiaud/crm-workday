@@ -75,19 +75,28 @@ export function variablesOf(text: string): string[] {
   return Array.from(new Set(Array.from(text.matchAll(VARIABLE_RE), (m) => m[1])));
 }
 
-/** Refuse toute variable hors de la liste autorisée, en la nommant (contrat 31). */
-function validateTemplateText(text: TemplateText): void {
-  const unknown = variablesOf(`${text.subject}\n${text.body}`).find((name) => !(ALLOWED_VARIABLES as readonly string[]).includes(name));
+/**
+ * Refuse toute variable hors de la liste autorisée, en la nommant (contrat 31), puis l'absence
+ * d'une variable obligatoire du modèle (contrat 32).
+ */
+export function validateTemplateText(text: TemplateText, requiredVariables: readonly string[]): void {
+  const present = variablesOf(`${text.subject}\n${text.body}`);
+  const unknown = present.find((name) => !(ALLOWED_VARIABLES as readonly string[]).includes(name));
   if (unknown !== undefined) {
     throw new HttpError(400, "variable_inconnue", `La variable {{${unknown}}} n'existe pas. Variables disponibles : ${ALLOWED_VARIABLES.map((v) => `{{${v}}}`).join(", ")}.`, {
       variable: unknown,
     });
   }
+  const missing = requiredVariables.find((name) => !present.includes(name));
+  if (missing !== undefined) {
+    throw new HttpError(400, "variable_obligatoire_absente", `Ce modèle doit contenir la variable {{${missing}}}.`, { variable: missing });
+  }
 }
 
 export async function updateTemplate(key: string, text: TemplateText): Promise<void> {
-  validateTemplateText(text);
-  await ensureSystemTemplates();
+  const found = await getTemplate(key);
+  if (!found) throw new HttpError(404, "modele_introuvable", "Ce modèle n'existe pas.");
+  validateTemplateText(text, found.requiredVariables);
   await db.update(emailTemplate).set({ subject: text.subject, body: text.body, updatedAt: new Date() }).where(eq(emailTemplate.key, key));
 }
 
