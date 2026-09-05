@@ -187,6 +187,32 @@ test.describe("fermeture des sessions et rôle (CRM-19, contrat 11, D11)", () =>
   });
 });
 
+test.describe("dernier administrateur (CRM-19, contrat 17, D12)", () => {
+  test("quand un seul administrateur est actif, « Désactiver » et « Passer membre » de son menu sont inactifs et sous-titrés", async ({ adminPage }) => {
+    // La base de développement compte d'autres administrateurs actifs (dont le compte de recette) :
+    // on les passe membres le temps du test, puis on les restaure quoi qu'il arrive.
+    type Row = { id: string; email: string; role: string; status: string };
+    const { accounts } = (await (await adminPage.request.get("/api/accounts")).json()) as { accounts: Row[] };
+    const otherAdmins = accounts.filter((a) => a.role === "administrateur" && a.status === "actif" && a.email !== ADMIN.email);
+    const setRole = async (id: string, role: "administrateur" | "membre") =>
+      expect((await adminPage.request.patch(`/api/accounts/${id}`, { data: { role } })).status()).toBe(200);
+    for (const other of otherAdmins) await setRole(other.id, "membre");
+    try {
+      await adminPage.goto("/parametres/comptes");
+      const row = adminPage.getByRole("table", { name: "Comptes" }).getByRole("row", { name: new RegExp(ADMIN.email) });
+      await row.getByRole("button", { name: "Actions" }).click();
+      const menu = adminPage.getByRole("menu");
+      await expect(menu.getByRole("menuitem", { name: "Désactiver" })).toBeDisabled();
+      await expect(menu.getByRole("menuitem", { name: "Passer membre" })).toBeDisabled();
+      await expect(menu.getByText("Dernier administrateur actif")).toHaveCount(2);
+      await expect(menu.getByRole("menuitem", { name: "Fermer toutes les sessions" })).toBeEnabled();
+      await adminPage.keyboard.press("Escape");
+    } finally {
+      for (const other of otherAdmins) await setRole(other.id, "administrateur");
+    }
+  });
+});
+
 test.describe("Mon profil (CRM-21, contrat 13, D13)", () => {
   test("un prénom modifié apparaît dans la salutation d'Accueil ; un mot de passe de 11 caractères est rejeté avec la règle ; le bon change le mot de passe", async ({ adminPage, browser, request }) => {
     const paul = ownAccount("paul", "Paul", "Martin");
