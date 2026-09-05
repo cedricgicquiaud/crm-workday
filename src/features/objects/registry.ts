@@ -88,3 +88,8 @@ export function getObject(key: string): ObjectDefinition {
   if (!definition) throw new Error(`Objet inconnu : ${key}`);
   return definition;
 }
+
+/** Tous les objets déclarés, par rang croissant puis par clé. */
+export function listObjects(): readonly ObjectDefinition[] {
+  return Array.from(objects.values()).sort((a, b) => a.order - b.order || a.key.localeCompare(b.key));
+}
