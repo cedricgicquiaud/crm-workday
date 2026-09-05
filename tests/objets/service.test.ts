@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { auditLog, company, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { listHistory } from "@/features/history/history";
-import { createObject } from "@/features/objects/service";
+import { createObject, updateObject } from "@/features/objects/service";
 import { closeDb, db } from "@/lib/db";
 
 const ACTOR = { email: "acteur-service@exemple.fr", firstName: "Nora", lastName: "Blanc", password: "MotDePasse-Service-1", role: "membre" as const };
@@ -39,5 +39,21 @@ describe("service générique — création (CRM-33, D4, D12)", () => {
     const history = await listHistory("company", record.id);
     expect(history).toHaveLength(1);
     expect(history[0]).toMatchObject({ action: "creee", author: { id: actorId, name: "Nora Blanc" } });
+  });
+});
+
+describe("service générique — modification (CRM-33, D12)", () => {
+  it("écrit une entrée d'historique par champ modifié, avec l'ancienne et la nouvelle valeur, et rien pour un champ inchangé", async () => {
+    const created = await createObject("company", { name: "Banque Solveige", type: "prospect" }, { id: actorId });
+    const updated = await updateObject("company", created.id, { type: "client", paymentTerms: "60_jours", name: "Banque Solveige" }, { id: actorId });
+    expect(updated).toMatchObject({ type: "client", paymentTerms: "60_jours" });
+    expect(updated.updatedAt.getTime()).toBeGreaterThan(created.updatedAt.getTime());
+
+    const changes = (await listHistory("company", created.id)).filter((e) => e.action === "modifiee");
+    expect(changes.map((e) => [e.field, e.oldValue, e.newValue]).sort()).toEqual([
+      ["paymentTerms", "30_jours", "60_jours"],
+      ["type", "prospect", "client"],
+    ]);
+    expect(changes.every((e) => e.author?.id === actorId && e.createdAt instanceof Date)).toBe(true);
   });
 });
