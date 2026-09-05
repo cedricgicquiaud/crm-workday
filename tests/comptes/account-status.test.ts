@@ -51,3 +51,15 @@ describe("désactivation d'un compte (CRM-19, contrat 10, D12)", () => {
     expect((await signIn(MEMBER.email, MEMBER.password)).status).toBe(401);
   });
 });
+
+describe("réactivation d'un compte (CRM-19, contrat 10, D12)", () => {
+  it("laisse le compte réactivé se reconnecter avec le même mot de passe", async () => {
+    await db.update(user).set({ status: "desactive" }).where(eq(user.id, memberId));
+    expect((await signIn(MEMBER.email, MEMBER.password)).status).toBe(401);
+    const res = await patch(memberId, { status: "actif" }, adminCookie);
+    expect(res.status).toBe(200);
+    const [row] = await db.select().from(user).where(eq(user.id, memberId));
+    expect(row.status).toBe("actif");
+    expect((await signIn(MEMBER.email, MEMBER.password)).status).toBe(200);
+  });
+});
