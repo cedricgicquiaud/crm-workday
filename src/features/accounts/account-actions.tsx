@@ -4,14 +4,14 @@ import { MoreHorizontalIcon } from "lucide-react";
 import { Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import type { AccountRow } from "./accounts-screen";
+import type { Account } from "./accounts";
 import { accountActions, type AccountAction } from "./actions";
 import { callApi } from "./api-client";
-import { fullName } from "./labels";
+import { fullName, ROLE_LABELS } from "./labels";
 
 export type Outcome = { kind: "status" | "alert"; text: string };
 
-type Props = { account: AccountRow; activeAdminCount: number; onDone: (outcome: Outcome) => void };
+type Props = { account: Account; activeAdminCount: number; onDone: (outcome: Outcome) => void };
 
 /** Actions d'une ligne, groupées dans un menu (liste dense) ; la liste vient de `accountActions`. */
 export function AccountActions({ account, activeAdminCount, onDone }: Props) {
@@ -24,7 +24,7 @@ export function AccountActions({ account, activeAdminCount, onDone }: Props) {
       case "renvoyer":
         return { call: callApi("/api/invitations/renvoyer", { method: "POST", body: { email: account.email } }), success: `Invitation renvoyée à ${account.email}.` };
       case "changer-role":
-        return { call: callApi(accountPath, { method: "PATCH", body: { role: action.role } }), success: `${name} est maintenant ${action.role}.` };
+        return { call: callApi(accountPath, { method: "PATCH", body: { role: action.role } }), success: `${name} est maintenant ${ROLE_LABELS[action.role].toLowerCase()}.` };
       case "fermer-sessions":
         return { call: callApi(`${accountPath}/sessions`, { method: "DELETE" }), success: `Sessions de ${name} fermées : il devra se reconnecter.` };
       case "desactiver":

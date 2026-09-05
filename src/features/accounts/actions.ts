@@ -7,17 +7,15 @@ import type { Role } from "@/features/auth/accounts";
 import type { AccountStatus } from "./accounts";
 import { ROLE_LABELS } from "./labels";
 
-export type AccountActionId = "renvoyer" | "changer-role" | "fermer-sessions" | "desactiver" | "reactiver";
-
-export type AccountAction = {
-  id: AccountActionId;
+type ActionBase = {
   label: string;
   /** présent = bouton inactif, avec la raison affichée */
   disabledReason?: string;
   destructive?: boolean;
-  /** rôle visé par « changer-role » */
-  role?: Role;
 };
+
+export type AccountAction = ActionBase &
+  ({ id: "renvoyer" | "fermer-sessions" | "desactiver" | "reactiver" } | { id: "changer-role"; /** rôle visé */ role: Role });
 
 export const LAST_ADMIN_REASON = "Dernier administrateur actif";
 

@@ -4,18 +4,15 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { Role } from "@/features/auth/accounts";
 import { AccountActions, type Outcome } from "./account-actions";
-import type { AccountStatus } from "./accounts";
+import type { Account } from "./accounts";
 import { InviteDialog } from "./invite-dialog";
 import { fullName, ROLE_LABELS } from "./labels";
 import { StatusBadge } from "./status-badge";
 
-export type AccountRow = { id: string; email: string; firstName: string; lastName: string; role: Role; status: AccountStatus };
+type Props = { accounts: Account[] };
 
-type Props = { accounts: AccountRow[] };
-
-const isActiveAdmin = (a: AccountRow) => a.role === "administrateur" && a.status === "actif";
+const isActiveAdmin = (a: Account) => a.role === "administrateur" && a.status === "actif";
 
 /** Écran Paramètres → Comptes : liste dense (ligne 32 px, pas de zébrage), un compte par ligne. */
 export function AccountsScreen({ accounts }: Props) {

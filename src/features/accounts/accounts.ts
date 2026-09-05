@@ -8,6 +8,7 @@ import type { Role } from "@/features/auth/accounts";
 import { createInvitation, type NewInvitation } from "@/features/auth/invitations";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { STATUS_LABELS } from "./labels";
 
 export type AccountStatus = "invite" | "actif" | "desactive";
 
@@ -16,20 +17,18 @@ export type Account = {
   email: string;
   firstName: string;
   lastName: string;
-  role: string;
+  role: Role;
   status: AccountStatus;
-  createdAt: Date;
 };
 
+/** Tous les comptes, par nom : l'écran des comptes les affiche tels quels. */
 export async function listAccounts(): Promise<Account[]> {
   const rows = await db
-    .select({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, status: user.status, createdAt: user.createdAt })
+    .select({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, status: user.status })
     .from(user)
     .orderBy(asc(user.lastName), asc(user.firstName), asc(user.email));
-  return rows.map((row) => ({ ...row, status: row.status as AccountStatus }));
+  return rows.map((row) => ({ ...row, role: row.role as Role, status: row.status as AccountStatus }));
 }
-
-const STATUS_LABELS: Record<AccountStatus, string> = { invite: "invité", actif: "actif", desactive: "désactivé" };
 
 /**
  * Invitation depuis l'écran des comptes. Un email déjà pris est refusé en nommant le compte ;
@@ -45,7 +44,7 @@ export async function inviteAccount(input: NewInvitation): Promise<{ userId: str
   if (existing) {
     const status = existing.status as AccountStatus;
     const name = `${existing.firstName} ${existing.lastName}`.trim();
-    throw new HttpError(409, "email_deja_utilise", `Un compte existe déjà pour ${email} : ${name} (${STATUS_LABELS[status]}).`, {
+    throw new HttpError(409, "email_deja_utilise", `Un compte existe déjà pour ${email} : ${name} (${STATUS_LABELS[status].toLowerCase()}).`, {
       status,
       accountId: existing.id,
       name,

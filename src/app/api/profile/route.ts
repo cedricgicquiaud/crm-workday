@@ -1,4 +1,4 @@
-import { APIError } from "better-auth/api";
+import { isAPIError } from "better-auth/api";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -26,7 +26,8 @@ async function changePassword(request: Request, input: z.infer<typeof passwordSc
   try {
     await getAuth().api.changePassword({ body: input, headers: request.headers });
   } catch (error) {
-    if (error instanceof APIError && error.body?.code === "INVALID_PASSWORD") {
+    /** `isAPIError` plutôt que `instanceof` : le serveur de dev peut charger deux copies de la classe. */
+    if (isAPIError(error) && error.body?.code === "INVALID_PASSWORD") {
       throw new HttpError(400, "mot_de_passe_actuel_incorrect", "Le mot de passe actuel est incorrect.");
     }
     throw error;
@@ -37,7 +38,7 @@ async function changePassword(request: Request, input: z.infer<typeof passwordSc
 export const PATCH = withApi(async (request) => {
   const { user: me } = await requireSession(request);
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) throw new HttpError(400, "donnees_invalides", "Le prénom et le nom sont requis.");
+  if (!parsed.success) throw new HttpError(400, "donnees_invalides", "Prénom et nom, ou mot de passe actuel et nouveau, sont requis.");
   if ("newPassword" in parsed.data) {
     await changePassword(request, parsed.data);
   } else {
