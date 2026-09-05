@@ -126,8 +126,9 @@ function EditableField({ type, field, value: saved, error, users, onSave }: Edit
         <Input
           id={id}
           type={field.type === "date" ? "date" : field.type === "number" ? "number" : "text"}
-          className="h-7"
+          className="h-7 truncate"
           value={draft}
+          title={draft || undefined}
           readOnly={!editable}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
