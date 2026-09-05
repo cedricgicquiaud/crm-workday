@@ -151,3 +151,65 @@ test.describe("journal des envois (CRM-24, contrat 29, D23)", () => {
     await expect(memberPage.getByRole("button", { name: "Renvoyer" })).toHaveCount(0);
   });
 });
+
+test.describe("envoi de test (CRM-25, contrats 30, 34, 35)", () => {
+  test("un administrateur envoie un email de test à sa propre adresse : capturé et lisible dans le journal ; une adresse mal formée est refusée sous le champ", async ({ adminPage }) => {
+    await adminPage.goto("/parametres/envoi-test");
+    await expect(adminPage.getByRole("heading", { level: 2, name: "Envoi de test" })).toBeVisible();
+    const form = adminPage.getByRole("form", { name: "Envoi de test" });
+    await expect(form.getByLabel("Destinataire")).toHaveValue(ADMIN.email);
+
+    await form.getByLabel("Destinataire").fill("pas-une-adresse");
+    await form.getByRole("button", { name: "Envoyer l'email de test" }).click();
+    await expect(form.getByRole("alert")).toHaveText("Cette adresse n'est pas valide.");
+    await expect(form.getByLabel("Destinataire")).toHaveAttribute("aria-invalid", "true");
+    expect(await lastEmailTo("pas-une-adresse")).toBeNull();
+
+    await form.getByLabel("Destinataire").fill(ADMIN.email);
+    await form.getByRole("button", { name: "Envoyer l'email de test" }).click();
+    await expect(adminPage.getByRole("status")).toContainText(`Email de test capturé pour ${ADMIN.email}`);
+    const mail = lastEmailTo(ADMIN.email)!;
+    expect(mail.subject).toMatch(/^Email de test du CRM de .+$/);
+    await adminPage.goto("/parametres/journal");
+    const row = adminPage.getByRole("table", { name: "Journal des envois" }).getByRole("row", { name: new RegExp(ADMIN.email) }).first();
+    await expect(row).toContainText("Email de test");
+    await expect(row.getByText("Capturé", { exact: true })).toBeVisible();
+  });
+});
+
+test.describe("écrans à 375 px (contrat 25)", () => {
+  test("cabinet, modèles, journal et envoi de test n'ont aucun défilement horizontal, un seul h1, et leur action principale est visible", async ({ adminPage }) => {
+    await adminPage.setViewportSize({ width: 375, height: 800 });
+    const noOverflow = async (label: string) => {
+      await expect(adminPage.getByRole("heading", { level: 1 })).toHaveCount(1);
+      const overflow = await adminPage.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow, label).toBe(0);
+      const wider = await adminPage.evaluate(() =>
+        Array.from(document.querySelectorAll<HTMLElement>("body *"))
+          .filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== "visible")
+          .map((el) => `${el.tagName.toLowerCase()} ${el.scrollWidth}>${el.clientWidth}`),
+      );
+      expect(wider, label).toEqual([]);
+    };
+
+    await adminPage.goto("/parametres/cabinet");
+    await noOverflow("cabinet");
+    await expect(adminPage.getByRole("form", { name: "Cabinet" }).getByRole("button", { name: "Enregistrer" })).toBeInViewport();
+
+    await adminPage.goto("/parametres/modeles");
+    await noOverflow("modèles");
+    await adminPage.getByRole("button", { name: "Modifier Invitation" }).click();
+    await expect(adminPage.getByRole("form", { name: "Modèle Invitation" })).toBeVisible();
+    await noOverflow("modèles, éditeur ouvert");
+
+    await adminPage.goto("/parametres/journal");
+    await expect(adminPage.getByRole("list", { name: "Journal des envois" })).toBeVisible();
+    await expect(adminPage.getByRole("table", { name: "Journal des envois" })).toBeHidden();
+    await noOverflow("journal");
+    await expect(adminPage.getByRole("form", { name: "Filtres du journal" }).getByRole("button", { name: "Filtrer" })).toBeInViewport();
+
+    await adminPage.goto("/parametres/envoi-test");
+    await noOverflow("envoi de test");
+    await expect(adminPage.getByRole("form", { name: "Envoi de test" }).getByRole("button", { name: "Envoyer l'email de test" })).toBeInViewport();
+  });
+});
