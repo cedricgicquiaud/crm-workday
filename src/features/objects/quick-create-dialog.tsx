@@ -74,7 +74,8 @@ export function QuickCreateDialog({ type, users, currentUserId }: Props) {
   return (
     <Dialog open={open} onOpenChange={reset}>
       <DialogTrigger render={<Button />}>{title}</DialogTrigger>
-      <DialogContent>
+      {/* Pas de croix (elle n'aurait pour nom que « Close ») : « Annuler » et Échap ferment, comme la palette. */}
+      <DialogContent showCloseButton={false}>
         <form className="grid gap-4" onSubmit={onSubmit} onKeyDown={(e) => isSubmitShortcut(e) && e.currentTarget.requestSubmit()} noValidate>
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
