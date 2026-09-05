@@ -17,7 +17,7 @@ export function LinksColumn({ type, className }: { type: string; className?: str
     <section aria-label="Liens" className={cn("grid content-start gap-3", className)}>
       <h2 className="text-base font-medium">Liens</h2>
       {groups.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Aucun lien pour l&apos;instant. Les contacts arrivent avec la livraison suivante.</p>
+        <p className="text-sm text-muted-foreground">Aucune fiche liée pour l&apos;instant.</p>
       ) : (
         groups.map((group) => (
           <section key={group.key} aria-label={group.label} className="grid gap-1">
