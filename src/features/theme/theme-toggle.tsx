@@ -21,7 +21,7 @@ function subscribeSaveError(listener: () => void): () => void {
   };
 }
 
-/** Bascule le thème et retient l'échec éventuel : `toggleTheme` a déjà remis l'écran dans son état précédent. */
+/** Bascule le thème et retient l'échec éventuel : dans ce cas `toggleTheme` n'a pas changé l'écran. */
 async function toggleAndReport() {
   saveError = (await toggleTheme()) ? null : SAVE_ERROR;
   for (const listener of errorListeners) listener();
