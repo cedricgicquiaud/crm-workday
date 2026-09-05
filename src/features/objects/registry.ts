@@ -84,8 +84,16 @@ export type ObjectDefinition = {
 
 const objects = new Map<string, ObjectDefinition>();
 
-/** Déclare un objet ; ré-enregistrer la même clé remplace la définition. */
+/**
+ * Déclare un objet ; ré-enregistrer la même clé remplace la définition. Un objet mal déclaré (champ
+ * titre ou colonne de liste sans champ correspondant) échoue ici, à l'enregistrement, pas au rendu.
+ */
 export function registerObject(definition: ObjectDefinition): void {
+  const keys = new Set(definition.fields.map((field) => field.key));
+  if (!keys.has(definition.titleField)) throw new Error(`Objet « ${definition.key} » : le champ titre « ${definition.titleField} » n'est pas déclaré dans ses champs.`);
+  for (const column of definition.listColumns ?? []) {
+    if (!keys.has(column)) throw new Error(`Objet « ${definition.key} » : la colonne de liste « ${column} » n'est pas déclarée dans ses champs.`);
+  }
   objects.set(definition.key, definition);
 }
 
