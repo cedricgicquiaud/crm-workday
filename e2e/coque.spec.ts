@@ -1,4 +1,4 @@
-import { ADMIN, expect, seedAccounts, test } from "./fixtures/auth";
+import { ADMIN, expect, seedAccounts, signInAs, test } from "./fixtures/auth";
 
 test.beforeAll(() => seedAccounts());
 
@@ -70,5 +70,41 @@ test.describe("palette Cmd+K (CRM-28, contrat 22)", () => {
     await memberPage.goto("/accueil");
     await memberPage.getByRole("button", { name: "Rechercher" }).click();
     await expect(memberPage.getByRole("dialog", { name: "Palette de commandes" })).toBeVisible();
+  });
+});
+
+test.describe("thème mémorisé (CRM-29, contrats 24 et 26)", () => {
+  test("le thème choisi dans Mon profil revient sur un autre navigateur, déjà dans le HTML servi ; avant connexion, la page suit le navigateur", async ({ browser, adminPage }) => {
+    await adminPage.goto("/profil");
+    const choice = adminPage.getByRole("radiogroup", { name: "Thème" });
+    await expect(choice.getByRole("radio", { name: "Système" })).toBeChecked();
+    await choice.getByRole("radio", { name: "Sombre" }).click();
+    await expect(adminPage.locator("html")).toHaveClass(/dark/);
+    await expect(adminPage.getByRole("status")).toHaveText("Thème enregistré.");
+
+    /* Un autre navigateur : la valeur vient de la base, et la classe est dans la réponse HTML, avant tout script (contrat 26). */
+    const other = await browser.newContext();
+    await signInAs(other.request, ADMIN);
+    const served = await (await other.request.get("/accueil")).text();
+    expect(served.match(/<html[^>]*>/)![0]).toMatch(/class="[^"]*\bdark\b/);
+    expect(served.indexOf("<html")).toBeLessThan(served.indexOf("<script"));
+    const otherPage = await other.newPage();
+    await otherPage.goto("/profil");
+    await expect(otherPage.locator("html")).toHaveClass(/dark/);
+    await expect(otherPage.getByRole("radiogroup", { name: "Thème" }).getByRole("radio", { name: "Sombre" })).toBeChecked();
+    await otherPage.getByRole("radiogroup", { name: "Thème" }).getByRole("radio", { name: "Système" }).click();
+    await expect(otherPage.locator("html")).not.toHaveClass(/dark/);
+    await expect(otherPage.getByRole("status")).toHaveText("Thème enregistré.");
+    await other.close();
+
+    /* Sans session, la préférence du navigateur décide (D17). */
+    for (const [colorScheme, dark] of [["dark", true], ["light", false]] as const) {
+      const anonymous = await browser.newContext({ colorScheme });
+      const page = await anonymous.newPage();
+      await page.goto("/connexion");
+      await expect(page.getByRole("heading", { name: "Connexion" })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.classList.contains("dark")), colorScheme).toBe(dark);
+      await anonymous.close();
+    }
   });
 });
