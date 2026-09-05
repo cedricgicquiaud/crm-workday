@@ -22,6 +22,13 @@
       "when": 1788593408275,
       "tag": "0002_emails",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788623241283,
+      "tag": "0003_entreprises",
+      "breakpoints": true
     }
   ]
 }

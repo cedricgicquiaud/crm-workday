@@ -48,12 +48,26 @@ _Fautes déjà commises sur ce dépôt et attrapées à l'audit ou au merge. Le 
 - L'environnement se lit par `getEnv()` à la demande, jamais au chargement d'un module importé par une page : `next build` évalue les modules sans les secrets.
 - Toute page qui affiche la date ou dépend de la session déclare `export const dynamic = "force-dynamic"`, sinon Next.js la fige au build.
 - `pg-boss` s'importe en export nommé : `import { PgBoss } from "pg-boss"`.
+- Toute redirection lue dans l'URL (`?next=`) se résout avec `new URL(next, origin)` et n'est suivie que si l'origine est identique ; tout `\` est refusé (`safeNext` dans `src/features/auth/routes.ts`, à réutiliser, jamais réécrire).
+- `.pilot/amorce-recette.js` est enveloppé par l'outil dans `(async () => { … })()` : du `await` de premier niveau, aucune fonction auto-appelée non attendue, aucune navigation (l'outil recharge lui-même).
+- Les tests d'écran amorcent leurs comptes `*-e2e@exemple.fr` dans la base `crm` de développement et n'effacent que ceux-là : le compte de recette `admin@exemple.fr` / `MotDePasse-Recette-1` cohabite, ne pas le supprimer.
+- Une règle métier (longueur du mot de passe, statut d'un compte) s'applique dans les scripts et les API autant que dans les formulaires : la constante partagée (`src/features/auth/password-rule.ts`) est la seule source.
 - Dans un gabarit d'email, une phrase avec variable s'écrit en gabarit de chaîne (`{`Bonjour ${prenom},`}`) : React insère sinon des commentaires `<!-- -->` qui cassent la recherche de texte.
+- Une préférence enregistrée côté serveur (thème, réglage) s'applique à l'écran après la réponse 2xx, jamais avant : un rechargement immédiat annulerait la requête en vol et perdrait le choix (attrapé par la CI en 1.3).
+- Un registre (palette, navigation, colonnes) porte un rang explicite (`order`) et trie ; l'ordre ne dépend jamais de l'ordre des imports.
+- Une action déclenchée depuis un journal ou une liste (renvoyer, relancer) vérifie l'état de sa cible (compte existant, actif) avant d'appeler un service tiers, et répond 404 / 409 sinon : jamais un 200 pour une action qui n'a rien fait.
+- Aucune écriture serveur avalée en silence (`.catch(() => null)` sans suite) : un échec produit un message visible (`role="alert"` sous l'élément, ou toast) et remet l'écran dans l'état enregistré.
+- Dans un test d'écran, un `role="alert"` se cible par son conteneur (`[data-slot="sidebar"]`, le formulaire) : Next.js pose un annonceur de route vide avec le même rôle dans le `body`.
 
 ## Idiomes d'interface
 
 - `CardTitle` de shadcn (style base-nova) rend un `div` : un titre de page ou de carte est un vrai `<h1>` / `<h2>`, pour l'accessibilité et pour `getByRole("heading")`.
 - Aucun défilement horizontal à 375 px ; chaque page a exactement un `<h1>`.
+- Liste dense : tableau à largeur fixe (`table-fixed`), colonnes tronquées par points de suspension avec le texte complet en `title`, motif d'un échec sur la ligne du badge ; jamais de conteneur à défilement horizontal, la page tient dans 1280 px avec la barre latérale ouverte.
+- Tout élément focalisable montre le contour de focus des fondations au clavier : `focus-visible`, et `focus-within` pour les champs composés (`input type="date"`).
+- Les dates de contexte (Accueil, listes) s'écrivent en format court « 5 sept. 2026 » (`day: "numeric", month: "short", year: "numeric"`, `Europe/Paris`).
+- Sous-navigation par onglets : l'entrée courante porte `aria-current="page"` et un marquage visible ; les entrées réservées aux administrateurs sont filtrées côté serveur, les pages restent protégées par `requireAdmin()`.
+- Les composants shadcn qui gardent un texte `sr-only` permanent (`SidebarTrigger`, `CommandDialog`) font échouer le contrôle de débordement à 375 px : les recomposer avec un `aria-label` sur le bouton et un `DialogTitle` dans le dialogue.
 - Le bloc `nextjs-agent-rules` en fin de ce fichier est réécrit par `next dev` : on le commite tel quel, on n'y touche pas.
 
 <!-- BEGIN:nextjs-agent-rules -->
