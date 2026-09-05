@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { PATCH as updateAccount } from "@/app/api/accounts/[id]/route";
+import { DELETE as closeSessions } from "@/app/api/accounts/[id]/sessions/route";
 import { session, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { HttpError, requireSession } from "@/lib/auth/session";
@@ -58,6 +59,29 @@ describe("réactivation d'un compte (CRM-19, contrat 10, D12)", () => {
     expect((await signIn(MEMBER.email, MEMBER.password)).status).toBe(401);
     const res = await patch(memberId, { status: "actif" }, adminCookie);
     expect(res.status).toBe(200);
+    const [row] = await db.select().from(user).where(eq(user.id, memberId));
+    expect(row.status).toBe("actif");
+    expect((await signIn(MEMBER.email, MEMBER.password)).status).toBe(200);
+  });
+});
+
+describe("fermeture de toutes les sessions d'un compte (CRM-19, contrat 11, D10)", () => {
+  it("force la reconnexion sur chacun de ses navigateurs sans changer l'état du compte", async () => {
+    const browserA = await sessionCookie(MEMBER.email, MEMBER.password);
+    const browserB = await sessionCookie(MEMBER.email, MEMBER.password);
+    expect(await db.select().from(session).where(eq(session.userId, memberId))).toHaveLength(2);
+
+    const asMember = await closeSessions(jsonRequest("DELETE", `/api/accounts/${memberId}/sessions`, undefined, browserA), { params: Promise.resolve({ id: memberId }) });
+    expect(asMember.status).toBe(403);
+
+    const res = await closeSessions(jsonRequest("DELETE", `/api/accounts/${memberId}/sessions`, undefined, adminCookie), { params: Promise.resolve({ id: memberId }) });
+    expect(res.status).toBe(200);
+    expect(await db.select().from(session).where(eq(session.userId, memberId))).toHaveLength(0);
+    for (const cookie of [browserA, browserB]) {
+      const refused = await sessionFor(cookie);
+      expect(refused).toBeInstanceOf(HttpError);
+      expect((refused as HttpError).status).toBe(401);
+    }
     const [row] = await db.select().from(user).where(eq(user.id, memberId));
     expect(row.status).toBe("actif");
     expect((await signIn(MEMBER.email, MEMBER.password)).status).toBe(200);
