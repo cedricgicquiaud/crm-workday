@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DELETE as deleteRoute, GET as readRoute, PUT as updateRoute } from "@/app/api/emails/modeles/[key]/route";
 import { GET as listRoute } from "@/app/api/emails/modeles/route";
+import { POST as previewRoute } from "@/app/api/emails/apercu/route";
 import { emailTemplate, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { HttpError } from "@/lib/auth/session";
@@ -133,5 +134,25 @@ describe("API des modèles (CRM-23, contrats 16, 31, 32)", () => {
     expect(refused.status).toBe(409);
     expect(await refused.json()).toMatchObject({ error: "modele_systeme" });
     expect((await deleteRoute(jsonRequest("DELETE", "/api/emails/modeles/invitation", undefined, memberCookie), keyParams("invitation"))).status).toBe(403);
+  });
+});
+
+describe("aperçu d'un modèle (CRM-23, contrat 28)", () => {
+  it("rend le sujet et le corps saisis avec des valeurs d'exemple, sans enregistrer, réservé aux administrateurs", async () => {
+    const text = { subject: "Accès de {{prenom}} au CRM de {{cabinet}}", body: "Bonjour {{prenom}} {{nom}},\n\n[Ouvrir mon accès]({{lien}})" };
+    expect((await previewRoute(jsonRequest("POST", "/api/emails/apercu", text, memberCookie))).status).toBe(403);
+    const res = await previewRoute(jsonRequest("POST", "/api/emails/apercu", text, adminCookie));
+    expect(res.status).toBe(200);
+    const { subject, html } = (await res.json()) as { subject: string; html: string };
+    expect(subject).toMatch(/^Accès de \S+ au CRM de .+$/);
+    expect(subject).not.toContain("{{");
+    expect(html).toContain("Ouvrir mon accès");
+    expect(html).toMatch(/Bonjour \S+ \S+,/);
+    expect(html).not.toContain("{{prenom}}");
+    expect(html).toContain("href=\"http");
+    /* Une variable inconnue n'empêche pas l'aperçu : elle reste visible telle quelle. */
+    const lenient = await previewRoute(jsonRequest("POST", "/api/emails/apercu", { subject: "x", body: "Bonjour {{prénom}}" }, adminCookie));
+    expect(lenient.status).toBe(200);
+    expect(((await lenient.json()) as { html: string }).html).toContain("{{prénom}}");
   });
 });
