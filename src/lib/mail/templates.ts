@@ -5,7 +5,11 @@
  */
 import { asc, eq } from "drizzle-orm";
 import { emailTemplate } from "@/db/schema";
+import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+
+/** Les seules variables qu'un modèle peut porter (D22). */
+export const ALLOWED_VARIABLES = ["prenom", "nom", "cabinet", "lien"] as const;
 
 export type EmailTemplate = {
   key: string;
@@ -64,12 +68,28 @@ export async function getTemplate(key: string): Promise<EmailTemplate | null> {
 
 export type TemplateText = { subject: string; body: string };
 
+const VARIABLE_RE = /\{\{\s*([^{}]*?)\s*\}\}/g;
+
+/** Noms des variables `{{…}}` présentes dans un texte, dans l'ordre, sans doublon. */
+export function variablesOf(text: string): string[] {
+  return Array.from(new Set(Array.from(text.matchAll(VARIABLE_RE), (m) => m[1])));
+}
+
+/** Refuse toute variable hors de la liste autorisée, en la nommant (contrat 31). */
+function validateTemplateText(text: TemplateText): void {
+  const unknown = variablesOf(`${text.subject}\n${text.body}`).find((name) => !(ALLOWED_VARIABLES as readonly string[]).includes(name));
+  if (unknown !== undefined) {
+    throw new HttpError(400, "variable_inconnue", `La variable {{${unknown}}} n'existe pas. Variables disponibles : ${ALLOWED_VARIABLES.map((v) => `{{${v}}}`).join(", ")}.`, {
+      variable: unknown,
+    });
+  }
+}
+
 export async function updateTemplate(key: string, text: TemplateText): Promise<void> {
+  validateTemplateText(text);
   await ensureSystemTemplates();
   await db.update(emailTemplate).set({ subject: text.subject, body: text.body, updatedAt: new Date() }).where(eq(emailTemplate.key, key));
 }
-
-const VARIABLE_RE = /\{\{\s*([^{}]*?)\s*\}\}/g;
 
 /** Remplace chaque `{{variable}}` par sa valeur ; une variable absente des valeurs reste telle quelle. */
 export function renderVariables(text: string, variables: Record<string, string>): string {
