@@ -114,8 +114,9 @@ test.describe("refus d'un email déjà pris (CRM-18, contrat 18, D12)", () => {
     await dialog.getByRole("button", { name: "Réactiver ce compte" }).click();
     await expect(dialog).toBeHidden();
     await expect(adminPage.getByRole("status")).toContainText("Compte de Dan Petit réactivé");
+    // Dan n'avait pas choisi de mot de passe : réactivé, il redevient invité, pas actif (D12, D7).
     const row = adminPage.getByRole("table", { name: "Comptes" }).getByRole("row", { name: new RegExp(disabled.email) });
-    await expect(row.getByText("Actif", { exact: true })).toBeVisible();
+    await expect(row.getByText("Invité", { exact: true })).toBeVisible();
   });
 });
 

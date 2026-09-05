@@ -2,8 +2,8 @@
  * Gestion des comptes par un administrateur (D11, D12) : liste avec état invité / actif /
  * désactivé. Un compte se désactive, ne se supprime jamais.
  */
-import { and, asc, count, eq } from "drizzle-orm";
-import { session, user } from "@/db/schema";
+import { and, asc, count, eq, isNull } from "drizzle-orm";
+import { account, invitation, session, user } from "@/db/schema";
 import type { Role } from "@/features/auth/accounts";
 import { createInvitation, type NewInvitation } from "@/features/auth/invitations";
 import { HttpError } from "@/lib/auth/session";
@@ -76,18 +76,38 @@ export async function revokeAccountSessions(id: string): Promise<void> {
   await db.delete(session).where(eq(session.userId, id));
 }
 
-/** Un compte désactivé ne se connecte plus et ses sessions sont fermées ; ce qu'il a créé reste à son nom (D12). */
+/** Les liens d'invitation encore ouverts expirent à l'instant : un lien reçu avant la désactivation affiche « Lien invalide ». */
+async function expireOpenInvitations(userId: string): Promise<void> {
+  await db.update(invitation).set({ expiresAt: new Date() }).where(and(eq(invitation.userId, userId), isNull(invitation.usedAt)));
+}
+
+/** Un compte a un mot de passe dès qu'il porte une ligne `account` d'émetteur `credential` (Better Auth). */
+async function hasPassword(userId: string): Promise<boolean> {
+  const [row] = await db.select({ id: account.id }).from(account).where(and(eq(account.userId, userId), eq(account.providerId, "credential"))).limit(1);
+  return Boolean(row);
+}
+
+/**
+ * Un compte désactivé ne se connecte plus, ses sessions sont fermées et ses invitations ouvertes
+ * expirent ; ce qu'il a créé reste à son nom (D12).
+ */
 export async function deactivateAccount(id: string): Promise<void> {
   await refuseIfLastActiveAdmin(await findAccount(id));
   await db.update(user).set({ status: "desactive", updatedAt: new Date() }).where(eq(user.id, id));
   await revokeAccountSessions(id);
+  await expireOpenInvitations(id);
 }
 
-/** Un administrateur réactive un compte désactivé ; le mot de passe reste le même (D12). */
+/**
+ * Un administrateur réactive un compte désactivé : il retrouve son état d'origine. Avec mot de
+ * passe, il redevient actif et se reconnecte avec le même mot de passe ; sans (invité jamais
+ * accepté), il redevient invité, et « Renvoyer l'invitation » lui rend un lien (D12, D7).
+ */
 export async function reactivateAccount(id: string): Promise<void> {
-  const account = await findAccount(id);
-  if (account.status !== "desactive") throw new HttpError(409, "compte_non_desactive", "Ce compte n'est pas désactivé.");
-  await db.update(user).set({ status: "actif", updatedAt: new Date() }).where(eq(user.id, id));
+  const found = await findAccount(id);
+  if (found.status !== "desactive") throw new HttpError(409, "compte_non_desactive", "Ce compte n'est pas désactivé.");
+  const status: AccountStatus = (await hasPassword(id)) ? "actif" : "invite";
+  await db.update(user).set({ status, updatedAt: new Date() }).where(eq(user.id, id));
 }
 
 /** Deux rôles, tout le monde voit tout : administrateur ou membre (D11). */
