@@ -45,6 +45,11 @@ export function isValidEmail(value: string): boolean {
   return EMAIL_RE.test(value.trim());
 }
 
+/** Le destinataire est vérifié avant tout rendu et tout envoi (contrat 35). */
+function assertValidRecipient(to: string): void {
+  if (!isValidEmail(to)) throw new Error(`Destinataire invalide : « ${to} »`);
+}
+
 /** Sujet et HTML d'un texte de modèle, variables remplacées, dans le cadre React Email. */
 export async function renderText(text: TemplateText, variables: TemplateVariables): Promise<{ subject: string; html: string }> {
   const subject = renderVariables(text.subject, variables);
@@ -105,9 +110,7 @@ export type SendRenderedEmailInput = Omit<SendTemplatedEmailInput, "variables"> 
 
 /** Envoi d'un contenu déjà rendu (renvoi à l'identique, email de test) : capture hors production, Resend sinon. */
 export async function sendRenderedEmail(input: SendRenderedEmailInput, options: SendOptions = {}): Promise<SendTemplatedEmailResult> {
-  if (!isValidEmail(input.to)) {
-    throw new Error(`Destinataire invalide : « ${input.to} »`);
-  }
+  assertValidRecipient(input.to);
   const entry: LogEntry = {
     to: input.to.trim(),
     subject: input.subject,
@@ -123,9 +126,7 @@ export async function sendRenderedEmail(input: SendRenderedEmailInput, options: 
 }
 
 export async function sendTemplatedEmail(input: SendTemplatedEmailInput, options: SendOptions = {}): Promise<SendTemplatedEmailResult> {
-  if (!isValidEmail(input.to)) {
-    throw new Error(`Destinataire invalide : « ${input.to} »`);
-  }
+  assertValidRecipient(input.to);
   const { variables, ...rest } = input;
   const rendered = await renderTemplate(input.template, withCabinetName(variables, await getCabinetSettings()));
   return sendRenderedEmail({ ...rest, ...rendered }, options);
