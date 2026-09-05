@@ -16,6 +16,7 @@ describe("registre d'objets (CRM-33, D4)", () => {
       labels: { singular: "Objet de test", plural: "Objets de test", article: "un" },
       icon: CircleDashedIcon,
       href: (id) => `/objets-de-test/${id}`,
+      listHref: "/objets-de-test",
       apiBase: "/api/objets-de-test",
       titleField: "name",
       fields: [
@@ -35,7 +36,7 @@ describe("registre d'objets (CRM-33, D4)", () => {
 
 describe("ordre des objets", () => {
   it("liste les objets par rang « order » croissant, quel que soit l'ordre d'enregistrement", () => {
-    const base = { labels: { singular: "x", plural: "x", article: "un" }, icon: CircleDashedIcon, href: (id: string) => id, apiBase: "/api/x", titleField: "name", fields: [], relations: [] };
+    const base = { labels: { singular: "x", plural: "x", article: "un" }, icon: CircleDashedIcon, href: (id: string) => id, listHref: "/x", apiBase: "/api/x", titleField: "name", fields: [], relations: [] };
     registerObject({ ...base, key: "test_ordre_b", order: 920 });
     registerObject({ ...base, key: "test_ordre_a", order: 910 });
     const keys = listObjects()

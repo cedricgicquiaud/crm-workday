@@ -36,6 +36,8 @@ export type FieldDescriptor = {
   uniqueMessage?: (value: string) => string;
   /** texte long (notes) : zone de texte plutôt qu'un champ d'une ligne */
   multiline?: boolean;
+  /** occupe toute la largeur de sa section sur la fiche (raison sociale, rue) */
+  wide?: boolean;
   /** groupe d'affichage sur la fiche (« Adresse ») ; sans section, le champ est dans le groupe principal */
   section?: string;
   /** rang d'affichage, croissant */
@@ -64,6 +66,8 @@ export type ObjectDefinition = {
   labels: ObjectLabels;
   icon: LucideIcon;
   href: (id: string) => string;
+  /** adresse de la liste (`/entreprises`), pour la barre latérale */
+  listHref: string;
   /** racine des routes d'API de l'objet (`/api/entreprises`) */
   apiBase: string;
   /** champ affiché comme titre de la fiche et première colonne de la liste */

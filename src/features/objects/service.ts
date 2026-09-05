@@ -4,9 +4,10 @@
  * par champ modifié (D12), refus d'une fiche archivée (D21). Il ne connaît que la clé d'objet.
  */
 import "@/features/objects/manifest.server";
-import { and, desc, eq, getTableColumns, isNull, ne, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, isNull, ne, type SQL } from "drizzle-orm";
 import { recordHistory } from "@/features/history/history";
 import { validateValues, type FieldValues } from "@/features/objects/fields";
+import { userName, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
 import { user } from "@/db/schema";
@@ -139,4 +140,15 @@ export async function updateObject(type: string, id: string, patch: unknown, act
     changed.map(([field, value]) => ({ objectType: type, objectId: id, action: "modifiee" as const, field, oldValue: current[field] == null ? null : String(current[field]), newValue: value, authorId: actor.id })),
   );
   return row as ObjectRecord;
+}
+
+/** Utilisateurs actifs ou invités, pour les champs « responsable » (les désactivés ne sont plus proposés). */
+export async function listUserOptions(): Promise<UserOption[]> {
+  const rows = await db.select({ id: user.id, firstName: user.firstName, lastName: user.lastName }).from(user).where(ne(user.status, "desactive")).orderBy(asc(user.lastName), asc(user.firstName));
+  return rows.map((row) => ({ id: row.id, name: userName(row) }));
+}
+
+/** Fiche prête pour un composant client : les dates deviennent des chaînes ISO. */
+export function serializeRecord(record: ObjectRecord): SerializedRecord {
+  return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, value instanceof Date ? value.toISOString() : value])) as SerializedRecord;
 }

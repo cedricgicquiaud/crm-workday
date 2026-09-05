@@ -26,11 +26,17 @@ export const SIREN_RULE = "Le SIREN doit contenir neuf chiffres.";
 export const normalizeSiren = (value: string): string => value.replace(/\s+/g, "");
 
 export const COMPANY_FIELDS: readonly FieldDescriptor[] = [
-  { key: "name", label: "Raison sociale", type: "text", required: true, maxLength: 120, sortable: true, order: 10 },
+  { key: "name", label: "Raison sociale", type: "text", required: true, maxLength: 120, sortable: true, wide: true, order: 10 },
   { key: "type", label: "Type", type: "list", required: true, values: COMPANY_TYPES, sortable: true, order: 20 },
   { key: "siren", label: "SIREN", type: "text", normalize: normalizeSiren, pattern: { regex: /^\d{9}$/, message: SIREN_RULE }, unique: true, uniqueMessage: (value) => `Le SIREN ${value} est déjà porté`, order: 30 },
   { key: "paymentTerms", label: "Conditions de paiement", type: "list", required: true, values: PAYMENT_TERMS, default: "30_jours", order: 50 },
+  { key: "sector", label: "Secteur", type: "text", maxLength: 120, order: 40 },
+  { key: "website", label: "Site web", type: "text", maxLength: 200, order: 60 },
   { key: "billingEmail", label: "Email de facturation", type: "text", maxLength: 200, normalize: (value) => value.toLowerCase(), pattern: { regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Cette adresse n'est pas valide." }, order: 70 },
   { key: "ownerId", label: "Responsable", type: "user", required: true, default: "actor", sortable: true, order: 80 },
+  { key: "street", label: "Rue", type: "text", maxLength: 200, wide: true, section: "Adresse", order: 110 },
+  { key: "postalCode", label: "Code postal", type: "text", maxLength: 12, section: "Adresse", order: 120 },
+  { key: "city", label: "Ville", type: "text", maxLength: 120, sortable: true, section: "Adresse", order: 130 },
   { key: "country", label: "Pays", type: "text", required: true, maxLength: 80, default: "France", section: "Adresse", order: 140 },
+  { key: "notes", label: "Notes", type: "text", maxLength: 2000, multiline: true, section: "Notes", order: 200 },
 ];

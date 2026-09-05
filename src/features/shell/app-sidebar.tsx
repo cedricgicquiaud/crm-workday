@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/sidebar";
 import { ROLE_LABELS } from "@/features/accounts/labels";
 import type { Role } from "@/features/auth/accounts";
+import { ObjectsNav } from "@/features/objects/objects-nav";
 import { isCurrentPage, SHELL_NAV } from "@/features/shell/nav-entries";
 import { SignOutButton } from "@/features/shell/sign-out";
 import { ThemeToggle } from "@/features/theme/theme-toggle";
@@ -26,7 +27,7 @@ export type ShellUser = { firstName: string; lastName: string; role: Role };
 
 const initials = (user: ShellUser) => `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase();
 
-/** Barre latérale (D15) : navigation, section « Objets » encore vide, pied avec le compte. 224 px, 48 px repliée. */
+/** Barre latérale (D15) : navigation, groupe « Objets » alimenté par le registre, pied avec le compte. 224 px, 48 px repliée. */
 export function AppSidebar({ user }: { user: ShellUser }) {
   const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
@@ -65,11 +66,10 @@ export function AppSidebar({ user }: { user: ShellUser }) {
             </nav>
           </SidebarGroupContent>
         </SidebarGroup>
-        {/* Repliée, la section vide disparaît : son libellé effacé continuerait sinon d'intercepter les clics sur « Mon profil ». */}
-        <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+        <SidebarGroup>
           <SidebarGroupLabel className="h-6 text-2xs font-semibold uppercase tracking-(--tracking-caps)">Objets</SidebarGroupLabel>
           <SidebarGroupContent>
-            <p className="px-2 py-1 text-xs text-muted-foreground">Clients, consultants, missions et factures arrivent avec les features suivantes.</p>
+            <ObjectsNav />
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
