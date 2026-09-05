@@ -94,3 +94,32 @@ test.describe("refus d'un email déjà pris (CRM-18, contrat 18, D12)", () => {
     await expect(row.getByText("Actif", { exact: true })).toBeVisible();
   });
 });
+
+test.describe("désactivation et réactivation (CRM-19, contrat 10)", () => {
+  test("désactiver un compte déconnecte la personne à sa prochaine requête ; réactivé, il se reconnecte avec le même mot de passe", async ({ adminPage, memberPage }) => {
+    await memberPage.goto("/accueil");
+    await expect(memberPage.getByRole("heading", { level: 1 })).toHaveText(`Bonjour ${MEMBER.firstName}`);
+
+    await adminPage.goto("/parametres/comptes");
+    const row = adminPage.getByRole("table", { name: "Comptes" }).getByRole("row", { name: new RegExp(MEMBER.email) });
+    await row.getByRole("button", { name: "Actions" }).click();
+    await adminPage.getByRole("menuitem", { name: "Désactiver" }).click();
+    await expect(adminPage.getByRole("status")).toContainText(`Compte de ${MEMBER.firstName} ${MEMBER.lastName} désactivé`);
+    await expect(row.getByText("Désactivé", { exact: true })).toBeVisible();
+
+    await memberPage.reload();
+    await expect(memberPage).toHaveURL(/\/connexion/);
+    await memberPage.getByLabel("Email").fill(MEMBER.email);
+    await memberPage.getByLabel("Mot de passe").fill(MEMBER.password);
+    await memberPage.getByRole("button", { name: "Se connecter" }).click();
+    await expect(memberPage.getByRole("form", { name: "Formulaire de connexion" }).getByRole("alert")).toHaveText("Email ou mot de passe incorrect.");
+
+    await row.getByRole("button", { name: "Actions" }).click();
+    await adminPage.getByRole("menuitem", { name: "Réactiver" }).click();
+    await expect(adminPage.getByRole("status")).toContainText(`Compte de ${MEMBER.firstName} ${MEMBER.lastName} réactivé`);
+    await expect(row.getByText("Actif", { exact: true })).toBeVisible();
+
+    await memberPage.getByRole("button", { name: "Se connecter" }).click();
+    await expect(memberPage).toHaveURL(/\/accueil$/);
+  });
+});
