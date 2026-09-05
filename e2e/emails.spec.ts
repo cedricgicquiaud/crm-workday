@@ -184,9 +184,11 @@ test.describe("écrans à 375 px (contrat 25)", () => {
       await expect(adminPage.getByRole("heading", { level: 1 })).toHaveCount(1);
       const overflow = await adminPage.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow, label).toBe(0);
+      /* Un texte tronqué par des points de suspension ne défile pas : il n'est pas un débordement. */
       const wider = await adminPage.evaluate(() =>
         Array.from(document.querySelectorAll<HTMLElement>("body *"))
-          .filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== "visible")
+          .filter((el) => el.clientWidth > 1 && el.scrollWidth > el.clientWidth + 1)
+          .filter((el) => getComputedStyle(el).overflowX !== "visible" && getComputedStyle(el).textOverflow !== "ellipsis")
           .map((el) => `${el.tagName.toLowerCase()} ${el.scrollWidth}>${el.clientWidth}`),
       );
       expect(wider, label).toEqual([]);
