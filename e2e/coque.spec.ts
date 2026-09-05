@@ -30,3 +30,42 @@ test.describe("barre latérale (CRM-27, contrat 21)", () => {
     await expect(sidebar).toHaveAttribute("data-state", "expanded");
   });
 });
+
+const PALETTE_INPUT = "Rechercher une page ou une action";
+
+test.describe("palette Cmd+K (CRM-28, contrat 22)", () => {
+  test("Cmd+K ouvre la palette ; « para » puis Entrée ouvre Paramètres ; « sombre » bascule le thème et l'enregistre", async ({ memberPage }) => {
+    await memberPage.goto("/accueil");
+    const html = memberPage.locator("html");
+    await expect(html).not.toHaveClass(/dark/);
+
+    await memberPage.keyboard.press("ControlOrMeta+k");
+    const palette = memberPage.getByRole("dialog", { name: "Palette de commandes" });
+    await expect(palette).toBeVisible();
+    await palette.getByPlaceholder(PALETTE_INPUT).fill("para");
+    await expect(palette.getByRole("option", { name: "Aller à Paramètres" })).toHaveAttribute("aria-selected", "true");
+    await memberPage.keyboard.press("Enter");
+    await expect(memberPage).toHaveURL(/\/parametres(\/|$)/);
+    await expect(palette).toBeHidden();
+
+    await memberPage.keyboard.press("ControlOrMeta+k");
+    await palette.getByPlaceholder(PALETTE_INPUT).fill("sombre");
+    await memberPage.keyboard.press("Enter");
+    await expect(html).toHaveClass(/dark/);
+    await memberPage.reload();
+    await expect(html).toHaveClass(/dark/);
+
+    await memberPage.keyboard.press("ControlOrMeta+k");
+    await palette.getByPlaceholder(PALETTE_INPUT).fill("clair");
+    await memberPage.keyboard.press("Enter");
+    await expect(html).not.toHaveClass(/dark/);
+    await memberPage.reload();
+    await expect(html).not.toHaveClass(/dark/);
+  });
+
+  test("le bouton ⌘K de la barre supérieure ouvre la palette", async ({ memberPage }) => {
+    await memberPage.goto("/accueil");
+    await memberPage.getByRole("button", { name: "Rechercher" }).click();
+    await expect(memberPage.getByRole("dialog", { name: "Palette de commandes" })).toBeVisible();
+  });
+});
