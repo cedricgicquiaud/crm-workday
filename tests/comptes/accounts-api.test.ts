@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { GET as listAccounts } from "@/app/api/accounts/route";
 import { user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { createInvitation } from "@/features/auth/invitations";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
@@ -27,6 +29,25 @@ describe("API des comptes : accès réservé aux administrateurs (CRM-20, contra
     expect(await asMember.json()).toMatchObject({ error: "reserve_aux_administrateurs" });
     const anonymous = await listAccounts(jsonRequest("GET", "/api/accounts"));
     expect(anonymous.status).toBe(401);
-    void adminCookie;
+  });
+});
+
+describe("liste des comptes (CRM-18)", () => {
+  it("rend chaque compte avec email, prénom, nom, rôle et état invité / actif / désactivé", async () => {
+    const [admin] = await db.select({ id: user.id }).from(user).where(eq(user.email, ADMIN.email));
+    await createInvitation({ email: "invite-liste@exemple.fr", firstName: "Inès", lastName: "Roux", role: "membre", authorId: admin.id });
+    const disabled = { email: "desactive-liste@exemple.fr", firstName: "Dan", lastName: "Petit", password: "MotDePasse-Desactive-1", role: "membre" as const };
+    await createUserWithPassword(disabled);
+    await db.update(user).set({ status: "desactive" }).where(eq(user.email, disabled.email));
+
+    const res = await listAccounts(jsonRequest("GET", "/api/accounts", undefined, adminCookie));
+    expect(res.status).toBe(200);
+    const { accounts } = (await res.json()) as { accounts: { email: string; firstName: string; lastName: string; role: string; status: string }[] };
+    const byEmail = Object.fromEntries(accounts.map((a) => [a.email, a]));
+    expect(byEmail[ADMIN.email]).toMatchObject({ firstName: "Alice", lastName: "Durand", role: "administrateur", status: "actif" });
+    expect(byEmail[MEMBER.email]).toMatchObject({ role: "membre", status: "actif" });
+    expect(byEmail["invite-liste@exemple.fr"]).toMatchObject({ firstName: "Inès", status: "invite" });
+    expect(byEmail[disabled.email]).toMatchObject({ status: "desactive" });
+    expect(accounts.every((a) => typeof (a as { id?: string }).id === "string")).toBe(true);
   });
 });
