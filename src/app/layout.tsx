@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { htmlThemeClass } from "@/features/theme/html-theme";
 import { isTheme, type Theme } from "@/features/theme/theme";
+import { ThemeScript } from "@/features/theme/theme-script";
 import { getSession } from "@/lib/auth/session";
 import "./globals.css";
 
@@ -27,6 +28,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const theme = await currentTheme();
   return (
     <html lang="fr" className={htmlThemeClass(theme)} data-theme={theme} suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+      </head>
       <body className={`${inter.variable} min-h-screen bg-background font-sans text-foreground antialiased`}>{children}</body>
     </html>
   );
