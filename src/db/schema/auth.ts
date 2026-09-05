@@ -3,7 +3,7 @@
  * état, thème) sont posés dès le socle pour que les livraisons suivantes n'aient pas de
  * migration à écrire pour eux.
  */
-import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -44,6 +44,8 @@ export const account = pgTable(
   "account",
   {
     id: text("id").primaryKey(),
+    /** Better Auth 1.7 : `local:credential` pour un mot de passe, l'émetteur OAuth sinon. */
+    issuer: text("issuer").notNull(),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
     userId: text("user_id")
@@ -59,7 +61,7 @@ export const account = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("account_user_id_idx").on(t.userId)],
+  (t) => [index("account_user_id_idx").on(t.userId), uniqueIndex("account_issuer_account_id_idx").on(t.issuer, t.accountId)],
 );
 
 export const verification = pgTable(

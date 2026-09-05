@@ -1,30 +1,27 @@
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ConnexionForm } from "@/features/auth/connexion-form";
+import { PASSWORD_CHANGED_QUERY } from "@/features/auth/routes";
 
-/** Page de connexion. Le formulaire est branché par la livraison 1.2a. */
-export default function ConnexionPage() {
+export const dynamic = "force-dynamic";
+
+type Props = { searchParams: Promise<{ next?: string; [PASSWORD_CHANGED_QUERY]?: string }> };
+
+/** Page de connexion ; `?next=` conserve la page demandée avant la redirection (contrat 19). */
+export default async function ConnexionPage({ searchParams }: Props) {
+  const { next, [PASSWORD_CHANGED_QUERY]: passwordChanged } = await searchParams;
   return (
     <Card>
       <CardHeader>
         <h1 className="text-lg font-semibold leading-none">Connexion</h1>
         <CardDescription>CRM Workday — accès réservé à l&apos;équipe du cabinet.</CardDescription>
       </CardHeader>
-      <CardContent>
-        <form className="grid gap-4" aria-label="Formulaire de connexion">
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" autoComplete="email" required />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="password">Mot de passe</Label>
-            <Input id="password" name="password" type="password" autoComplete="current-password" required />
-          </div>
-          <Button type="submit" disabled title="La connexion arrive avec la livraison 1.2a">
-            Se connecter
-          </Button>
-        </form>
+      <CardContent className="grid gap-4">
+        {passwordChanged && (
+          <p role="status" className="text-sm">
+            Votre mot de passe a été modifié. Connectez-vous.
+          </p>
+        )}
+        <ConnexionForm next={next} />
       </CardContent>
     </Card>
   );
