@@ -108,7 +108,7 @@ function EditableField({ type, field, value: saved, error, users, onSave }: Edit
     <div className={wide ? "grid gap-1 sm:col-span-2" : "grid gap-1"}>
       <Label htmlFor={id}>{field.label}</Label>
       {options ? (
-        <Select value={saved || null} onValueChange={(next) => void onSave(next ?? "")} disabled={!editable}>
+        <Select items={options} value={saved || null} onValueChange={(next) => void onSave(next ?? "")} disabled={!editable}>
           <SelectTrigger id={id} aria-label={field.label} size="sm" aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="w-full">
             <SelectValue placeholder="—" />
           </SelectTrigger>

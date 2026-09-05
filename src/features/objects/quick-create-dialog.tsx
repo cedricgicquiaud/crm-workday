@@ -122,7 +122,7 @@ function QuickField({ type, field, value, error, users, onChange }: QuickFieldPr
     <div className="grid gap-2">
       <Label htmlFor={id}>{field.label}</Label>
       {options ? (
-        <Select value={value || null} onValueChange={(next) => onChange(next ?? "")}>
+        <Select items={options} value={value || null} onValueChange={(next) => onChange(next ?? "")}>
           <SelectTrigger id={id} aria-label={field.label} aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined} className="w-full">
             <SelectValue placeholder="Choisir…" />
           </SelectTrigger>
