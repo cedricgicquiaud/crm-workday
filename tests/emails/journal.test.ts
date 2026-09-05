@@ -9,7 +9,6 @@ import { getAuth } from "@/lib/auth";
 import { closeDb, db } from "@/lib/db";
 import { listEmailLog } from "@/lib/mail/journal";
 import { sendTemplatedEmail } from "@/lib/mail/send";
-import { saveCabinetSettings } from "@/lib/mail/settings";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 import { lastEmailTo } from "../helpers/mailbox";
 

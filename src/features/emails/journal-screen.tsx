@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +34,8 @@ function toQuery(filters: Filters): string {
   return query ? `?${query}` : "";
 }
 
+const fetchEntries = (filters: Filters) => callApi<{ entries: Entry[] }>(`/api/emails/journal${toQuery(filters)}`);
+
 const authorLabel = (entry: Entry) => entry.author?.name || "Système";
 const objectLabel = (entry: Entry) => (entry.objectType ? `${entry.objectType} ${entry.objectId ?? ""}`.trim() : "—");
 
@@ -49,15 +51,25 @@ export function JournalScreen({ canResend }: Props) {
   const [outcome, setOutcome] = useState<Outcome>(null);
   const [pending, setPending] = useState(false);
 
-  const load = useCallback(async (current: Filters) => {
-    const result = await callApi<{ entries: Entry[] }>(`/api/emails/journal${toQuery(current)}`);
+  function show(result: Awaited<ReturnType<typeof fetchEntries>>) {
     if (result.ok) setEntries(result.data.entries);
     else setOutcome({ kind: "alert", text: result.failure.message });
-  }, []);
+  }
 
+  async function load(current: Filters) {
+    show(await fetchEntries(current));
+  }
+
+  /* Première lecture au montage ; une réponse arrivée après un démontage est ignorée. */
   useEffect(() => {
-    void load(EMPTY_FILTERS);
-  }, [load]);
+    let cancelled = false;
+    fetchEntries(EMPTY_FILTERS).then((result) => {
+      if (!cancelled) show(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
