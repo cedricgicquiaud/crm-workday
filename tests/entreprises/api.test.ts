@@ -158,3 +158,22 @@ describe("API des entreprises — responsable (CRM-34, D1)", () => {
     expect(await unknown.json()).toMatchObject({ fields: { ownerId: "« Responsable » ne désigne aucun utilisateur." } });
   });
 });
+
+describe("API des entreprises — type des valeurs (CRM-34, D24)", () => {
+  it("refuse (400) un objet, un tableau ou un nombre dans un champ texte ou liste, avec le message rattaché au champ, et n'enregistre rien", async () => {
+    const before = (await db.select({ id: company.id }).from(company)).length;
+    for (const name of [{ a: 1 }, ["Tableau"], 12]) {
+      const res = await postCompany(jsonRequest("POST", "/api/entreprises", { name, type: "client" }, memberCookie));
+      expect(res.status, JSON.stringify(name)).toBe(400);
+      expect(await res.json()).toMatchObject({ error: "donnees_invalides", fields: { name: "Valeur invalide pour « Raison sociale »." } });
+    }
+    const type = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "Type Tableau", type: ["client"] }, memberCookie));
+    expect(type.status).toBe(400);
+    expect(await type.json()).toMatchObject({ fields: { type: "Valeur invalide pour « Type »." } });
+    const owner = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "Responsable Nombre", type: "client", ownerId: 7 }, memberCookie));
+    expect(owner.status).toBe(400);
+    expect(await owner.json()).toMatchObject({ fields: { ownerId: "Valeur invalide pour « Responsable »." } });
+    expect((await db.select({ id: company.id }).from(company)).length).toBe(before);
+    expect(await db.select({ id: company.id }).from(company).where(eq(company.name, "[object Object]"))).toEqual([]);
+  });
+});
