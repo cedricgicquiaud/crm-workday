@@ -77,3 +77,15 @@ describe("API des entreprises — forme du SIREN (CRM-34, contrat 4)", () => {
     expect(await res.json()).toMatchObject({ error: "donnees_invalides", message: "Le SIREN doit contenir neuf chiffres.", fields: { siren: "Le SIREN doit contenir neuf chiffres." } });
   });
 });
+
+describe("API des entreprises — listes fermées (CRM-34, contrat 5)", () => {
+  it("refuse (400) un type ou des conditions de paiement hors liste, par le serveur", async () => {
+    const type = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "Type Inconnu", type: "fournisseur" }, memberCookie));
+    expect(type.status).toBe(400);
+    expect(await type.json()).toMatchObject({ fields: { type: "Valeur hors liste pour « Type »." } });
+
+    const terms = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "Conditions Inconnues", type: "client", paymentTerms: "90_jours" }, memberCookie));
+    expect(terms.status).toBe(400);
+    expect(await terms.json()).toMatchObject({ fields: { paymentTerms: "Valeur hors liste pour « Conditions de paiement »." } });
+  });
+});
