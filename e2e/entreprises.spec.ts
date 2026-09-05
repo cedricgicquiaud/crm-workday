@@ -96,7 +96,7 @@ test.describe("modifier sur la fiche, relire, historique (CRM-36, contrat 2)", (
 test.describe("refus à la création (CRM-35, CRM-34, contrat 4)", () => {
   test("une raison sociale vide ou de 121 caractères et un SIREN de huit chiffres sont refusés sous le champ ; un SIREN déjà porté est refusé en nommant l'entreprise", async ({ memberPage }) => {
     const holder = `Première Titulaire ${suffix()}`;
-    expect((await memberPage.request.post("/api/entreprises", { data: { name: holder, type: "client", siren: "732 829 320" } })).status()).toBe(201);
+    expect((await memberPage.request.post("/api/entreprises", { data: { name: holder, type: "client", siren: "813 562 734" } })).status()).toBe(201);
     await memberPage.goto("/entreprises");
     await memberPage.getByRole("button", { name: "Nouvelle entreprise" }).click();
     const dialog = memberPage.getByRole("dialog", { name: "Nouvelle entreprise" });
@@ -118,9 +118,9 @@ test.describe("refus à la création (CRM-35, CRM-34, contrat 4)", () => {
     await dialog.getByRole("button", { name: "Créer" }).click();
     await expect(form.getByRole("alert")).toHaveText(["Le SIREN doit contenir neuf chiffres."]);
 
-    await dialog.getByLabel("SIREN").fill("732829320");
+    await dialog.getByLabel("SIREN").fill("813562734");
     await dialog.getByRole("button", { name: "Créer" }).click();
-    await expect(form.getByRole("alert")).toContainText(`Le SIREN 732829320 est déjà porté par « ${holder} ».`);
+    await expect(form.getByRole("alert")).toContainText(`Le SIREN 813562734 est déjà porté par « ${holder} ».`);
     await expect(form.getByRole("link", { name: "Ouvrir la fiche" })).toBeVisible();
     await expect(memberPage).toHaveURL(/\/entreprises$/);
   });
