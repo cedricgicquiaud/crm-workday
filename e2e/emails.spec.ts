@@ -95,10 +95,11 @@ test.describe("modèles d'emails (CRM-23, contrats 28, 31, 32)", () => {
 });
 
 test.describe("journal des envois (CRM-24, contrat 29, D23)", () => {
-  test("chaque envoi a sa ligne avec destinataire, sujet, modèle, date, statut et auteur ; un échec porte son motif et « Renvoyer » ; les filtres réduisent la liste", async ({ adminPage }) => {
+  test("chaque envoi a sa ligne avec destinataire, sujet, modèle, date, statut et auteur ; un échec porte son motif et « Renvoyer » ; les filtres réduisent la liste", async ({ adminPage, request }) => {
     const invitee = `invitee-journal-${Date.now()}-e2e@exemple.fr`;
     expect((await adminPage.request.post("/api/accounts", { data: { email: invitee, firstName: "Inès", lastName: "Roux", role: "membre" } })).status()).toBe(201);
-    expect((await adminPage.request.post("/api/auth/request-password-reset", { data: { email: MEMBER.email } })).status()).toBe(200);
+    /* Depuis un contexte vierge : Better Auth exige un en-tête Origin dès qu'un cookie de session accompagne la requête. */
+    expect((await request.post("/api/auth/request-password-reset", { data: { email: MEMBER.email } })).status()).toBe(200);
     const failed = { to: `echec-${Date.now()}-e2e@exemple.fr`, subject: "Relance de facture", reason: "Domaine non vérifié chez Resend" };
     await insertFailedEmail(failed);
 
