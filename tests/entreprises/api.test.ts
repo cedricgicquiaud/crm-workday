@@ -126,3 +126,17 @@ describe("API des entreprises — liste et modification (CRM-34, CRM-35, D6)", (
     expect(companies.map((c) => c.name)).toEqual(["Ancienne", "Récente"]);
   });
 });
+
+describe("API des entreprises — accès et inconnues (CRM-34, D24)", () => {
+  it("répond 401 sans session sur la liste, la création et la modification, et 404 pour une entreprise inconnue", async () => {
+    expect((await listCompanies(jsonRequest("GET", "/api/entreprises"))).status).toBe(401);
+    expect((await postCompany(jsonRequest("POST", "/api/entreprises", { name: "Anonyme", type: "client" }))).status).toBe(401);
+    const unknown = "00000000-0000-4000-8000-000000000000";
+    expect((await patchCompany(jsonRequest("PATCH", `/api/entreprises/${unknown}`, { type: "client" }), byId(unknown))).status).toBe(401);
+    const missing = await getCompany(jsonRequest("GET", `/api/entreprises/${unknown}`, undefined, memberCookie), byId(unknown));
+    expect(missing.status).toBe(404);
+    expect(await missing.json()).toMatchObject({ error: "fiche_introuvable" });
+    const patchMissing = await patchCompany(jsonRequest("PATCH", `/api/entreprises/${unknown}`, { type: "client" }, memberCookie), byId(unknown));
+    expect(patchMissing.status).toBe(404);
+  });
+});
