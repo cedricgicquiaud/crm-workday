@@ -8,11 +8,13 @@ import { parseArgs } from "node:util";
 import { eq } from "drizzle-orm";
 import { user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { MIN_PASSWORD_LENGTH, PASSWORD_RULE } from "@/features/auth/password-rule";
 import { closeDb, db } from "@/lib/db";
 
 export type SeedAdminInput = { email: string; firstName: string; lastName: string; password: string };
 
 export async function seedAdmin(input: SeedAdminInput): Promise<{ id: string }> {
+  if (input.password.length < MIN_PASSWORD_LENGTH) throw new Error(`seed:admin : ${PASSWORD_RULE}`);
   const existing = await db.select({ id: user.id }).from(user).where(eq(user.role, "administrateur")).limit(1);
   if (existing.length > 0) throw new Error("seed:admin : un administrateur existe déjà, la commande ne fait rien.");
   return createUserWithPassword({ ...input, role: "administrateur" });
