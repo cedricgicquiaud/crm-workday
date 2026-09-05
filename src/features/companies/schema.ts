@@ -21,12 +21,14 @@ export const PAYMENT_TERMS: readonly ListValue[] = [
 ];
 
 /** Espaces retirés à la saisie : « 123 456 789 » devient « 123456789 » (D1). */
+export const SIREN_RULE = "Le SIREN doit contenir neuf chiffres.";
+
 export const normalizeSiren = (value: string): string => value.replace(/\s+/g, "");
 
 export const COMPANY_FIELDS: readonly FieldDescriptor[] = [
   { key: "name", label: "Raison sociale", type: "text", required: true, maxLength: 120, sortable: true, order: 10 },
   { key: "type", label: "Type", type: "list", required: true, values: COMPANY_TYPES, sortable: true, order: 20 },
-  { key: "siren", label: "SIREN", type: "text", normalize: normalizeSiren, order: 30 },
+  { key: "siren", label: "SIREN", type: "text", normalize: normalizeSiren, pattern: { regex: /^\d{9}$/, message: SIREN_RULE }, order: 30 },
   { key: "paymentTerms", label: "Conditions de paiement", type: "list", required: true, values: PAYMENT_TERMS, default: "30_jours", order: 50 },
   { key: "ownerId", label: "Responsable", type: "user", required: true, default: "actor", sortable: true, order: 80 },
   { key: "country", label: "Pays", type: "text", required: true, maxLength: 80, default: "France", section: "Adresse", order: 140 },

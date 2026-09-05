@@ -57,6 +57,10 @@ export function validateValues(fields: readonly FieldDescriptor[], input: unknow
       errors[field.key] = MESSAGES.tooLong(field.label, field.maxLength);
       continue;
     }
+    if (field.pattern && !field.pattern.regex.test(value)) {
+      errors[field.key] = field.pattern.message;
+      continue;
+    }
     values[field.key] = value;
   }
   return { values, errors };
