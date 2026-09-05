@@ -3,7 +3,7 @@
  * désactivé. Un compte se désactive, ne se supprime jamais.
  */
 import { asc, eq } from "drizzle-orm";
-import { user } from "@/db/schema";
+import { session, user } from "@/db/schema";
 import { createInvitation, type NewInvitation } from "@/features/auth/invitations";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -50,4 +50,22 @@ export async function inviteAccount(input: NewInvitation): Promise<{ userId: str
     });
   }
   return createInvitation({ ...input, email });
+}
+
+async function findAccount(id: string) {
+  const [row] = await db.select({ id: user.id, role: user.role, status: user.status }).from(user).where(eq(user.id, id)).limit(1);
+  if (!row) throw new HttpError(404, "compte_introuvable", "Ce compte n'existe pas.");
+  return row;
+}
+
+/** Ferme toutes les sessions d'un compte : il devra se reconnecter sur chacun de ses navigateurs (D10). */
+export async function revokeAccountSessions(id: string): Promise<void> {
+  await db.delete(session).where(eq(session.userId, id));
+}
+
+/** Un compte désactivé ne se connecte plus et ses sessions sont fermées ; ce qu'il a créé reste à son nom (D12). */
+export async function deactivateAccount(id: string): Promise<void> {
+  await findAccount(id);
+  await db.update(user).set({ status: "desactive", updatedAt: new Date() }).where(eq(user.id, id));
+  await revokeAccountSessions(id);
 }
