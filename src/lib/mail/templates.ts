@@ -70,6 +70,14 @@ export type TemplateText = { subject: string; body: string };
 
 const VARIABLE_RE = /\{\{\s*([^{}]*?)\s*\}\}/g;
 
+/** Un modèle système ne se supprime pas (D22, contrat 32) ; un autre modèle disparaît. */
+export async function deleteTemplate(key: string): Promise<void> {
+  const found = await getTemplate(key);
+  if (!found) throw new HttpError(404, "modele_introuvable", "Ce modèle n'existe pas.");
+  if (found.isSystem) throw new HttpError(409, "modele_systeme", "Un modèle système ne peut pas être supprimé.");
+  await db.delete(emailTemplate).where(eq(emailTemplate.key, key));
+}
+
 /** Noms des variables `{{…}}` présentes dans un texte, dans l'ordre, sans doublon. */
 export function variablesOf(text: string): string[] {
   return Array.from(new Set(Array.from(text.matchAll(VARIABLE_RE), (m) => m[1])));
