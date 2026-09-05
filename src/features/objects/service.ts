@@ -36,6 +36,9 @@ function withDefaults(type: string, values: FieldValues, actor: Actor): FieldVal
   return filled;
 }
 
+/** 400 dont le message est la première erreur, et toutes les erreurs par champ pour l'écran. */
+const invalid = (errors: Record<string, string>) => new HttpError(400, "donnees_invalides", Object.values(errors)[0], { fields: errors });
+
 /** Un champ `user` doit désigner un utilisateur existant : la clé étrangère ne suffit pas, il faut un 400 rattaché au champ. */
 async function assertUsersExist(type: string, values: FieldValues): Promise<void> {
   const errors: Record<string, string> = {};
@@ -45,12 +48,12 @@ async function assertUsersExist(type: string, values: FieldValues): Promise<void
     const [found] = await db.select({ id: user.id }).from(user).where(eq(user.id, value)).limit(1);
     if (!found) errors[field.key] = `« ${field.label} » ne désigne aucun utilisateur.`;
   }
-  if (Object.keys(errors).length > 0) throw new HttpError(400, "donnees_invalides", Object.values(errors)[0], { fields: errors });
+  if (Object.keys(errors).length > 0) throw invalid(errors);
 }
 
 async function validateOrThrow(type: string, input: unknown, options: { partial: boolean }): Promise<FieldValues> {
   const { values, errors } = validateValues(getObject(type).fields, input, options);
-  if (Object.keys(errors).length > 0) throw new HttpError(400, "donnees_invalides", Object.values(errors)[0], { fields: errors });
+  if (Object.keys(errors).length > 0) throw invalid(errors);
   await assertUsersExist(type, values);
   return values;
 }
@@ -120,7 +123,8 @@ export async function listObjectRecords(type: string, { includeArchived = false 
   return rows as ObjectRecord[];
 }
 
-const same = (a: unknown, b: unknown) => (a ?? null) === (b ?? null) || String(a ?? "") === String(b ?? "");
+/** Une valeur absente et une chaîne vide sont la même chose : ni l'une ni l'autre n'entre dans l'historique. */
+const same = (a: unknown, b: unknown) => String(a ?? "") === String(b ?? "");
 
 export async function updateObject(type: string, id: string, patch: unknown, actor: Actor): Promise<ObjectRecord> {
   const { table } = getServerObject(type);
