@@ -38,6 +38,15 @@ const fetchEntries = (filters: Filters) => callApi<{ entries: Entry[] }>(`/api/e
 
 const authorLabel = (entry: Entry) => entry.author?.name || "Système";
 const objectLabel = (entry: Entry) => (entry.objectType ? `${entry.objectType} ${entry.objectId ?? ""}`.trim() : "—");
+/** Dans le tableau : l'identifiant est abrégé à ses 8 premiers caractères, le complet reste en infobulle. */
+const shortObjectLabel = (entry: Entry) => {
+  if (!entry.objectType) return "—";
+  const id = entry.objectId ?? "";
+  return `${entry.objectType} ${id.length > 8 ? `${id.slice(0, 8)}…` : id}`.trim();
+};
+
+/* Champs date natifs : quand l'icône du calendrier a le focus, seul `:focus-within` reste vrai sur le champ. */
+const DATE_FOCUS = "h-7 w-36 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50";
 
 type Props = { canResend: boolean };
 
@@ -111,11 +120,11 @@ export function JournalScreen({ canResend }: Props) {
         </div>
         <div className="grid gap-1">
           <Label htmlFor="journal-from">Du</Label>
-          <Input id="journal-from" type="date" className="h-7 w-36" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
+          <Input id="journal-from" type="date" className={DATE_FOCUS} value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
         </div>
         <div className="grid gap-1">
           <Label htmlFor="journal-to">Au</Label>
-          <Input id="journal-to" type="date" className="h-7 w-36" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
+          <Input id="journal-to" type="date" className={DATE_FOCUS} value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
         </div>
         <div className="grid gap-1">
           <Label htmlFor="journal-object-type">Type d&apos;objet</Label>
@@ -172,17 +181,19 @@ export function JournalScreen({ canResend }: Props) {
             ))}
           </ul>
 
-          <div className="hidden md:block">
-            <Table aria-label="Journal des envois">
+          {/* Tableau à largeur fixe : les colonnes se partagent la largeur de la page, les textes longs sont
+              tronqués (texte complet en infobulle), aucune colonne ne pousse le tableau hors de l'écran. */}
+          <div className="hidden min-w-0 md:block">
+            <Table aria-label="Journal des envois" className="table-fixed">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="h-7">Date</TableHead>
+                  <TableHead className="h-7 w-40">Date</TableHead>
                   <TableHead className="h-7">Destinataire</TableHead>
-                  <TableHead className="h-7">Sujet</TableHead>
-                  <TableHead className="h-7">Modèle</TableHead>
-                  <TableHead className="h-7">Statut</TableHead>
-                  <TableHead className="h-7">Auteur</TableHead>
-                  <TableHead className="h-7">Objet</TableHead>
+                  <TableHead className="h-7 w-[10%]">Sujet</TableHead>
+                  <TableHead className="h-7 w-[12%]">Modèle</TableHead>
+                  <TableHead className="h-7 w-[14%]">Statut</TableHead>
+                  <TableHead className="h-7 w-[10%]">Auteur</TableHead>
+                  <TableHead className="h-7 w-[12%]">Objet</TableHead>
                   <TableHead className="h-7 w-24">
                     <span className="sr-only">Actions</span>
                   </TableHead>
@@ -191,18 +202,32 @@ export function JournalScreen({ canResend }: Props) {
               <TableBody>
                 {entries.map((entry) => (
                   <TableRow key={entry.id} className="h-8">
-                    <TableCell className="py-1 whitespace-nowrap tabular-nums text-muted-foreground">{formatDateTime(entry.createdAt)}</TableCell>
-                    <TableCell className="py-1 font-medium">{entry.to}</TableCell>
-                    <TableCell className="max-w-64 truncate py-1">{entry.subject}</TableCell>
-                    <TableCell className="py-1">{templateLabel(entry.template)}</TableCell>
+                    <TableCell className="truncate py-1 tabular-nums text-muted-foreground">{formatDateTime(entry.createdAt)}</TableCell>
+                    <TableCell className="truncate py-1 font-medium" title={entry.to}>
+                      {entry.to}
+                    </TableCell>
+                    <TableCell className="truncate py-1" title={entry.subject}>
+                      {entry.subject}
+                    </TableCell>
+                    <TableCell className="truncate py-1">{templateLabel(entry.template)}</TableCell>
                     <TableCell className="py-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <EmailStatusBadge status={entry.status} />
-                        {entry.errorReason && <span className="text-sm text-danger">{entry.errorReason}</span>}
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="shrink-0">
+                          <EmailStatusBadge status={entry.status} />
+                        </span>
+                        {entry.errorReason && (
+                          <span className="min-w-0 truncate text-sm text-danger" title={entry.errorReason}>
+                            {entry.errorReason}
+                          </span>
+                        )}
                       </div>
                     </TableCell>
-                    <TableCell className="py-1 text-muted-foreground">{authorLabel(entry)}</TableCell>
-                    <TableCell className="py-1 text-muted-foreground">{objectLabel(entry)}</TableCell>
+                    <TableCell className="truncate py-1 text-muted-foreground" title={authorLabel(entry)}>
+                      {authorLabel(entry)}
+                    </TableCell>
+                    <TableCell className="truncate py-1 text-muted-foreground" title={entry.objectType ? objectLabel(entry) : undefined}>
+                      {shortObjectLabel(entry)}
+                    </TableCell>
                     <TableCell className="py-0 text-right">{entry.status === "echec" && resendButton(entry)}</TableCell>
                   </TableRow>
                 ))}
