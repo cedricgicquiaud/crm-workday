@@ -69,3 +69,11 @@ describe("API des entreprises — raison sociale (CRM-35, contrat 4)", () => {
     expect((await db.select({ id: company.id }).from(company)).length).toBe(before + 1);
   });
 });
+
+describe("API des entreprises — forme du SIREN (CRM-34, contrat 4)", () => {
+  it("refuse (400) un SIREN de huit chiffres avec le message de la règle, sous le champ", async () => {
+    const res = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "Siren Court", type: "client", siren: "12345678" }, memberCookie));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "donnees_invalides", message: "Le SIREN doit contenir neuf chiffres.", fields: { siren: "Le SIREN doit contenir neuf chiffres." } });
+  });
+});
