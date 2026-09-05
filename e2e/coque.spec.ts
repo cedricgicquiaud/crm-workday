@@ -153,3 +153,64 @@ test.describe("déconnexion (D16)", () => {
     await context.close();
   });
 });
+
+test.describe("téléphone, 375 px (CRM-27, contrat 25)", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  /** Aucun défilement horizontal de la page, un seul h1, et aucun cadre qui défile en largeur (un texte tronqué par des points de suspension n'est pas un débordement). */
+  async function fitsTheScreen(page: import("@playwright/test").Page, label: string) {
+    await expect(page.getByRole("heading", { level: 1 }), label).toHaveCount(1);
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+    expect(scrollWidth, label).toBeLessThanOrEqual(clientWidth);
+    const wider = await page.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>("body *"))
+        .filter((el) => el.clientWidth > 1 && el.scrollWidth > el.clientWidth + 1)
+        .filter((el) => getComputedStyle(el).overflowX !== "visible" && getComputedStyle(el).textOverflow !== "ellipsis")
+        .map((el) => `${el.tagName.toLowerCase()} ${el.scrollWidth}>${el.clientWidth}`),
+    );
+    expect(wider, label).toEqual([]);
+  }
+
+  test("les pages sans session tiennent dans l'écran et leur action principale est visible", async ({ page }) => {
+    await page.goto("/connexion");
+    await fitsTheScreen(page, "connexion");
+    await expect(page.getByRole("button", { name: "Se connecter" })).toBeInViewport();
+
+    await page.goto("/reinitialisation");
+    await fitsTheScreen(page, "réinitialisation");
+    await expect(page.getByRole("button", { name: "Envoyer le lien" })).toBeInViewport();
+
+    await page.goto("/invitation/lien-de-test-invalide");
+    await fitsTheScreen(page, "invitation, lien invalide");
+    await expect(page.getByRole("link", { name: "réinitialisez votre mot de passe" })).toBeInViewport();
+  });
+
+  test("les pages de l'application tiennent dans l'écran, leur action principale est visible, et la barre latérale est un tiroir ouvert par son bouton", async ({ adminPage }) => {
+    await adminPage.setViewportSize({ width: 375, height: 812 });
+
+    await adminPage.goto("/accueil");
+    await fitsTheScreen(adminPage, "accueil");
+    await expect(adminPage.getByRole("navigation", { name: "Navigation principale" })).toBeHidden();
+    await adminPage.getByRole("button", { name: SIDEBAR_TOGGLE }).click();
+    const drawer = adminPage.getByRole("dialog").filter({ has: adminPage.getByRole("navigation", { name: "Navigation principale" }) });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole("link", { name: "Mon profil" })).toBeInViewport();
+    await drawer.getByRole("link", { name: "Mon profil" }).click();
+    await expect(adminPage).toHaveURL(/\/profil$/);
+    await expect(drawer).toBeHidden();
+    await fitsTheScreen(adminPage, "profil");
+    await expect(adminPage.getByRole("form", { name: "Identité" }).getByRole("button", { name: "Enregistrer" })).toBeVisible();
+
+    await adminPage.goto("/parametres/comptes");
+    await fitsTheScreen(adminPage, "comptes");
+    await expect(adminPage.getByRole("button", { name: "Inviter" })).toBeInViewport();
+
+    await adminPage.goto("/parametres/modeles");
+    await fitsTheScreen(adminPage, "modèles");
+    await expect(adminPage.getByRole("button", { name: "Modifier Invitation" })).toBeInViewport();
+
+    await adminPage.goto("/parametres/journal");
+    await fitsTheScreen(adminPage, "journal");
+    await expect(adminPage.getByRole("form", { name: "Filtres du journal" }).getByRole("button", { name: "Filtrer" })).toBeInViewport();
+  });
+});
