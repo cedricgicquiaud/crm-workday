@@ -71,3 +71,24 @@ describe("création d'un compte depuis l'écran des comptes (CRM-18, contrat 5)"
     expect(invalid.status).toBe(400);
   });
 });
+
+describe("refus d'un email déjà pris (CRM-18, contrat 18, D12)", () => {
+  it("refuse un email qui a déjà un compte actif avec un message qui nomme le compte, et propose la réactivation d'un compte désactivé", async () => {
+    const body = { email: MEMBER.email.toUpperCase(), firstName: "X", lastName: "Y", role: "membre" };
+    const active = await inviteAccount(jsonRequest("POST", "/api/accounts", body, adminCookie));
+    expect(active.status).toBe(409);
+    const refused = (await active.json()) as { error: string; message: string; status: string; accountId?: string };
+    expect(refused.error).toBe("email_deja_utilise");
+    expect(refused.status).toBe("actif");
+    expect(refused.message).toContain("Marc Leroy");
+    expect(refused.message).toContain(MEMBER.email);
+
+    const disabled = { email: "desactive-invite@exemple.fr", firstName: "Dan", lastName: "Petit", password: "MotDePasse-Desactive-1", role: "membre" as const };
+    const { id } = await createUserWithPassword(disabled);
+    await db.update(user).set({ status: "desactive" }).where(eq(user.id, id));
+    const again = await inviteAccount(jsonRequest("POST", "/api/accounts", { ...body, email: disabled.email }, adminCookie));
+    expect(again.status).toBe(409);
+    expect(await again.json()).toMatchObject({ error: "email_deja_utilise", status: "desactive", accountId: id, message: expect.stringContaining("Dan Petit") });
+    expect(await db.select().from(user).where(eq(user.email, disabled.email))).toHaveLength(1);
+  });
+});
