@@ -4,7 +4,7 @@
  * par champ modifié (D12), refus d'une fiche archivée (D21). Il ne connaît que la clé d'objet.
  */
 import "@/features/objects/manifest.server";
-import { eq, getTableColumns } from "drizzle-orm";
+import { and, eq, getTableColumns, ne, type SQL } from "drizzle-orm";
 import { recordHistory } from "@/features/history/history";
 import { validateValues, type FieldValues } from "@/features/objects/fields";
 import { getObject } from "@/features/objects/registry";
@@ -40,9 +40,36 @@ function validateOrThrow(type: string, input: unknown, options: { partial: boole
   return values;
 }
 
+/**
+ * Une valeur déclarée `unique` déjà portée par une autre fiche, archivée comprise, est refusée (409, D19) ;
+ * le message nomme la fiche existante et dit si elle est archivée.
+ */
+async function assertUnique(type: string, values: FieldValues, currentId: string | null): Promise<void> {
+  const definition = getObject(type);
+  const { table } = getServerObject(type);
+  const columns = getTableColumns(table);
+  for (const field of definition.fields) {
+    const value = values[field.key];
+    if (!field.unique || value == null) continue;
+    const conditions: SQL[] = [eq(columns[field.key], value)];
+    if (currentId) conditions.push(ne(columns.id, currentId));
+    const [existing] = await db.select({ id: columns.id, name: columns[definition.titleField], archivedAt: columns.archivedAt }).from(table).where(and(...conditions)).limit(1);
+    if (!existing) continue;
+    const archived = existing.archivedAt != null;
+    const start = field.uniqueMessage ? field.uniqueMessage(value) : `« ${field.label} » ${value} est déjà porté`;
+    throw new HttpError(409, "valeur_deja_portee", `${start} par « ${String(existing.name)} »${archived ? " (fiche archivée)" : ""}.`, {
+      field: field.key,
+      existingId: existing.id,
+      existingName: existing.name,
+      archived,
+    });
+  }
+}
+
 export async function createObject(type: string, input: unknown, actor: Actor): Promise<ObjectRecord> {
   const { table } = getServerObject(type);
   const values = withDefaults(type, validateOrThrow(type, input, { partial: false }), actor);
+  await assertUnique(type, values, null);
   const [row] = await db
     .insert(table)
     .values({ ...values, createdBy: actor.id })
@@ -74,6 +101,7 @@ export async function updateObject(type: string, id: string, patch: unknown, act
   const current = await getObjectRecord(type, id);
   assertWritable(type, current);
   const values = validateOrThrow(type, patch, { partial: true });
+  await assertUnique(type, values, id);
   const changed = Object.entries(values).filter(([key, value]) => !same(current[key], value));
   if (changed.length === 0) return current;
   const [row] = await db

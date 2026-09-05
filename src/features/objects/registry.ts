@@ -32,6 +32,8 @@ export type FieldDescriptor = {
   pattern?: { regex: RegExp; message: string };
   /** texte : une valeur déjà portée par une autre fiche (archivée comprise) est refusée (409, D19) */
   unique?: boolean;
+  /** début de la phrase du refus 409 (« Le SIREN 123456789 est déjà porté ») ; le service y ajoute la fiche qui le porte */
+  uniqueMessage?: (value: string) => string;
   /** texte long (notes) : zone de texte plutôt qu'un champ d'une ligne */
   multiline?: boolean;
   /** groupe d'affichage sur la fiche (« Adresse ») ; sans section, le champ est dans le groupe principal */
