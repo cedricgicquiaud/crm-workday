@@ -62,3 +62,13 @@ describe("refus d'une variable inconnue (CRM-23, contrat 31)", () => {
     expect((await listTemplates()).find((t) => t.key === "invitation")).toMatchObject({ subject: before.subject, body: before.body });
   });
 });
+
+describe("refus d'un modèle système sans {{lien}} (CRM-23, contrat 32)", () => {
+  it("n'enregistre ni « Invitation » ni « Réinitialisation » sans {{lien}}, en nommant la variable obligatoire", async () => {
+    const before = (await listTemplates()).find((t) => t.key === "reinitialisation")!;
+    const attempt = updateTemplate("reinitialisation", { subject: before.subject, body: "Bonjour {{prenom}},\n\nDemandez un nouveau lien au cabinet." });
+    await expect(attempt).rejects.toMatchObject({ status: 400, code: "variable_obligatoire_absente", details: { variable: "lien" }, message: expect.stringContaining("{{lien}}") });
+    await expect(updateTemplate("invitation", { subject: "Accès", body: "Bonjour {{prenom}}" })).rejects.toMatchObject({ code: "variable_obligatoire_absente" });
+    expect((await listTemplates()).find((t) => t.key === "reinitialisation")).toMatchObject({ body: before.body });
+  });
+});
