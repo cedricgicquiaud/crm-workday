@@ -92,3 +92,75 @@ test.describe("modifier sur la fiche, relire, historique (CRM-36, contrat 2)", (
     for (let i = 0; i < 7; i++) await expect(entries.nth(i)).toContainText(new RegExp(`Marc Leroy · ${today.replace(".", "\\.")}, \\d{2}:\\d{2}`));
   });
 });
+
+test.describe("refus à la création (CRM-35, CRM-34, contrat 4)", () => {
+  test("une raison sociale vide ou de 121 caractères et un SIREN de huit chiffres sont refusés sous le champ ; un SIREN déjà porté est refusé en nommant l'entreprise", async ({ memberPage }) => {
+    const holder = `Première Titulaire ${suffix()}`;
+    expect((await memberPage.request.post("/api/entreprises", { data: { name: holder, type: "client", siren: "732 829 320" } })).status()).toBe(201);
+    await memberPage.goto("/entreprises");
+    await memberPage.getByRole("button", { name: "Nouvelle entreprise" }).click();
+    const dialog = memberPage.getByRole("dialog", { name: "Nouvelle entreprise" });
+    const form = dialog.locator("form");
+    const nameField = dialog.getByLabel("Raison sociale");
+    await pickOption(memberPage, dialog.getByRole("combobox", { name: "Type" }), "Prospect");
+
+    await dialog.getByRole("button", { name: "Créer" }).click();
+    await expect(form.getByRole("alert")).toHaveText(["« Raison sociale » est obligatoire."]);
+    await expect(nameField).toBeFocused();
+    await expect(memberPage).toHaveURL(/\/entreprises$/);
+
+    await nameField.fill("a".repeat(121));
+    await dialog.getByRole("button", { name: "Créer" }).click();
+    await expect(form.getByRole("alert")).toHaveText(["« Raison sociale » dépasse 120 caractères."]);
+
+    await nameField.fill(`Refusée ${suffix()}`);
+    await dialog.getByLabel("SIREN").fill("12345678");
+    await dialog.getByRole("button", { name: "Créer" }).click();
+    await expect(form.getByRole("alert")).toHaveText(["Le SIREN doit contenir neuf chiffres."]);
+
+    await dialog.getByLabel("SIREN").fill("732829320");
+    await dialog.getByRole("button", { name: "Créer" }).click();
+    await expect(form.getByRole("alert")).toContainText(`Le SIREN 732829320 est déjà porté par « ${holder} ».`);
+    await expect(form.getByRole("link", { name: "Ouvrir la fiche" })).toBeVisible();
+    await expect(memberPage).toHaveURL(/\/entreprises$/);
+  });
+});
+
+test.describe("téléphone, 375 px (contrat 25 de la feature 1, D9)", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  /** Aucun défilement horizontal de la page, un seul h1, et aucun cadre qui défile en largeur (un texte tronqué par des points de suspension n'est pas un débordement). */
+  async function fitsTheScreen(page: Page, label: string, { modalOpen = false } = {}) {
+    /* Un dialogue ouvert masque le reste de la page à l'accessibilité : le titre ne se compte qu'à dialogue fermé. */
+    if (!modalOpen) await expect(page.getByRole("heading", { level: 1 }), label).toHaveCount(1);
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+    expect(scrollWidth, label).toBeLessThanOrEqual(clientWidth);
+    const wider = await page.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>("body *"))
+        .filter((el) => el.clientWidth > 1 && el.scrollWidth > el.clientWidth + 1)
+        .filter((el) => getComputedStyle(el).overflowX !== "visible" && getComputedStyle(el).textOverflow !== "ellipsis")
+        .map((el) => `${el.tagName.toLowerCase()} ${el.scrollWidth}>${el.clientWidth}`),
+    );
+    expect(wider, label).toEqual([]);
+  }
+
+  test("la liste des entreprises et une fiche tiennent dans l'écran, avec le bouton de création atteignable et un seul titre", async ({ memberPage }) => {
+    await memberPage.setViewportSize({ width: 375, height: 812 });
+    const name = `Groupe Ferrandi et Associés du Sud-Ouest ${suffix()}`;
+    const created = await memberPage.request.post("/api/entreprises", { data: { name, type: "partenaire" } });
+    const { id } = (await created.json()) as { id: string };
+
+    await memberPage.goto("/entreprises");
+    await fitsTheScreen(memberPage, "liste des entreprises");
+    await expect(memberPage.getByRole("button", { name: "Nouvelle entreprise" })).toBeInViewport();
+    await memberPage.getByRole("button", { name: "Nouvelle entreprise" }).click();
+    await expect(memberPage.getByRole("dialog", { name: "Nouvelle entreprise" })).toBeVisible();
+    await fitsTheScreen(memberPage, "dialogue de création", { modalOpen: true });
+    await memberPage.keyboard.press("Escape");
+
+    await memberPage.goto(`/entreprises/${id}`);
+    await fitsTheScreen(memberPage, "fiche entreprise");
+    await expect(memberPage.getByRole("heading", { level: 1, name })).toBeVisible();
+    for (const region of ["Liens", "Champs", "Historique"]) await expect(memberPage.getByRole("region", { name: region })).toBeVisible();
+  });
+});
