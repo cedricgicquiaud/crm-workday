@@ -6,9 +6,14 @@
 import type { PgTable } from "drizzle-orm/pg-core";
 import { HttpError } from "@/lib/auth/session";
 
+/** Résultat de recherche (palette Cmd+K, 2.1b) : la fiche, son titre et un sous-titre facultatif. */
+export type SearchHit = { id: string; title: string; subtitle?: string };
+
 export type ServerObjectDefinition = {
   key: string;
   table: PgTable;
+  /** fiches non archivées qui répondent à la saisie (sous-chaîne, insensible à la casse et aux accents pour 2.1b) */
+  search: (query: string) => Promise<SearchHit[]>;
 };
 
 const objects = new Map<string, ServerObjectDefinition>();
