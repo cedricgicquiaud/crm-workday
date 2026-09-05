@@ -35,4 +35,13 @@ describe("déclaration de l'entreprise dans le registre (CRM-33, D4, D23)", () =
     expect(definition.relations).toEqual([]);
   });
 
+  it("retrouve une entreprise par une sous-chaîne de sa raison sociale, insensible à la casse, ou par son SIREN ; jamais une archivée", async () => {
+    const acme = await createObject("company", { name: "ACME SAS", type: "client", siren: "123 456 789" }, { id: actorId });
+    const archived = await createObject("company", { name: "ACME Archivée", type: "client" }, { id: actorId });
+    await db.update(company).set({ archivedAt: new Date() }).where(eq(company.id, archived.id));
+    const { search } = getServerObject("company");
+    expect((await search("acm")).map((hit) => hit.id)).toEqual([acme.id]);
+    expect((await search("123456789")).map((hit) => hit.title)).toEqual(["ACME SAS"]);
+    expect(await search("zzz")).toEqual([]);
+  });
 });
