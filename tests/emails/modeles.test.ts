@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { emailTemplate } from "@/db/schema";
+import { HttpError } from "@/lib/auth/session";
 import { closeDb, db } from "@/lib/db";
 import { sendTemplatedEmail } from "@/lib/mail/send";
 import { listTemplates, updateTemplate } from "@/lib/mail/templates";
@@ -47,5 +48,17 @@ describe("modèle modifié (CRM-23, contrat 28)", () => {
     expect(mail?.body).not.toContain("{{");
     expect(mail?.links).toContain("http://localhost:3000/invitation/xyz");
     expect((await listTemplates()).find((t) => t.key === "invitation")?.subject).toBe("Bienvenue chez {{cabinet}}, {{prenom}}");
+  });
+});
+
+describe("refus d'une variable inconnue (CRM-23, contrat 31)", () => {
+  it("n'enregistre pas un modèle avec {{prénom}} ou {{societe}} et nomme la variable fautive", async () => {
+    const before = (await listTemplates()).find((t) => t.key === "invitation")!;
+    const accent = updateTemplate("invitation", { subject: before.subject, body: "Bonjour {{prénom}},\n\n[Ouvrir]({{lien}})" });
+    await expect(accent).rejects.toBeInstanceOf(HttpError);
+    await expect(accent).rejects.toMatchObject({ status: 400, code: "variable_inconnue", details: { variable: "prénom" }, message: expect.stringContaining("{{prénom}}") });
+    const societe = updateTemplate("invitation", { subject: "Accès chez {{societe}}", body: before.body });
+    await expect(societe).rejects.toMatchObject({ status: 400, code: "variable_inconnue", details: { variable: "societe" } });
+    expect((await listTemplates()).find((t) => t.key === "invitation")).toMatchObject({ subject: before.subject, body: before.body });
   });
 });
