@@ -26,3 +26,19 @@ describe("abonnement au registre", () => {
     expect(notified).toBe(2);
   });
 });
+
+describe("ordre des entrées", () => {
+  it("trie par « order » croissant, puis par libellé quand « order » manque", () => {
+    const unregister = registerPaletteEntries([
+      { id: "ordre-b", label: "Ordre B", group: "actions", order: 20, run: () => {} },
+      { id: "ordre-sans-2", label: "Ordre sans z", group: "actions", run: () => {} },
+      { id: "ordre-a", label: "Ordre A", group: "actions", order: 10, run: () => {} },
+      { id: "ordre-sans-1", label: "Ordre sans a", group: "actions", run: () => {} },
+    ]);
+    const labels = getPaletteEntries()
+      .filter((e) => e.id.startsWith("ordre-"))
+      .map((e) => e.label);
+    expect(labels).toEqual(["Ordre A", "Ordre B", "Ordre sans a", "Ordre sans z"]);
+    unregister();
+  });
+});
