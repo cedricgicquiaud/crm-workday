@@ -4,6 +4,7 @@
  */
 import { asc, eq } from "drizzle-orm";
 import { session, user } from "@/db/schema";
+import type { Role } from "@/features/auth/accounts";
 import { createInvitation, type NewInvitation } from "@/features/auth/invitations";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -75,4 +76,10 @@ export async function reactivateAccount(id: string): Promise<void> {
   const account = await findAccount(id);
   if (account.status !== "desactive") throw new HttpError(409, "compte_non_desactive", "Ce compte n'est pas désactivé.");
   await db.update(user).set({ status: "actif", updatedAt: new Date() }).where(eq(user.id, id));
+}
+
+/** Deux rôles, tout le monde voit tout : administrateur ou membre (D11). */
+export async function setAccountRole(id: string, role: Role): Promise<void> {
+  await findAccount(id);
+  await db.update(user).set({ role, updatedAt: new Date() }).where(eq(user.id, id));
 }
