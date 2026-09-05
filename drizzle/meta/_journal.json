@@ -15,6 +15,13 @@
       "when": 1788560393859,
       "tag": "0001_comptes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788593408275,
+      "tag": "0002_emails",
+      "breakpoints": true
     }
   ]
 }
