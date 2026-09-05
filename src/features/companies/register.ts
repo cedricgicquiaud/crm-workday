@@ -15,6 +15,7 @@ registerObject({
   apiBase: "/api/entreprises",
   titleField: "name",
   fields: COMPANY_FIELDS,
+  quickCreate: ["name", "type", "siren", "website", "ownerId"],
   /** aucune relation en 2.1a : la personne déclarera la sienne (contact → entreprise) en 2.2 */
   relations: [],
 });
