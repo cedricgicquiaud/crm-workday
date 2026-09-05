@@ -39,16 +39,28 @@ export function FieldsSection({ type, record: initial, users }: Props) {
   const [record, setRecord] = useState(initial);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  /** Enregistre un champ ; rend vrai si la valeur est acceptée. Un nombre part en nombre JSON (règle du descripteur), une saisie vide en champ vidé. */
+  const FAILED = "La modification n'a pas pu être enregistrée.";
+
+  /**
+   * Enregistre un champ ; rend vrai si la valeur est acceptée. Un nombre part en nombre JSON (règle du
+   * descripteur), une saisie vide en champ vidé. Aucun échec n'est avalé : réponse non 2xx ou panne
+   * réseau, le message (celui du serveur s'il existe) s'affiche sous le champ et la valeur enregistrée revient.
+   */
   async function save(field: FieldDescriptor, value: string): Promise<boolean> {
     if (asString(record[field.key]) === value) return true;
     const payload = field.type === "number" && value !== "" ? Number(value) : value;
-    const res = await fetch(`${definition.apiBase}/${encodeURIComponent(record.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ [field.key]: payload }) });
-    const body = (await res.json().catch(() => null)) as (SerializedRecord & { message?: string; fields?: Record<string, string> }) | null;
-    if (!res.ok) {
-      setErrors((current) => ({ ...current, [field.key]: body?.fields?.[field.key] ?? body?.message ?? "L'enregistrement a échoué. Réessayez." }));
+    const fail = (message: string) => {
+      setErrors((current) => ({ ...current, [field.key]: message }));
       return false;
+    };
+    let res: Response;
+    try {
+      res = await fetch(`${definition.apiBase}/${encodeURIComponent(record.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ [field.key]: payload }) });
+    } catch {
+      return fail(FAILED);
     }
+    const body = (await res.json().catch(() => null)) as (SerializedRecord & { message?: string; fields?: Record<string, string> }) | null;
+    if (!res.ok) return fail(body?.fields?.[field.key] ?? body?.message ?? FAILED);
     setErrors((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== field.key)));
     if (body) setRecord(body);
     router.refresh();
