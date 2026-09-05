@@ -11,13 +11,22 @@ import { MIN_PASSWORD_LENGTH, PASSWORD_RULE } from "@/features/auth/password-rul
 
 type Identity = { firstName: string; lastName: string; email: string };
 type Outcome = { kind: "status" | "alert"; text: string } | null;
+type ApiError = { error?: string; message: string };
 
-/** Envoi vers l'API du profil ; rend `null` si tout s'est bien passé, sinon le message à afficher. */
-async function patchProfile(body: unknown): Promise<string | null> {
+type PasswordField = "currentPassword" | "newPassword" | "confirmation";
+type PasswordErrors = Partial<Record<PasswordField, string>>;
+
+const PASSWORD_IDS: Record<PasswordField, string> = { currentPassword: "current-password", newPassword: "new-password", confirmation: "new-password-confirmation" };
+
+/** Codes d'erreur du serveur rattachés à un champ : le message s'affiche sous ce champ, pas en encadré global. */
+const PASSWORD_ERROR_FIELDS: Record<string, PasswordField> = { mot_de_passe_actuel_incorrect: "currentPassword", mot_de_passe_trop_court: "newPassword" };
+
+/** Envoi vers l'API du profil ; rend `null` si tout s'est bien passé, sinon l'erreur à afficher. */
+async function patchProfile(body: unknown): Promise<ApiError | null> {
   const res = await fetch("/api/profile", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   if (res.ok) return null;
-  const data = (await res.json().catch(() => null)) as { message?: string } | null;
-  return data?.message ?? "L'enregistrement a échoué. Réessayez.";
+  const data = (await res.json().catch(() => null)) as Partial<ApiError> | null;
+  return { error: data?.error, message: data?.message ?? "L'enregistrement a échoué. Réessayez." };
 }
 
 function OutcomeMessage({ outcome }: { outcome: Outcome }) {
@@ -36,11 +45,22 @@ function OutcomeMessage({ outcome }: { outcome: Outcome }) {
   );
 }
 
+/** Message d'erreur sous le champ concerné (11 px, couleur danger), annoncé à l'affichage. */
+function FieldError({ id, text }: { id: string; text?: string }) {
+  if (!text) return null;
+  return (
+    <p id={id} role="alert" className="text-xs text-danger">
+      {text}
+    </p>
+  );
+}
+
 /** Mon profil : prénom et nom, puis mot de passe (ancien + nouveau, règle des 12 caractères) (D13, D9). */
 export function ProfileForm() {
   const router = useRouter();
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [identityOutcome, setIdentityOutcome] = useState<Outcome>(null);
+  const [passwordErrors, setPasswordErrors] = useState<PasswordErrors>({});
   const [passwordOutcome, setPasswordOutcome] = useState<Outcome>(null);
   const [pending, setPending] = useState(false);
 
@@ -68,7 +88,7 @@ export function ProfileForm() {
     setPending(true);
     const error = await patchProfile({ firstName, lastName });
     setPending(false);
-    setIdentityOutcome(error ? { kind: "alert", text: error } : { kind: "status", text: "Profil enregistré." });
+    setIdentityOutcome(error ? { kind: "alert", text: error.message } : { kind: "status", text: "Profil enregistré." });
     if (!error) {
       setIdentity((current) => (current ? { ...current, firstName, lastName } : current));
       router.refresh();
@@ -82,13 +102,41 @@ export function ProfileForm() {
     const currentPassword = String(form.get("currentPassword") ?? "");
     const newPassword = String(form.get("newPassword") ?? "");
     const confirmation = String(form.get("confirmation") ?? "");
-    if (newPassword.length < MIN_PASSWORD_LENGTH) return setPasswordOutcome({ kind: "alert", text: PASSWORD_RULE });
-    if (newPassword !== confirmation) return setPasswordOutcome({ kind: "alert", text: "Les deux mots de passe ne sont pas identiques." });
+    setPasswordOutcome(null);
+    const errors: PasswordErrors = {};
+    if (newPassword.length < MIN_PASSWORD_LENGTH) errors.newPassword = PASSWORD_RULE;
+    else if (newPassword !== confirmation) errors.confirmation = "Les deux mots de passe ne sont pas identiques.";
+    setPasswordErrors(errors);
+    if (errors.newPassword || errors.confirmation) return;
     setPending(true);
     const error = await patchProfile({ currentPassword, newPassword });
     setPending(false);
-    setPasswordOutcome(error ? { kind: "alert", text: error } : { kind: "status", text: "Mot de passe modifié." });
-    if (!error) formElement.reset();
+    if (!error) {
+      setPasswordOutcome({ kind: "status", text: "Mot de passe modifié." });
+      return formElement.reset();
+    }
+    const field = error.error ? PASSWORD_ERROR_FIELDS[error.error] : undefined;
+    if (field) setPasswordErrors({ [field]: error.message });
+    else setPasswordOutcome({ kind: "alert", text: error.message });
+  }
+
+  /** Champ du formulaire de mot de passe, avec son erreur éventuelle sous lui. */
+  function passwordInput(name: PasswordField, label: string, autoComplete: string, extra?: { rule?: string }) {
+    const id = PASSWORD_IDS[name];
+    const errorText = passwordErrors[name];
+    const describedBy = [errorText ? `${id}-error` : null, extra?.rule ? `${id}-rule` : null].filter(Boolean).join(" ") || undefined;
+    return (
+      <div className="grid gap-2">
+        <Label htmlFor={id}>{label}</Label>
+        <Input id={id} name={name} type="password" autoComplete={autoComplete} required aria-invalid={errorText ? true : undefined} aria-describedby={describedBy} />
+        <FieldError id={`${id}-error`} text={errorText} />
+        {extra?.rule && !errorText && (
+          <p id={`${id}-rule`} className="text-xs text-muted-foreground">
+            {extra.rule}
+          </p>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -122,21 +170,9 @@ export function ProfileForm() {
 
       <form className="grid max-w-md gap-4" aria-label="Mot de passe" onSubmit={changePassword} noValidate>
         <h3 className="text-sm font-medium">Changer le mot de passe</h3>
-        <div className="grid gap-2">
-          <Label htmlFor="current-password">Mot de passe actuel</Label>
-          <Input id="current-password" name="currentPassword" type="password" autoComplete="current-password" required />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="new-password">Nouveau mot de passe</Label>
-          <Input id="new-password" name="newPassword" type="password" autoComplete="new-password" required minLength={MIN_PASSWORD_LENGTH} aria-describedby="new-password-rule" />
-          <p id="new-password-rule" className="text-xs text-muted-foreground">
-            {MIN_PASSWORD_LENGTH} caractères au moins.
-          </p>
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="new-password-confirmation">Confirmation du nouveau mot de passe</Label>
-          <Input id="new-password-confirmation" name="confirmation" type="password" autoComplete="new-password" required />
-        </div>
+        {passwordInput("currentPassword", "Mot de passe actuel", "current-password")}
+        {passwordInput("newPassword", "Nouveau mot de passe", "new-password", { rule: `${MIN_PASSWORD_LENGTH} caractères au moins.` })}
+        {passwordInput("confirmation", "Confirmation du nouveau mot de passe", "new-password")}
         <OutcomeMessage outcome={passwordOutcome} />
         <div>
           <Button type="submit" variant="outline" disabled={pending}>
