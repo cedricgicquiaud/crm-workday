@@ -100,3 +100,29 @@ describe("changement de rôle (CRM-19, D11)", () => {
     expect((await patch(memberId, { role: "chef" }, adminCookie)).status).toBe(400);
   });
 });
+
+describe("protection du dernier administrateur (CRM-19, contrat 17, D12)", () => {
+  it("refuse avec 409 de désactiver ou de rétrograder le dernier administrateur actif, et l'accepte dès qu'un second administrateur actif existe", async () => {
+    const [admin] = await db.select({ id: user.id }).from(user).where(eq(user.email, ADMIN.email));
+    await db.update(user).set({ role: "membre", status: "actif" }).where(eq(user.id, memberId));
+
+    const demoted = await patch(admin.id, { role: "membre" }, adminCookie);
+    expect(demoted.status).toBe(409);
+    expect(await demoted.json()).toMatchObject({ error: "dernier_administrateur" });
+    const deactivated = await patch(admin.id, { status: "desactive" }, adminCookie);
+    expect(deactivated.status).toBe(409);
+    expect(await deactivated.json()).toMatchObject({ error: "dernier_administrateur" });
+    expect((await db.select().from(user).where(eq(user.id, admin.id)))[0]).toMatchObject({ role: "administrateur", status: "actif" });
+    expect(((await sessionFor(adminCookie)) as { user: { email: string } }).user.email).toBe(ADMIN.email);
+
+    // Un second administrateur, mais désactivé, ne compte pas.
+    await db.update(user).set({ role: "administrateur", status: "desactive" }).where(eq(user.id, memberId));
+    expect((await patch(admin.id, { role: "membre" }, adminCookie)).status).toBe(409);
+
+    // Un second administrateur actif : le premier peut être rétrogradé.
+    await db.update(user).set({ status: "actif" }).where(eq(user.id, memberId));
+    expect((await patch(admin.id, { role: "membre" }, adminCookie)).status).toBe(200);
+    await db.update(user).set({ role: "administrateur" }).where(eq(user.id, admin.id));
+    await db.update(user).set({ role: "membre" }).where(eq(user.id, memberId));
+  });
+});
