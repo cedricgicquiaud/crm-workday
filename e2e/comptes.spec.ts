@@ -265,7 +265,20 @@ test.describe("écrans à 375 px", () => {
       const overflow = await adminPage.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow, path).toBe(0);
     }
+    // Sous 768 px, les comptes sont empilés : rien ne défile horizontalement, même dans un cadre, et l'état est visible au chargement.
     await adminPage.goto("/parametres/comptes");
+    const stacked = adminPage.getByRole("list", { name: "Comptes" });
+    await expect(stacked).toBeVisible();
+    await expect(adminPage.getByRole("table", { name: "Comptes" })).toBeHidden();
+    const adminItem = stacked.getByRole("listitem").filter({ hasText: ADMIN.email });
+    await expect(adminItem.getByText("Actif", { exact: true })).toBeInViewport();
+    await expect(adminItem.getByRole("button", { name: "Actions" })).toBeInViewport();
+    const wider = await adminPage.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>("body *"))
+        .filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== "visible")
+        .map((el) => `${el.tagName.toLowerCase()} ${el.scrollWidth}>${el.clientWidth}`),
+    );
+    expect(wider).toEqual([]);
     await adminPage.getByRole("button", { name: "Inviter" }).click();
     const dialog = adminPage.getByRole("dialog", { name: "Inviter une personne" });
     await expect(dialog).toBeVisible();
