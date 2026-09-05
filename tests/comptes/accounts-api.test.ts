@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { GET as listAccounts } from "@/app/api/accounts/route";
-import { user } from "@/db/schema";
+import { GET as listAccounts, POST as inviteAccount } from "@/app/api/accounts/route";
+import { invitation, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createInvitation } from "@/features/auth/invitations";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
+import { lastEmailTo } from "../helpers/mailbox";
 
 const ADMIN = { email: "admin-comptes@exemple.fr", firstName: "Alice", lastName: "Durand", password: "MotDePasse-Comptes-1", role: "administrateur" as const };
 const MEMBER = { email: "membre-comptes@exemple.fr", firstName: "Marc", lastName: "Leroy", password: "MotDePasse-Membre-1", role: "membre" as const };
@@ -49,5 +50,24 @@ describe("liste des comptes (CRM-18)", () => {
     expect(byEmail["invite-liste@exemple.fr"]).toMatchObject({ firstName: "Inès", status: "invite" });
     expect(byEmail[disabled.email]).toMatchObject({ status: "desactive" });
     expect(accounts.every((a) => typeof (a as { id?: string }).id === "string")).toBe(true);
+  });
+});
+
+describe("création d'un compte depuis l'écran des comptes (CRM-18, contrat 5)", () => {
+  it("crée un compte « invité » avec email, prénom, nom et rôle, et envoie le lien d'invitation", async () => {
+    const invitee = { email: "invite-creation@exemple.fr", firstName: "Inès", lastName: "Roux", role: "membre" };
+    const res = await inviteAccount(jsonRequest("POST", "/api/accounts", invitee, adminCookie));
+    expect(res.status).toBe(201);
+    const [created] = await db.select().from(user).where(eq(user.email, invitee.email));
+    expect(created).toMatchObject({ firstName: "Inès", lastName: "Roux", role: "membre", status: "invite" });
+    const mail = await lastEmailTo(invitee.email);
+    expect(mail?.template).toBe("invitation");
+    expect(mail?.links.some((l) => l.includes("/invitation/"))).toBe(true);
+    expect(await db.select().from(invitation).where(eq(invitation.userId, created.id))).toHaveLength(1);
+
+    const asMember = await inviteAccount(jsonRequest("POST", "/api/accounts", { ...invitee, email: "autre@exemple.fr" }, memberCookie));
+    expect(asMember.status).toBe(403);
+    const invalid = await inviteAccount(jsonRequest("POST", "/api/accounts", { email: "pas-un-email", firstName: "", lastName: "", role: "membre" }, adminCookie));
+    expect(invalid.status).toBe(400);
   });
 });
