@@ -52,3 +52,20 @@ describe("API des entreprises — SIREN (CRM-34, contrat 4)", () => {
     expect(await read.json()).toMatchObject({ siren: "123456789" });
   });
 });
+
+describe("API des entreprises — raison sociale (CRM-35, contrat 4)", () => {
+  it("refuse (400) une raison sociale vide ou de 121 caractères, avec le message rattaché au champ, et n'enregistre rien", async () => {
+    const before = (await db.select({ id: company.id }).from(company)).length;
+    const empty = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "   ", type: "client" }, memberCookie));
+    expect(empty.status).toBe(400);
+    expect(await empty.json()).toMatchObject({ error: "donnees_invalides", fields: { name: "« Raison sociale » est obligatoire." } });
+
+    const tooLong = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "a".repeat(121), type: "client" }, memberCookie));
+    expect(tooLong.status).toBe(400);
+    expect(await tooLong.json()).toMatchObject({ fields: { name: "« Raison sociale » dépasse 120 caractères." } });
+
+    const exact = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "b".repeat(120), type: "client" }, memberCookie));
+    expect(exact.status).toBe(201);
+    expect((await db.select({ id: company.id }).from(company)).length).toBe(before + 1);
+  });
+});
