@@ -34,22 +34,30 @@ test.describe("barre latérale (CRM-27, contrat 21)", () => {
 const PALETTE_INPUT = "Rechercher une page ou une action";
 const THEME_ENTRY = "Basculer le thème clair / sombre";
 
+/** Cmd+K (Ctrl+K hors macOS). Le raccourci n'existe qu'une fois la page hydratée : en développement, la première compilation peut prendre quelques secondes, on réessaie. */
+async function openPaletteWithKeyboard(page: import("@playwright/test").Page) {
+  const palette = page.getByRole("dialog", { name: "Palette de commandes" });
+  await expect(async () => {
+    await page.keyboard.press("ControlOrMeta+k");
+    await expect(palette).toBeVisible({ timeout: 1_000 });
+  }).toPass();
+  return palette;
+}
+
 test.describe("palette Cmd+K (CRM-28, contrat 22)", () => {
   test("Cmd+K ouvre la palette ; « para » puis Entrée ouvre Paramètres ; « sombre » bascule le thème et l'enregistre", async ({ memberPage }) => {
     await memberPage.goto("/accueil");
     const html = memberPage.locator("html");
     await expect(html).not.toHaveClass(/dark/);
 
-    await memberPage.keyboard.press("ControlOrMeta+k");
-    const palette = memberPage.getByRole("dialog", { name: "Palette de commandes" });
-    await expect(palette).toBeVisible();
+    const palette = await openPaletteWithKeyboard(memberPage);
     await palette.getByPlaceholder(PALETTE_INPUT).fill("para");
     await expect(palette.getByRole("option", { name: "Aller à Paramètres" })).toHaveAttribute("aria-selected", "true");
     await memberPage.keyboard.press("Enter");
     await expect(memberPage).toHaveURL(/\/parametres(\/|$)/);
     await expect(palette).toBeHidden();
 
-    await memberPage.keyboard.press("ControlOrMeta+k");
+    await openPaletteWithKeyboard(memberPage);
     await palette.getByPlaceholder(PALETTE_INPUT).fill("sombre");
     await expect(palette.getByRole("option", { name: THEME_ENTRY })).toHaveAttribute("aria-selected", "true");
     await memberPage.keyboard.press("Enter");
@@ -57,7 +65,7 @@ test.describe("palette Cmd+K (CRM-28, contrat 22)", () => {
     await memberPage.reload();
     await expect(html).toHaveClass(/dark/);
 
-    await memberPage.keyboard.press("ControlOrMeta+k");
+    await openPaletteWithKeyboard(memberPage);
     await palette.getByPlaceholder(PALETTE_INPUT).fill("clair");
     await expect(palette.getByRole("option", { name: THEME_ENTRY })).toHaveAttribute("aria-selected", "true");
     await memberPage.keyboard.press("Enter");
@@ -144,8 +152,7 @@ test.describe("déconnexion (D16)", () => {
 
     await signInAs(context.request, MEMBER);
     await page.goto("/profil");
-    await page.keyboard.press("ControlOrMeta+k");
-    const palette = page.getByRole("dialog", { name: "Palette de commandes" });
+    const palette = await openPaletteWithKeyboard(page);
     await palette.getByPlaceholder(PALETTE_INPUT).fill("déco");
     await expect(palette.getByRole("option", { name: "Se déconnecter" })).toHaveAttribute("aria-selected", "true");
     await page.keyboard.press("Enter");
