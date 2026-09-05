@@ -8,7 +8,7 @@ import type { Role } from "@/features/auth/accounts";
 import { createInvitation, type NewInvitation } from "@/features/auth/invitations";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { STATUS_LABELS } from "./labels";
+import { fullName, STATUS_LABELS } from "./labels";
 
 export type AccountStatus = "invite" | "actif" | "desactive";
 
@@ -43,7 +43,7 @@ export async function inviteAccount(input: NewInvitation): Promise<{ userId: str
     .limit(1);
   if (existing) {
     const status = existing.status as AccountStatus;
-    const name = `${existing.firstName} ${existing.lastName}`.trim();
+    const name = fullName(existing);
     throw new HttpError(409, "email_deja_utilise", `Un compte existe déjà pour ${email} : ${name} (${STATUS_LABELS[status].toLowerCase()}).`, {
       status,
       accountId: existing.id,
@@ -60,7 +60,7 @@ async function findAccount(id: string) {
 }
 
 /** Nombre d'administrateurs actifs : le dernier ne peut être ni désactivé ni rétrogradé (D12). */
-export async function countActiveAdmins(): Promise<number> {
+async function countActiveAdmins(): Promise<number> {
   const [row] = await db.select({ n: count() }).from(user).where(and(eq(user.role, "administrateur"), eq(user.status, "actif")));
   return row?.n ?? 0;
 }
