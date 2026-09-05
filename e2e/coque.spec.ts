@@ -32,6 +32,7 @@ test.describe("barre latérale (CRM-27, contrat 21)", () => {
 });
 
 const PALETTE_INPUT = "Rechercher une page ou une action";
+const THEME_ENTRY = "Basculer le thème clair / sombre";
 
 test.describe("palette Cmd+K (CRM-28, contrat 22)", () => {
   test("Cmd+K ouvre la palette ; « para » puis Entrée ouvre Paramètres ; « sombre » bascule le thème et l'enregistre", async ({ memberPage }) => {
@@ -50,6 +51,7 @@ test.describe("palette Cmd+K (CRM-28, contrat 22)", () => {
 
     await memberPage.keyboard.press("ControlOrMeta+k");
     await palette.getByPlaceholder(PALETTE_INPUT).fill("sombre");
+    await expect(palette.getByRole("option", { name: THEME_ENTRY })).toHaveAttribute("aria-selected", "true");
     await memberPage.keyboard.press("Enter");
     await expect(html).toHaveClass(/dark/);
     await memberPage.reload();
@@ -57,6 +59,7 @@ test.describe("palette Cmd+K (CRM-28, contrat 22)", () => {
 
     await memberPage.keyboard.press("ControlOrMeta+k");
     await palette.getByPlaceholder(PALETTE_INPUT).fill("clair");
+    await expect(palette.getByRole("option", { name: THEME_ENTRY })).toHaveAttribute("aria-selected", "true");
     await memberPage.keyboard.press("Enter");
     await expect(html).not.toHaveClass(/dark/);
     await memberPage.reload();
