@@ -88,3 +88,15 @@ describe("fermeture de toutes les sessions d'un compte (CRM-19, contrat 11, D10)
     expect((await signIn(MEMBER.email, MEMBER.password)).status).toBe(200);
   });
 });
+
+describe("changement de rôle (CRM-19, D11)", () => {
+  it("passe un membre administrateur puis le repasse membre", async () => {
+    const promoted = await patch(memberId, { role: "administrateur" }, adminCookie);
+    expect(promoted.status).toBe(200);
+    expect((await db.select().from(user).where(eq(user.id, memberId)))[0].role).toBe("administrateur");
+    const demoted = await patch(memberId, { role: "membre" }, adminCookie);
+    expect(demoted.status).toBe(200);
+    expect((await db.select().from(user).where(eq(user.id, memberId)))[0].role).toBe("membre");
+    expect((await patch(memberId, { role: "chef" }, adminCookie)).status).toBe(400);
+  });
+});
