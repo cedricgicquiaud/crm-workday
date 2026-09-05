@@ -38,5 +38,5 @@ export const COMPANY_FIELDS: readonly FieldDescriptor[] = [
   { key: "postalCode", label: "Code postal", type: "text", maxLength: 12, section: "Adresse", order: 120 },
   { key: "city", label: "Ville", type: "text", maxLength: 120, sortable: true, section: "Adresse", order: 130 },
   { key: "country", label: "Pays", type: "text", required: true, maxLength: 80, default: "France", section: "Adresse", order: 140 },
-  { key: "notes", label: "Notes", type: "text", maxLength: 2000, multiline: true, section: "Notes", order: 200 },
+  { key: "notes", label: "Notes", type: "text", maxLength: 2000, multiline: true, order: 200 },
 ];
