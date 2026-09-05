@@ -3,7 +3,7 @@ import { emailTemplate } from "@/db/schema";
 import { HttpError } from "@/lib/auth/session";
 import { closeDb, db } from "@/lib/db";
 import { sendTemplatedEmail } from "@/lib/mail/send";
-import { listTemplates, updateTemplate } from "@/lib/mail/templates";
+import { deleteTemplate, listTemplates, updateTemplate } from "@/lib/mail/templates";
 import { lastEmailTo } from "../helpers/mailbox";
 
 beforeAll(async () => {
@@ -70,5 +70,14 @@ describe("refus d'un modèle système sans {{lien}} (CRM-23, contrat 32)", () =>
     await expect(attempt).rejects.toMatchObject({ status: 400, code: "variable_obligatoire_absente", details: { variable: "lien" }, message: expect.stringContaining("{{lien}}") });
     await expect(updateTemplate("invitation", { subject: "Accès", body: "Bonjour {{prenom}}" })).rejects.toMatchObject({ code: "variable_obligatoire_absente" });
     expect((await listTemplates()).find((t) => t.key === "reinitialisation")).toMatchObject({ body: before.body });
+  });
+});
+
+describe("suppression d'un modèle système (CRM-23, contrat 32)", () => {
+  it("répond 409 pour « Invitation » et « Réinitialisation », qui restent en base", async () => {
+    await expect(deleteTemplate("invitation")).rejects.toMatchObject({ status: 409, code: "modele_systeme" });
+    await expect(deleteTemplate("reinitialisation")).rejects.toMatchObject({ status: 409, code: "modele_systeme" });
+    await expect(deleteTemplate("inconnu")).rejects.toMatchObject({ status: 404 });
+    expect((await listTemplates()).map((t) => t.key).sort()).toEqual(["invitation", "reinitialisation"]);
   });
 });
