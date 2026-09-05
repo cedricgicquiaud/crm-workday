@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { GET as getCompany } from "@/app/api/entreprises/[id]/route";
-import { POST as postCompany } from "@/app/api/entreprises/route";
+import { GET as getCompany, PATCH as patchCompany } from "@/app/api/entreprises/[id]/route";
+import { GET as listCompanies, POST as postCompany } from "@/app/api/entreprises/route";
 import { auditLog, company, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { closeDb, db } from "@/lib/db";
@@ -104,5 +104,25 @@ describe("API des entreprises — SIREN déjà porté (CRM-34, D19, contrat 4)",
     const archived = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "Seconde", type: "client", siren: "552081317" }, memberCookie));
     expect(archived.status).toBe(409);
     expect(await archived.json()).toMatchObject({ message: "Le SIREN 552081317 est déjà porté par « Première Titulaire » (fiche archivée).", archived: true });
+  });
+});
+
+describe("API des entreprises — liste et modification (CRM-34, CRM-35, D6)", () => {
+  it("liste les entreprises non archivées par dernière modification décroissante : une fiche modifiée remonte en tête", async () => {
+    await cleanup();
+    const ids: string[] = [];
+    for (const name of ["Ancienne", "Moyenne", "Récente"]) {
+      const res = await postCompany(jsonRequest("POST", "/api/entreprises", { name, type: "client" }, memberCookie));
+      ids.push(((await res.json()) as { id: string }).id);
+    }
+    const patched = await patchCompany(jsonRequest("PATCH", `/api/entreprises/${ids[0]}`, { paymentTerms: "60_jours" }, memberCookie), byId(ids[0]));
+    expect(patched.status).toBe(200);
+    expect(await patched.json()).toMatchObject({ id: ids[0], paymentTerms: "60_jours" });
+    await db.update(company).set({ archivedAt: new Date() }).where(eq(company.id, ids[1]));
+
+    const list = await listCompanies(jsonRequest("GET", "/api/entreprises", undefined, memberCookie));
+    expect(list.status).toBe(200);
+    const { companies } = (await list.json()) as { companies: { name: string }[] };
+    expect(companies.map((c) => c.name)).toEqual(["Ancienne", "Récente"]);
   });
 });
