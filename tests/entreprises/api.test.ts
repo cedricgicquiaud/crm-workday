@@ -42,3 +42,13 @@ describe("API des entreprises — création (CRM-34, D1, D11)", () => {
     expect(await read.json()).toMatchObject({ id, name: "ACME SAS", type: "client", paymentTerms: "30_jours", country: "France", ownerId: memberId, createdBy: memberId, archivedAt: null });
   });
 });
+
+describe("API des entreprises — SIREN (CRM-34, contrat 4)", () => {
+  it("accepte « 123 456 789 » et l'enregistre « 123456789 »", async () => {
+    const created = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "Siren Espaces", type: "prospect", siren: "123 456 789" }, memberCookie));
+    expect(created.status).toBe(201);
+    const { id } = (await created.json()) as { id: string };
+    const read = await getCompany(jsonRequest("GET", `/api/entreprises/${id}`, undefined, memberCookie), byId(id));
+    expect(await read.json()).toMatchObject({ siren: "123456789" });
+  });
+});
