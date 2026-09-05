@@ -1,6 +1,30 @@
-import { ADMIN, MEMBER, expect, lastEmailTo, seedAccounts, test } from "./fixtures/auth";
+import type { APIRequestContext, Browser, Page } from "@playwright/test";
+import { ADMIN, MEMBER, expect, lastEmailTo, seedAccounts, signInAs, test, type Account } from "./fixtures/auth";
 
 test.beforeAll(() => seedAccounts());
+
+/**
+ * Les tests qui désactivent un compte, ferment ses sessions ou changent son mot de passe le font
+ * sur un compte à eux, créé par le circuit réel (invitation puis choix du mot de passe) : les
+ * comptes partagés `ADMIN` / `MEMBER` restent intacts, et leurs échecs de connexion (D14) ne
+ * s'accumulent pas d'un test à l'autre. Le suffixe `-e2e@exemple.fr` les fait nettoyer par la fixture.
+ */
+function ownAccount(prefix: string, firstName: string, lastName: string): Account {
+  return { email: `${prefix}-${Date.now()}-comptes-e2e@exemple.fr`, password: `MotDePasse-${firstName}-E2E-1`, firstName, lastName, role: "membre" };
+}
+
+async function createActiveAccount(admin: APIRequestContext, fresh: APIRequestContext, account: Account): Promise<void> {
+  const { email, firstName, lastName, role } = account;
+  expect((await admin.post("/api/accounts", { data: { email, firstName, lastName, role } })).status()).toBe(201);
+  const token = lastEmailTo(email)!.links.find((l) => l.includes("/invitation/"))!.split("/invitation/")[1];
+  expect((await fresh.post(`/api/invitations/${token}`, { data: { password: account.password } })).status()).toBe(200);
+}
+
+async function pageAs(browser: Browser, account: Account): Promise<Page> {
+  const context = await browser.newContext();
+  await signInAs(context.request, account);
+  return context.newPage();
+}
 
 test.describe("accès administrateur protégé (CRM-20, contrat 16)", () => {
   test("un membre qui ouvre la gestion des comptes est renvoyé vers Accueil, et l'appel serveur répond 403", async ({ memberPage }) => {
@@ -96,80 +120,92 @@ test.describe("refus d'un email déjà pris (CRM-18, contrat 18, D12)", () => {
 });
 
 test.describe("désactivation et réactivation (CRM-19, contrat 10)", () => {
-  test("désactiver un compte déconnecte la personne à sa prochaine requête ; réactivé, il se reconnecte avec le même mot de passe", async ({ adminPage, memberPage }) => {
-    await memberPage.goto("/accueil");
-    await expect(memberPage.getByRole("heading", { level: 1 })).toHaveText(`Bonjour ${MEMBER.firstName}`);
+  test("désactiver un compte déconnecte la personne à sa prochaine requête ; réactivé, il se reconnecte avec le même mot de passe", async ({ adminPage, browser, request }) => {
+    const dan = ownAccount("dan", "Dan", "Petit");
+    await createActiveAccount(adminPage.request, request, dan);
+    const danPage = await pageAs(browser, dan);
+    await danPage.goto("/accueil");
+    await expect(danPage.getByRole("heading", { level: 1 })).toHaveText("Bonjour Dan");
 
     await adminPage.goto("/parametres/comptes");
-    const row = adminPage.getByRole("table", { name: "Comptes" }).getByRole("row", { name: new RegExp(MEMBER.email) });
+    const row = adminPage.getByRole("table", { name: "Comptes" }).getByRole("row", { name: new RegExp(dan.email) });
     await row.getByRole("button", { name: "Actions" }).click();
     await adminPage.getByRole("menuitem", { name: "Désactiver" }).click();
-    await expect(adminPage.getByRole("status")).toContainText(`Compte de ${MEMBER.firstName} ${MEMBER.lastName} désactivé`);
+    await expect(adminPage.getByRole("status")).toContainText("Compte de Dan Petit désactivé");
     await expect(row.getByText("Désactivé", { exact: true })).toBeVisible();
 
-    await memberPage.reload();
-    await expect(memberPage).toHaveURL(/\/connexion/);
-    await memberPage.getByLabel("Email").fill(MEMBER.email);
-    await memberPage.getByLabel("Mot de passe").fill(MEMBER.password);
-    await memberPage.getByRole("button", { name: "Se connecter" }).click();
-    await expect(memberPage.getByRole("form", { name: "Formulaire de connexion" }).getByRole("alert")).toHaveText("Email ou mot de passe incorrect.");
+    await danPage.reload();
+    await expect(danPage).toHaveURL(/\/connexion/);
+    await danPage.getByLabel("Email").fill(dan.email);
+    await danPage.getByLabel("Mot de passe").fill(dan.password);
+    await danPage.getByRole("button", { name: "Se connecter" }).click();
+    await expect(danPage.getByRole("form", { name: "Formulaire de connexion" }).getByRole("alert")).toHaveText("Email ou mot de passe incorrect.");
 
     await row.getByRole("button", { name: "Actions" }).click();
     await adminPage.getByRole("menuitem", { name: "Réactiver" }).click();
-    await expect(adminPage.getByRole("status")).toContainText(`Compte de ${MEMBER.firstName} ${MEMBER.lastName} réactivé`);
+    await expect(adminPage.getByRole("status")).toContainText("Compte de Dan Petit réactivé");
     await expect(row.getByText("Actif", { exact: true })).toBeVisible();
 
-    await memberPage.getByRole("button", { name: "Se connecter" }).click();
-    await expect(memberPage).toHaveURL(/\/accueil$/);
+    await danPage.getByRole("button", { name: "Se connecter" }).click();
+    await expect(danPage).toHaveURL(/\/accueil$/);
+    await danPage.context().close();
   });
 });
 
 test.describe("fermeture des sessions et rôle (CRM-19, contrat 11, D11)", () => {
-  test("« Fermer toutes les sessions » force la reconnexion du compte ; « Passer administrateur » puis « Passer membre » changent le rôle affiché", async ({ adminPage, memberPage }) => {
-    await memberPage.goto("/accueil");
-    await expect(memberPage.getByRole("heading", { level: 1 })).toHaveText(`Bonjour ${MEMBER.firstName}`);
+  test("« Fermer toutes les sessions » force la reconnexion du compte ; « Passer administrateur » puis « Passer membre » changent le rôle affiché", async ({ adminPage, browser, request }) => {
+    const sam = ownAccount("sam", "Sam", "Girard");
+    await createActiveAccount(adminPage.request, request, sam);
+    const samPage = await pageAs(browser, sam);
+    await samPage.goto("/accueil");
+    await expect(samPage.getByRole("heading", { level: 1 })).toHaveText("Bonjour Sam");
 
     await adminPage.goto("/parametres/comptes");
-    const row = adminPage.getByRole("table", { name: "Comptes" }).getByRole("row", { name: new RegExp(MEMBER.email) });
+    const row = adminPage.getByRole("table", { name: "Comptes" }).getByRole("row", { name: new RegExp(sam.email) });
     await row.getByRole("button", { name: "Actions" }).click();
     await adminPage.getByRole("menuitem", { name: "Fermer toutes les sessions" }).click();
-    await expect(adminPage.getByRole("status")).toContainText(`Sessions de ${MEMBER.firstName} ${MEMBER.lastName} fermées`);
+    await expect(adminPage.getByRole("status")).toContainText("Sessions de Sam Girard fermées");
     await expect(row.getByText("Actif", { exact: true })).toBeVisible();
 
-    await memberPage.reload();
-    await expect(memberPage).toHaveURL(/\/connexion/);
-    await memberPage.getByLabel("Email").fill(MEMBER.email);
-    await memberPage.getByLabel("Mot de passe").fill(MEMBER.password);
-    await memberPage.getByRole("button", { name: "Se connecter" }).click();
-    await expect(memberPage).toHaveURL(/\/accueil$/);
+    await samPage.reload();
+    await expect(samPage).toHaveURL(/\/connexion/);
+    await samPage.getByLabel("Email").fill(sam.email);
+    await samPage.getByLabel("Mot de passe").fill(sam.password);
+    await samPage.getByRole("button", { name: "Se connecter" }).click();
+    await expect(samPage).toHaveURL(/\/accueil$/);
+    await samPage.context().close();
 
     await row.getByRole("button", { name: "Actions" }).click();
     await adminPage.getByRole("menuitem", { name: "Passer administrateur" }).click();
-    await expect(adminPage.getByRole("status")).toContainText(`${MEMBER.firstName} ${MEMBER.lastName} est maintenant administrateur`);
+    await expect(adminPage.getByRole("status")).toContainText("Sam Girard est maintenant administrateur");
     await expect(row).toContainText("Administrateur");
     await row.getByRole("button", { name: "Actions" }).click();
     await adminPage.getByRole("menuitem", { name: "Passer membre" }).click();
-    await expect(adminPage.getByRole("status")).toContainText(`${MEMBER.firstName} ${MEMBER.lastName} est maintenant membre`);
+    await expect(adminPage.getByRole("status")).toContainText("Sam Girard est maintenant membre");
     await expect(row).toContainText("Membre");
   });
 });
 
 test.describe("Mon profil (CRM-21, contrat 13, D13)", () => {
-  test("un prénom modifié apparaît dans la salutation d'Accueil ; un mot de passe de 11 caractères est rejeté avec la règle ; le bon change le mot de passe", async ({ memberPage, request }) => {
-    await memberPage.goto("/profil");
-    await expect(memberPage.getByRole("heading", { level: 1 })).toHaveText("Mon profil");
-    const identity = memberPage.getByRole("form", { name: "Identité" });
-    await expect(identity.getByLabel("Prénom")).toHaveValue(MEMBER.firstName);
-    await expect(identity.getByLabel("Nom", { exact: true })).toHaveValue(MEMBER.lastName);
-    await identity.getByLabel("Prénom").fill("Marco");
+  test("un prénom modifié apparaît dans la salutation d'Accueil ; un mot de passe de 11 caractères est rejeté avec la règle ; le bon change le mot de passe", async ({ adminPage, browser, request }) => {
+    const paul = ownAccount("paul", "Paul", "Martin");
+    await createActiveAccount(adminPage.request, request, paul);
+    const paulPage = await pageAs(browser, paul);
+
+    await paulPage.goto("/profil");
+    await expect(paulPage.getByRole("heading", { level: 1 })).toHaveText("Mon profil");
+    const identity = paulPage.getByRole("form", { name: "Identité" });
+    await expect(identity.getByLabel("Prénom")).toHaveValue("Paul");
+    await expect(identity.getByLabel("Nom", { exact: true })).toHaveValue("Martin");
+    await identity.getByLabel("Prénom").fill("Paolo");
     await identity.getByRole("button", { name: "Enregistrer" }).click();
     await expect(identity.getByRole("status")).toHaveText("Profil enregistré.");
-    await memberPage.goto("/accueil");
-    await expect(memberPage.getByRole("heading", { level: 1 })).toHaveText("Bonjour Marco");
+    await paulPage.goto("/accueil");
+    await expect(paulPage.getByRole("heading", { level: 1 })).toHaveText("Bonjour Paolo");
 
-    await memberPage.goto("/profil");
-    const password = memberPage.getByRole("form", { name: "Mot de passe" });
-    await password.getByLabel("Mot de passe actuel").fill(MEMBER.password);
+    await paulPage.goto("/profil");
+    const password = paulPage.getByRole("form", { name: "Mot de passe" });
+    await password.getByLabel("Mot de passe actuel").fill(paul.password);
     await password.getByLabel("Nouveau mot de passe", { exact: true }).fill("Court-Mdp-1");
     await password.getByLabel("Confirmation du nouveau mot de passe").fill("Court-Mdp-1");
     await password.getByRole("button", { name: "Changer le mot de passe" }).click();
@@ -181,12 +217,15 @@ test.describe("Mon profil (CRM-21, contrat 13, D13)", () => {
     await password.getByRole("button", { name: "Changer le mot de passe" }).click();
     await expect(password.getByRole("alert")).toHaveText("Le mot de passe actuel est incorrect.");
 
-    await password.getByLabel("Mot de passe actuel").fill(MEMBER.password);
+    await password.getByLabel("Mot de passe actuel").fill(paul.password);
     await password.getByRole("button", { name: "Changer le mot de passe" }).click();
     await expect(password.getByRole("status")).toHaveText("Mot de passe modifié.");
-    // Depuis un navigateur vierge (sans cookie : Better Auth exige un en-tête Origin dès qu'une session est présente).
-    expect((await request.post("/api/auth/sign-in/email", { data: { email: MEMBER.email, password: MEMBER.password } })).status()).toBe(401);
-    expect((await request.post("/api/auth/sign-in/email", { data: { email: MEMBER.email, password: "MotDePasse-Membre-E2E-2" } })).status()).toBe(200);
+    await paulPage.context().close();
+    // Depuis un contexte vierge : Better Auth exige un en-tête Origin dès qu'un cookie de session accompagne la requête.
+    const fresh = await browser.newContext();
+    expect((await fresh.request.post("/api/auth/sign-in/email", { data: { email: paul.email, password: paul.password } })).status()).toBe(401);
+    expect((await fresh.request.post("/api/auth/sign-in/email", { data: { email: paul.email, password: "MotDePasse-Membre-E2E-2" } })).status()).toBe(200);
+    await fresh.close();
   });
 });
 
