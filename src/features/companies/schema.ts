@@ -30,6 +30,7 @@ export const COMPANY_FIELDS: readonly FieldDescriptor[] = [
   { key: "type", label: "Type", type: "list", required: true, values: COMPANY_TYPES, sortable: true, order: 20 },
   { key: "siren", label: "SIREN", type: "text", normalize: normalizeSiren, pattern: { regex: /^\d{9}$/, message: SIREN_RULE }, unique: true, uniqueMessage: (value) => `Le SIREN ${value} est déjà porté`, order: 30 },
   { key: "paymentTerms", label: "Conditions de paiement", type: "list", required: true, values: PAYMENT_TERMS, default: "30_jours", order: 50 },
+  { key: "billingEmail", label: "Email de facturation", type: "text", maxLength: 200, normalize: (value) => value.toLowerCase(), pattern: { regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Cette adresse n'est pas valide." }, order: 70 },
   { key: "ownerId", label: "Responsable", type: "user", required: true, default: "actor", sortable: true, order: 80 },
   { key: "country", label: "Pays", type: "text", required: true, maxLength: 80, default: "France", section: "Adresse", order: 140 },
 ];
