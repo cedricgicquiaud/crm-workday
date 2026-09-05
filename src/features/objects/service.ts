@@ -6,7 +6,7 @@
 import "@/features/objects/manifest.server";
 import { and, asc, desc, eq, getTableColumns, isNull, ne, type SQL } from "drizzle-orm";
 import { recordHistory } from "@/features/history/history";
-import { validateValues, type FieldValues } from "@/features/objects/fields";
+import { serializeValue, validateValues, type FieldValues } from "@/features/objects/fields";
 import { userName, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
@@ -44,7 +44,7 @@ async function assertUsersExist(type: string, values: FieldValues): Promise<void
   const errors: Record<string, string> = {};
   for (const field of getObject(type).fields) {
     const value = values[field.key];
-    if (field.type !== "user" || value == null) continue;
+    if (field.type !== "user" || typeof value !== "string") continue;
     const [found] = await db.select({ id: user.id }).from(user).where(eq(user.id, value)).limit(1);
     if (!found) errors[field.key] = `« ${field.label} » ne désigne aucun utilisateur.`;
   }
@@ -68,7 +68,7 @@ async function assertUnique(type: string, values: FieldValues, currentId: string
   const columns = getTableColumns(table);
   for (const field of definition.fields) {
     const value = values[field.key];
-    if (!field.unique || value == null) continue;
+    if (!field.unique || typeof value !== "string") continue;
     const conditions: SQL[] = [eq(columns[field.key], value)];
     if (currentId) conditions.push(ne(columns.id, currentId));
     const [existing] = await db.select({ id: columns.id, name: columns[definition.titleField], archivedAt: columns.archivedAt }).from(table).where(and(...conditions)).limit(1);
@@ -128,9 +128,11 @@ export async function listObjectRecords(type: string, { includeArchived = false 
   return rows as ObjectRecord[];
 }
 
-/** Une valeur absente et une chaîne vide sont la même chose : ni l'une ni l'autre n'entre dans l'historique. */
-const same = (a: unknown, b: unknown) => String(a ?? "") === String(b ?? "");
-
+/**
+ * Un champ ne change que si sa sérialisation stable change (`serializeValue`) : une valeur absente et
+ * une chaîne vide sont la même chose, « 99.00 » relu en base et 99 reçu aussi ; l'historique reçoit
+ * ces mêmes sérialisations, lisibles quel que soit le type (D12).
+ */
 export async function updateObject(type: string, id: string, patch: unknown, actor: Actor): Promise<ObjectRecord> {
   const { table } = getServerObject(type);
   const columns = getTableColumns(table);
@@ -138,16 +140,17 @@ export async function updateObject(type: string, id: string, patch: unknown, act
   assertWritable(type, current);
   const values = await validateOrThrow(type, patch, { partial: true });
   await assertUnique(type, values, id);
-  const changed = Object.entries(values).filter(([key, value]) => !same(current[key], value));
+  const changed = getObject(type)
+    .fields.filter((field) => field.key in values)
+    .map((field) => ({ field, oldValue: serializeValue(field, current[field.key]), newValue: serializeValue(field, values[field.key]) }))
+    .filter((change) => change.oldValue !== change.newValue);
   if (changed.length === 0) return current;
   const [row] = await db
     .update(table)
-    .set({ ...Object.fromEntries(changed), updatedAt: new Date() })
+    .set({ ...Object.fromEntries(changed.map(({ field }) => [field.key, values[field.key]])), updatedAt: new Date() })
     .where(eq(columns.id, id))
     .returning();
-  await recordHistory(
-    changed.map(([field, value]) => ({ objectType: type, objectId: id, action: "modifiee" as const, field, oldValue: current[field] == null ? null : String(current[field]), newValue: value, authorId: actor.id })),
-  );
+  await recordHistory(changed.map(({ field, oldValue, newValue }) => ({ objectType: type, objectId: id, action: "modifiee" as const, field: field.key, oldValue, newValue, authorId: actor.id })));
   return row as ObjectRecord;
 }
 

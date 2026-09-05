@@ -39,10 +39,11 @@ export function FieldsSection({ type, record: initial, users }: Props) {
   const [record, setRecord] = useState(initial);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  /** Enregistre un champ ; rend vrai si la valeur est acceptée. */
+  /** Enregistre un champ ; rend vrai si la valeur est acceptée. Un nombre part en nombre JSON (règle du descripteur), une saisie vide en champ vidé. */
   async function save(field: FieldDescriptor, value: string): Promise<boolean> {
     if (asString(record[field.key]) === value) return true;
-    const res = await fetch(`${definition.apiBase}/${encodeURIComponent(record.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ [field.key]: value }) });
+    const payload = field.type === "number" && value !== "" ? Number(value) : value;
+    const res = await fetch(`${definition.apiBase}/${encodeURIComponent(record.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ [field.key]: payload }) });
     const body = (await res.json().catch(() => null)) as (SerializedRecord & { message?: string; fields?: Record<string, string> }) | null;
     if (!res.ok) {
       setErrors((current) => ({ ...current, [field.key]: body?.fields?.[field.key] ?? body?.message ?? "L'enregistrement a échoué. Réessayez." }));
