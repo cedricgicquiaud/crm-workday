@@ -30,3 +30,18 @@ describe("API du thème (CRM-29, D17)", () => {
     expect(await storedTheme()).toBe("sombre");
   });
 });
+
+describe("refus de l'API du thème", () => {
+  it("répond 400 pour une valeur hors clair, sombre, système, sans rien changer", async () => {
+    const res = await updateTheme(jsonRequest("PATCH", "/api/theme", { theme: "violet" }, cookie));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "theme_inconnu" });
+    expect(await storedTheme()).toBe("sombre");
+  });
+
+  it("répond 401 sans session", async () => {
+    const res = await updateTheme(jsonRequest("PATCH", "/api/theme", { theme: "clair" }));
+    expect(res.status).toBe(401);
+    expect(await storedTheme()).toBe("sombre");
+  });
+});
