@@ -28,12 +28,27 @@ export type PaletteEntry = {
 };
 
 const entries = new Map<string, PaletteEntry>();
+const listeners = new Set<() => void>();
+
+function notify() {
+  for (const listener of listeners) listener();
+}
 
 /** Enregistre des entrées ; rend la fonction qui les retire. */
 export function registerPaletteEntries(newEntries: readonly PaletteEntry[]): () => void {
   for (const entry of newEntries) entries.set(entry.id, entry);
+  notify();
   return () => {
     for (const entry of newEntries) entries.delete(entry.id);
+    notify();
+  };
+}
+
+/** Prévient `listener` à chaque changement du registre ; rend la fonction de désabonnement (forme `useSyncExternalStore`). */
+export function subscribePalette(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
   };
 }
 
