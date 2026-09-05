@@ -89,3 +89,20 @@ describe("API des entreprises — listes fermées (CRM-34, contrat 5)", () => {
     expect(await terms.json()).toMatchObject({ fields: { paymentTerms: "Valeur hors liste pour « Conditions de paiement »." } });
   });
 });
+
+describe("API des entreprises — SIREN déjà porté (CRM-34, D19, contrat 4)", () => {
+  it("refuse (409) un SIREN déjà porté par une autre entreprise, archivée comprise, et le message nomme cette entreprise", async () => {
+    const first = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "Première Titulaire", type: "client", siren: "552 081 317" }, memberCookie));
+    expect(first.status).toBe(201);
+    const { id } = (await first.json()) as { id: string };
+
+    const active = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "Seconde", type: "client", siren: "552081317" }, memberCookie));
+    expect(active.status).toBe(409);
+    expect(await active.json()).toMatchObject({ error: "valeur_deja_portee", message: "Le SIREN 552081317 est déjà porté par « Première Titulaire ».", field: "siren", existingId: id, existingName: "Première Titulaire", archived: false });
+
+    await db.update(company).set({ archivedAt: new Date() }).where(eq(company.id, id));
+    const archived = await postCompany(jsonRequest("POST", "/api/entreprises", { name: "Seconde", type: "client", siren: "552081317" }, memberCookie));
+    expect(archived.status).toBe(409);
+    expect(await archived.json()).toMatchObject({ message: "Le SIREN 552081317 est déjà porté par « Première Titulaire » (fiche archivée).", archived: true });
+  });
+});
