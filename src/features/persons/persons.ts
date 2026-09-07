@@ -5,14 +5,14 @@
  */
 import { assertWritable, createObject, getObjectRecord, listObjectRecords, updateObject, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
-import { CONTACT_PROFILE_KEYS, prepareContactProfile, writeContactProfile, type PreparedContactProfile } from "./contact-profile";
+import { CONTACT_PROFILE_KEYS, getContactProfile, prepareContactProfile, writeContactProfile, type PreparedContactProfile } from "./contact-profile";
 import { assertEmailAvailable, assertOtherEmailsAvailable, otherEmailsOf, parseOtherEmails, setOtherEmails } from "./emails";
 import { DERIVED_FIELDS, normalizeEmail } from "./schema";
 
 const TYPE = "person";
 
-/** Une personne telle que l'API la rend : la fiche et ses autres adresses, jointes par « , ». */
-export type PersonRecord = ObjectRecord & { otherEmails: string };
+/** Une personne telle que l'API la rend : la fiche, ses autres adresses jointes par « , », et le poste de son profil contact. */
+export type PersonRecord = ObjectRecord & { otherEmails: string; jobTitle: string | null };
 
 const asObject = (input: unknown): Record<string, unknown> => (input && typeof input === "object" ? (input as Record<string, unknown>) : {});
 
@@ -24,8 +24,11 @@ function refuseDerived(input: Record<string, unknown>): void {
 }
 
 async function withEmails(record: ObjectRecord): Promise<PersonRecord> {
-  return { ...record, otherEmails: (await otherEmailsOf(record.id)).join(", ") };
+  const [others, profile] = await Promise.all([otherEmailsOf(record.id), getContactProfile(record.id)]);
+  return { ...record, otherEmails: others.join(", "), jobTitle: profile?.jobTitle ?? null };
 }
+
+const blank = (value: unknown): boolean => value === undefined || value === null || (typeof value === "string" && value.trim() === "");
 
 /**
  * Sépare l'entrée reçue : les champs de la fiche (pour le service générique) et les adresses, dont
@@ -36,11 +39,10 @@ type PreparedInput = { fields: Record<string, unknown>; otherEmails: string[] | 
 
 async function prepareInput(input: unknown, exceptPersonId: string | null, currentEmail: unknown): Promise<PreparedInput> {
   const { otherEmails, ...rest } = asObject(input);
-  const profile = Object.fromEntries(Object.entries(rest).filter(([key]) => CONTACT_PROFILE_KEYS.includes(key)));
+  /* Les clés du profil (entreprise, poste, rôle) vont au service du profil ; à la création, une valeur vide vaut « non renseigné » (dialogue à cinq champs sans entreprise choisie). */
+  const profile = Object.fromEntries(Object.entries(rest).filter(([key, value]) => CONTACT_PROFILE_KEYS.includes(key) && !(exceptPersonId === null && blank(value))));
   const fields = Object.fromEntries(Object.entries(rest).filter(([key]) => !CONTACT_PROFILE_KEYS.includes(key)));
   refuseDerived(fields);
-  /* En modification, le profil a sa propre route : ses clés ici sont une erreur d'appel, pas une écriture silencieuse. */
-  if (exceptPersonId && Object.keys(profile).length > 0) throw new HttpError(400, "profil_contact", "L'entreprise, le poste et le rôle se règlent par le profil contact (/profil-contact).");
   const primary = primaryOf(fields, currentEmail);
   if (primary) await assertEmailAvailable(primary, exceptPersonId);
   const prepared: PreparedInput = { fields, otherEmails: null, profile: Object.keys(profile).length > 0 ? profile : null };
@@ -71,14 +73,12 @@ export const getPerson = async (id: string): Promise<PersonRecord> => withEmails
 export async function updatePerson(id: string, patch: unknown, actor: Actor): Promise<PersonRecord> {
   const current = await getObjectRecord(TYPE, id);
   assertWritable(TYPE, current);
-  const { fields, otherEmails } = await prepareInput(patch, id, current.email);
-  let record = current;
-  if (Object.keys(fields).length > 0) record = await updateObject(TYPE, id, fields, actor);
-  if (otherEmails) {
-    await setOtherEmails(id, otherEmails, actor);
-    record = await getObjectRecord(TYPE, id);
-  }
-  return withEmails(record);
+  const { fields, otherEmails, profile } = await prepareInput(patch, id, current.email);
+  const preparedProfile = profile ? await prepareContactProfile(profile, await getContactProfile(id)) : null;
+  if (Object.keys(fields).length > 0) await updateObject(TYPE, id, fields, actor);
+  if (otherEmails) await setOtherEmails(id, otherEmails, actor);
+  if (preparedProfile) await writeContactProfile(id, preparedProfile, actor);
+  return getPerson(id);
 }
 
 export const listPersons = (): Promise<ObjectRecord[]> => listObjectRecords(TYPE);
