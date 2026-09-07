@@ -91,3 +91,51 @@ describe("profil contact — ajout sur une personne (CRM-40, CRM-41, D3, contrat
     expect(await changesOf(id)).toContainEqual(["jobTitle", "Acheteuse", "Directrice des achats"]);
   });
 });
+
+describe("profil contact — refus (CRM-40, CRM-41, contrat 10, D21)", () => {
+  it("sans entreprise → 400 ; entreprise inconnue → 400 ; archivée → 409 ; rôle hors liste → 400 ; rien n'est écrit ; les clés du profil sur le PATCH de la personne → 400 ; 404 personne inconnue, 401 sans session", async () => {
+    const id = await createPerson({ firstName: "Sans", lastName: "Profil" });
+    const before = (await db.select({ id: person.id }).from(person)).length;
+
+    const noCompany = await patchProfile(jsonRequest("PATCH", `/api/personnes/${id}/profil-contact`, { jobTitle: "DSI" }, memberCookie), byId(id));
+    expect(noCompany.status).toBe(400);
+    expect(await noCompany.json()).toMatchObject({ error: "donnees_invalides", fields: { companyId: "« Entreprise » est obligatoire." } });
+
+    const created = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Poste", lastName: "Seul", jobTitle: "DSI" }, memberCookie));
+    expect(created.status).toBe(400);
+    expect(await created.json()).toMatchObject({ fields: { companyId: "« Entreprise » est obligatoire." } });
+
+    const unknownCompany = await patchProfile(jsonRequest("PATCH", `/api/personnes/${id}/profil-contact`, { companyId: "00000000-0000-4000-8000-000000000000" }, memberCookie), byId(id));
+    expect(unknownCompany.status).toBe(400);
+    expect(await unknownCompany.json()).toMatchObject({ fields: { companyId: "« Entreprise » ne désigne aucune entreprise." } });
+    expect((await patchProfile(jsonRequest("PATCH", `/api/personnes/${id}/profil-contact`, { companyId: "abc" }, memberCookie), byId(id))).status).toBe(400);
+
+    const archivedCompany = (await createObject("company", { name: "Fermée SA", type: "client" }, { id: memberId })).id;
+    await db.update(company).set({ archivedAt: new Date() }).where(eq(company.id, archivedCompany));
+    const archived = await patchProfile(jsonRequest("PATCH", `/api/personnes/${id}/profil-contact`, { companyId: archivedCompany }, memberCookie), byId(id));
+    expect(archived.status).toBe(409);
+    expect(await archived.json()).toMatchObject({ error: "entreprise_archivee", message: "Entreprise archivée : « Fermée SA » ne reçoit plus de contact." });
+    const createdOnArchived = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Chez", lastName: "Fermée", companyId: archivedCompany }, memberCookie));
+    expect(createdOnArchived.status).toBe(409);
+
+    const role = await patchProfile(jsonRequest("PATCH", `/api/personnes/${id}/profil-contact`, { companyId: solveigeId, decisionRole: "pdg" }, memberCookie), byId(id));
+    expect(role.status).toBe(400);
+    expect(await role.json()).toMatchObject({ fields: { decisionRole: "Valeur hors liste pour « Rôle dans la décision »." } });
+
+    expect((await db.select({ id: person.id }).from(person)).length).toBe(before);
+    expect(await readPerson(id)).toMatchObject({ profiles: "aucun", companyId: null });
+    expect(await changesOf(id)).toEqual([]);
+
+    for (const patch of [{ companyId: solveigeId }, { jobTitle: "DSI" }, { decisionRole: "decideur" }]) {
+      const res = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, patch, memberCookie), byId(id));
+      expect(res.status, JSON.stringify(patch)).toBe(400);
+      expect(await res.json()).toMatchObject({ error: "profil_contact", message: "L'entreprise, le poste et le rôle se règlent par le profil contact (/profil-contact)." });
+    }
+
+    const unknown = "00000000-0000-4000-8000-000000000000";
+    expect((await getProfile(jsonRequest("GET", `/api/personnes/${unknown}/profil-contact`, undefined, memberCookie), byId(unknown))).status).toBe(404);
+    expect((await patchProfile(jsonRequest("PATCH", `/api/personnes/${unknown}/profil-contact`, { companyId: solveigeId }, memberCookie), byId(unknown))).status).toBe(404);
+    expect((await getProfile(jsonRequest("GET", `/api/personnes/${id}/profil-contact`), byId(id))).status).toBe(401);
+    expect((await patchProfile(jsonRequest("PATCH", `/api/personnes/${id}/profil-contact`, { companyId: solveigeId }), byId(id))).status).toBe(401);
+  });
+});
