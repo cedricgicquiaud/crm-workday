@@ -5,10 +5,11 @@
 import "@/features/objects/manifest.server";
 import { listObjects } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
+import { PALETTE_SEARCH_MIN_LENGTH } from "@/features/shell/palette/registry";
 import { normalizeQuery } from "./normalize";
 
-/** Longueur de la saisie acceptée par l'API (espaces des bords retirés) ; le seuil de trois caractères est aussi celui de la palette (D8). */
-export const SEARCH_MIN_LENGTH = 3;
+/** Longueur de la saisie acceptée par l'API (espaces des bords retirés) : le seuil bas est celui de la palette, une seule source (D8). */
+export const SEARCH_MIN_LENGTH = PALETTE_SEARCH_MIN_LENGTH;
 export const SEARCH_MAX_LENGTH = 120;
 /** Plafond de l'ensemble des résultats, tous objets confondus. */
 export const SEARCH_MAX_RESULTS = 20;
