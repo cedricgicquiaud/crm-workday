@@ -87,10 +87,11 @@ export async function writeContactProfile(personId: string, prepared: PreparedCo
   const now = new Date();
 
   if (!existing) {
+    if (!target) throw invalid({ companyId: "« Entreprise » est obligatoire." });
     changes.push({ field: "profiles", oldValue: String(current.profiles), newValue: "contact" });
     await db.insert(contactProfile).values({ personId, jobTitle: (values.jobTitle as string | null) ?? null, decisionRole: String(values.decisionRole) });
-    await db.update(person).set({ companyId: target!.id, profiles: "contact", updatedAt: now }).where(eq(person.id, personId));
-    changes.push({ field: "companyId", oldValue: await companyNameOf(current.companyId as string | null), newValue: target!.name });
+    await db.update(person).set({ companyId: target.id, profiles: "contact", updatedAt: now }).where(eq(person.id, personId));
+    changes.push({ field: "companyId", oldValue: await companyNameOf(current.companyId as string | null), newValue: target.name });
     changes.push({ field: "jobTitle", oldValue: null, newValue: (values.jobTitle as string | null) ?? null });
     changes.push({ field: "decisionRole", oldValue: null, newValue: roleLabel(values.decisionRole) });
   } else {
