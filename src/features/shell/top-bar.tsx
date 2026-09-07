@@ -4,6 +4,8 @@ import { PanelLeftIcon, SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
 import { openPalette } from "@/features/shell/palette/open-state";
+/* Enregistre la source de résultats de la palette (D8) dès que la coque se charge. */
+import "@/features/search/register";
 
 export const SIDEBAR_TOGGLE_LABEL = "Replier ou déployer la barre latérale";
 

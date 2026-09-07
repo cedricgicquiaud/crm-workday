@@ -68,6 +68,7 @@ _Fautes déjà commises sur ce dépôt et attrapées à l'audit ou au merge. Le 
 - Les dates de contexte (Accueil, listes) s'écrivent en format court « 5 sept. 2026 » (`day: "numeric", month: "short", year: "numeric"`, `Europe/Paris`).
 - Sous-navigation par onglets : l'entrée courante porte `aria-current="page"` et un marquage visible ; les entrées réservées aux administrateurs sont filtrées côté serveur, les pages restent protégées par `requireAdmin()`.
 - Les composants shadcn qui gardent un texte `sr-only` permanent (`SidebarTrigger`, `CommandDialog`) font échouer le contrôle de débordement à 375 px : les recomposer avec un `aria-label` sur le bouton et un `DialogTitle` dans le dialogue.
+- Un élément masqué par `opacity-0` reste cliquable et recouvre ses voisins : lui poser aussi `pointer-events-none` (le libellé de groupe de la barre latérale repliée avalait les clics sur « Mon profil », CRM-64).
 - Le bloc `nextjs-agent-rules` en fin de ce fichier est réécrit par `next dev` : on le commite tel quel, on n'y touche pas.
 
 <!-- BEGIN:nextjs-agent-rules -->

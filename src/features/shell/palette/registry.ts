@@ -34,12 +34,17 @@ const listeners = new Set<() => void>();
 /** Instantané stable entre deux changements : `useSyncExternalStore` compare les références. */
 let snapshot: readonly PaletteEntry[] = [];
 
+/** Rang croissant, les éléments sans rang en dernier ; 0 quand le rang ne départage pas. */
+function compareOrder(a: number | undefined, b: number | undefined): number {
+  if (a !== undefined && b !== undefined) return a - b;
+  if (a !== undefined) return -1;
+  if (b !== undefined) return 1;
+  return 0;
+}
+
 /** Ordre déterministe, indépendant de l'ordre de chargement des modules : `order` croissant, puis libellé. */
 function compareEntries(a: PaletteEntry, b: PaletteEntry): number {
-  if (a.order !== undefined && b.order !== undefined && a.order !== b.order) return a.order - b.order;
-  if (a.order !== undefined && b.order === undefined) return -1;
-  if (a.order === undefined && b.order !== undefined) return 1;
-  return a.label.localeCompare(b.label, "fr");
+  return compareOrder(a.order, b.order) || a.label.localeCompare(b.label, "fr");
 }
 
 function notify() {
@@ -67,4 +72,66 @@ export function subscribePalette(listener: () => void): () => void {
 
 export function getPaletteEntries(): readonly PaletteEntry[] {
   return snapshot;
+}
+
+/* --------------------------------------------------------------------------------------------
+ * Sources de résultats (D8) : un objet enregistre sa recherche asynchrone ; la palette affiche
+ * ce qu'elle rend dans le groupe « Résultats », sans jamais nommer l'objet.
+ * ------------------------------------------------------------------------------------------ */
+
+/** Une fiche trouvée : son libellé, son icône d'objet et l'adresse que la touche Entrée ouvre. */
+export type PaletteResult = {
+  /** Unique entre toutes les sources (préfixer par la clé de l'objet). */
+  id: string;
+  label: string;
+  subtitle?: string;
+  icon?: LucideIcon;
+  href: string;
+};
+
+export type PaletteSource = {
+  /** Identifiant stable : ré-enregistrer le même identifiant remplace la source. */
+  id: string;
+  /** Rang des résultats de cette source parmi les autres (croissant). */
+  order?: number;
+  search: (query: string) => Promise<PaletteResult[]>;
+};
+
+const sources = new Map<string, PaletteSource>();
+let sourcesSnapshot: readonly PaletteSource[] = [];
+
+/** `order` croissant, les sources sans rang en dernier, puis identifiant : l'ordre ne dépend jamais de l'ordre des imports. */
+function compareSources(a: PaletteSource, b: PaletteSource): number {
+  return compareOrder(a.order, b.order) || a.id.localeCompare(b.id, "fr");
+}
+
+function notifySources() {
+  sourcesSnapshot = Array.from(sources.values()).sort(compareSources);
+}
+
+/** Enregistre une source ; rend la fonction qui la retire. */
+export function registerPaletteSource(source: PaletteSource): () => void {
+  sources.set(source.id, source);
+  notifySources();
+  return () => {
+    sources.delete(source.id);
+    notifySources();
+  };
+}
+
+export function getPaletteSources(): readonly PaletteSource[] {
+  return sourcesSnapshot;
+}
+
+/** Sous ce nombre de caractères saisis (espaces retirés), aucune source n'est interrogée (D8). */
+export const PALETTE_SEARCH_MIN_LENGTH = 3;
+
+/** Vrai quand la saisie atteint le seuil : la palette montre le groupe « Résultats » et les sources sont interrogées. */
+export const isSearchableQuery = (query: string) => query.trim().length >= PALETTE_SEARCH_MIN_LENGTH;
+
+/** Interroge les sources avec la saisie ; rien sous le seuil. */
+export async function searchPaletteSources(query: string): Promise<PaletteResult[]> {
+  if (!isSearchableQuery(query)) return [];
+  const results = await Promise.all(sourcesSnapshot.map((source) => source.search(query.trim())));
+  return results.flat();
 }
