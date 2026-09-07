@@ -76,3 +76,39 @@ describe("API des personnes — liste (CRM-41, D6)", () => {
     expect(persons.every((p) => p.profiles === "aucun")).toBe(true);
   });
 });
+
+describe("API des personnes — refus 400 (CRM-40, CRM-41, contrat 10)", () => {
+  it("refuse (400) une adresse mal formée avant toute écriture, un prénom vide, un LinkedIn qui n'est pas une URL, et la saisie de Profils ou du nom complet", async () => {
+    const before = (await db.select({ id: person.id }).from(person)).length;
+    const malformed = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Mal", lastName: "Formée", email: "jean.dupont@" }, memberCookie));
+    expect(malformed.status).toBe(400);
+    expect(await malformed.json()).toMatchObject({ error: "donnees_invalides", fields: { email: "Cette adresse n'est pas valide." } });
+
+    const empty = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "  ", lastName: "Dupont" }, memberCookie));
+    expect(empty.status).toBe(400);
+    expect(await empty.json()).toMatchObject({ fields: { firstName: "« Prénom » est obligatoire." } });
+
+    const linkedin = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Lien", lastName: "Cassé", linkedin: "linkedin.com/in/jean" }, memberCookie));
+    expect(linkedin.status).toBe(400);
+    expect(await linkedin.json()).toMatchObject({ fields: { linkedin: "Le lien LinkedIn doit être une adresse web (https://…)." } });
+
+    const derived = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Profil", lastName: "Saisi", profiles: "contact" }, memberCookie));
+    expect(derived.status).toBe(400);
+    expect(await derived.json()).toMatchObject({ error: "champ_derive", fields: { profiles: "« Profils » se déduit des profils attachés et ne se saisit pas." } });
+    expect((await db.select({ id: person.id }).from(person)).length).toBe(before);
+
+    const created = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Bien", lastName: "Formée" }, memberCookie));
+    const { id } = (await created.json()) as { id: string };
+    const patchedProfiles = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { profiles: "contact" }, memberCookie), byId(id));
+    expect(patchedProfiles.status).toBe(400);
+    expect(await patchedProfiles.json()).toMatchObject({ error: "champ_derive", fields: { profiles: "« Profils » se déduit des profils attachés et ne se saisit pas." } });
+    const patchedName = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { name: "Autre Nom" }, memberCookie), byId(id));
+    expect(patchedName.status).toBe(400);
+    expect(await patchedName.json()).toMatchObject({ error: "champ_derive", fields: { name: "« Nom complet » se déduit du prénom et du nom et ne se saisit pas." } });
+    const patchedEmail = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { email: "pas une adresse" }, memberCookie), byId(id));
+    expect(patchedEmail.status).toBe(400);
+    expect(await patchedEmail.json()).toMatchObject({ fields: { email: "Cette adresse n'est pas valide." } });
+    const read = await getPerson(jsonRequest("GET", `/api/personnes/${id}`, undefined, memberCookie), byId(id));
+    expect(await read.json()).toMatchObject({ name: "Bien Formée", profiles: "aucun", email: null });
+  });
+});
