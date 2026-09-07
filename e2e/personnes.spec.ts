@@ -28,22 +28,27 @@ async function createCompany(page: Page, name: string): Promise<string> {
 }
 
 test.describe("contact d'une entreprise : liens, rôle, changement d'entreprise (CRM-42, contrats 6 et 7)", () => {
-  test("une personne rattachée à une entreprise apparaît dans les « Contacts » de sa fiche ; sa propre fiche montre l'entreprise, le rôle « Décideur » se règle, et changer l'entreprise la déplace en gardant l'ancienne dans l'historique", async ({ memberPage }) => {
+  test("depuis la fiche d'une entreprise, « Ajouter une personne » ouvre le dialogue avec l'entreprise pré-remplie ; la personne créée apparaît sous « Contacts », sa fiche montre l'entreprise, le rôle « Décideur » se règle, et changer l'entreprise la déplace en gardant l'ancienne dans l'historique", async ({ memberPage }) => {
     const solveige = `Banque Solveige ${suffix()}`;
     const ferrandi = `Groupe Ferrandi ${suffix()}`;
     const solveigeId = await createCompany(memberPage, solveige);
     const ferrandiId = await createCompany(memberPage, ferrandi);
     const lastName = `Dupont ${suffix()}`;
-    const created = await memberPage.request.post("/api/personnes", { data: { firstName: "Jean", lastName, email: `jean.${Date.now()}@solveige.fr`, companyId: solveigeId, jobTitle: "DSI" } });
-    expect(created.status()).toBe(201);
-    const { id } = (await created.json()) as { id: string };
     const fullName = `Jean ${lastName}`;
 
     await memberPage.goto(`/entreprises/${solveigeId}`);
     const contacts = memberPage.getByRole("region", { name: "Liens" }).getByRole("region", { name: "Contacts" });
-    await expect(contacts.getByRole("link", { name: fullName })).toBeVisible();
-    await contacts.getByRole("link", { name: fullName }).click();
-    await expect(memberPage).toHaveURL(`/personnes/${id}`);
+    await expect(contacts.getByText("Aucune fiche liée.")).toBeVisible();
+    await contacts.getByRole("button", { name: "Ajouter une personne" }).click();
+    const dialog = memberPage.getByRole("dialog", { name: "Nouvelle personne" });
+    await expect(dialog.getByRole("combobox", { name: "Entreprise" })).toContainText(solveige);
+    await dialog.getByLabel("Prénom").fill("Jean");
+    await dialog.getByLabel("Nom", { exact: true }).fill(lastName);
+    await dialog.getByLabel("Email principal").fill(`jean.${Date.now()}@solveige.fr`);
+    await dialog.getByLabel("Poste").fill("DSI");
+    await dialog.getByRole("button", { name: "Créer" }).click();
+    await expect(memberPage).toHaveURL(/\/personnes\/[0-9a-f-]{36}$/);
+    const id = memberPage.url().split("/").pop()!;
 
     await expect(memberPage.getByRole("heading", { level: 1, name: fullName })).toBeVisible();
     await expect(memberPage.getByText("Profils : Contact")).toBeVisible();
@@ -51,7 +56,11 @@ test.describe("contact d'une entreprise : liens, rôle, changement d'entreprise 
     await expect(links.getByRole("link", { name: solveige })).toBeVisible();
     const profile = memberPage.getByRole("region", { name: "Profil contact" });
     await expect(profile.getByRole("combobox", { name: "Entreprise" })).toContainText(solveige);
-    await expect(profile.getByLabel("Poste")).toHaveValue("DSI");
+    await expect(memberPage.getByRole("region", { name: "Champs" }).getByLabel("Poste")).toHaveValue("DSI");
+    await memberPage.goto(`/entreprises/${solveigeId}`);
+    await expect(contacts.getByRole("link", { name: fullName })).toBeVisible();
+    await contacts.getByRole("link", { name: fullName }).click();
+    await expect(memberPage).toHaveURL(`/personnes/${id}`);
     await expect(profile.getByRole("combobox", { name: "Rôle dans la décision" })).toContainText("Non précisé");
 
     const history = memberPage.getByRole("region", { name: "Historique" });
@@ -124,7 +133,7 @@ test.describe("personne sans email ni entreprise, Profils dérivé, deux adresse
     await profile.getByRole("button", { name: "Ajouter un profil contact" }).click();
     await pickOption(memberPage, profile.getByRole("combobox", { name: "Entreprise" }), company);
     await expect(memberPage.getByText("Profils : Contact")).toBeVisible();
-    await expect(profile.getByLabel("Poste")).toBeVisible();
+    await expect(memberPage.getByRole("region", { name: "Champs" }).getByLabel("Poste")).toHaveValue("");
     await expect(profile.getByRole("combobox", { name: "Rôle dans la décision" })).toContainText("Non précisé");
     await expect(memberPage.getByRole("region", { name: "Historique" }).getByText("Profils : Aucun → Contact")).toBeVisible();
     await expect(memberPage.getByRole("region", { name: "Liens" }).getByRole("link", { name: company })).toBeVisible();
