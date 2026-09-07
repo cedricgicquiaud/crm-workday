@@ -63,7 +63,8 @@ export function ActivityFeed({ type, id, items, more, users, currentUserId }: Pr
 
   return (
     <section aria-label="Fil d'activité" className="grid min-w-0 content-start gap-3">
-      <h2 className="text-base font-medium">Fil d&apos;activité</h2>
+      {/* Sous 900 px, l'onglet porte déjà le nom du fil : le titre de section le répéterait vingt pixels plus bas. */}
+      <h2 className="text-base font-medium max-[899px]:hidden">Fil d&apos;activité</h2>
       <ActivityComposer type={type} id={id} users={users} currentUserId={currentUserId} />
       <div role="group" aria-label="Filtrer le fil" className="flex flex-wrap gap-1">
         {feedFilters(items).map((chip) => (
@@ -103,14 +104,19 @@ export function ActivityFeed({ type, id, items, more, users, currentUserId }: Pr
   );
 }
 
-/** Ligne de méta d'une entrée : type, fiche d'origine, état de la tâche, statut d'un email, auteur, date, « automatique ». */
+/**
+ * Ligne de méta d'une entrée : type, fiche d'origine, état de la tâche, statut d'un email, auteur,
+ * date, « automatique ». L'auteur ferme la ligne : aucune autre part ne redit son nom.
+ */
 function metaParts(item: FeedItem): ReactNode[] {
   const parts: ReactNode[] = [kindLabel(item.kind)];
   if (item.source) parts.push(<Link key="source" href={item.source.href} className="hover:underline focus-visible:rounded-sm">{item.source.title}</Link>);
   if (item.task) {
     if (item.task.dueDate) parts.push(`échéance ${formatDate(item.task.dueDate)}`);
-    if (item.task.assignee) parts.push(item.task.assignee);
-    if (item.task.done) parts.push("faite");
+    /* Le responsable n'est nommé que s'il diffère de l'auteur, déjà nommé en fin de ligne : sinon le même nom s'y lisait deux fois, sans rien pour les distinguer. */
+    if (item.task.assignee && item.task.assigneeId !== item.author?.id) parts.push(`pour ${item.task.assignee}`);
+    /* Contrat 12 : une tâche faite dit le jour de son cochage, jamais celui de sa création. */
+    if (item.task.done) parts.push(item.task.doneAt ? `faite le ${formatDate(item.task.doneAt)}` : "faite");
     else if (item.task.overdue) parts.push("en retard");
   }
   if (item.status) parts.push(STATUS_LABELS[item.status as EmailStatus] ?? item.status);
