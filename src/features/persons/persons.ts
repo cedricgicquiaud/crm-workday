@@ -5,7 +5,7 @@
  */
 import { createObject, getObjectRecord, listObjectRecords, updateObject, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
-import { otherEmailsOf } from "./emails";
+import { assertEmailAvailable, normalizeEmail, otherEmailsOf } from "./emails";
 import { DERIVED_FIELDS } from "./schema";
 
 const TYPE = "person";
@@ -26,9 +26,16 @@ async function withEmails(record: ObjectRecord): Promise<PersonRecord> {
   return { ...record, otherEmails: (await otherEmailsOf(record.id)).join(", ") };
 }
 
+/** L'adresse principale saisie, si elle en est une, doit être libre dans tout le CRM avant toute écriture (une adresse mal formée est refusée ensuite, 400, par les descripteurs). */
+async function assertPrimaryEmailAvailable(input: Record<string, unknown>, exceptPersonId: string | null): Promise<void> {
+  if (typeof input.email !== "string" || input.email.trim() === "") return;
+  await assertEmailAvailable(normalizeEmail(input.email), exceptPersonId);
+}
+
 export async function createPerson(input: unknown, actor: Actor): Promise<PersonRecord> {
   const raw = asObject(input);
   refuseDerived(raw);
+  await assertPrimaryEmailAvailable(raw, null);
   return withEmails(await createObject(TYPE, raw, actor));
 }
 
@@ -37,6 +44,7 @@ export const getPerson = async (id: string): Promise<PersonRecord> => withEmails
 export async function updatePerson(id: string, patch: unknown, actor: Actor): Promise<PersonRecord> {
   const raw = asObject(patch);
   refuseDerived(raw);
+  await assertPrimaryEmailAvailable(raw, id);
   return withEmails(await updateObject(TYPE, id, raw, actor));
 }
 
