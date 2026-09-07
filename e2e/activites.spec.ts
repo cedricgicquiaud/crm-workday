@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { resetActivities, seedJournalEmail } from "./fixtures/activites";
 import { expect, MEMBER, seedAccounts, test } from "./fixtures/auth";
 import { resetObjects } from "./fixtures/objets";
@@ -18,6 +18,26 @@ const memberName = `${MEMBER.firstName} ${MEMBER.lastName}`;
 
 /** Nombre de fois qu'un texte se lit dans une entrée du fil. */
 const occurrences = (needle: string, haystack: string) => haystack.split(needle).length - 1;
+
+/**
+ * Motif ARIA d'onglets : l'onglet désigne son ou ses volets par `aria-controls`, et chacun de ces
+ * volets est un `tabpanel` que l'onglet nomme. Rend les volets désignés, pour vérifier ensuite
+ * lequel est affiché.
+ */
+async function panelsOf(page: Page, tab: Locator): Promise<Locator[]> {
+  const tabId = await tab.getAttribute("id");
+  expect(tabId).toBeTruthy();
+  const ids = ((await tab.getAttribute("aria-controls")) ?? "").split(" ").filter(Boolean);
+  expect(ids.length).toBeGreaterThan(0);
+  const panels: Locator[] = [];
+  for (const id of ids) {
+    const panel = page.locator(`[id="${id}"]`);
+    await expect(panel).toHaveAttribute("role", "tabpanel");
+    await expect(panel).toHaveAttribute("aria-labelledby", tabId!);
+    panels.push(panel);
+  }
+  return panels;
+}
 
 test.beforeAll(() => {
   resetActivities();
@@ -165,13 +185,24 @@ test.describe("le fil sous 900 px (CRM-44, D5)", () => {
     const fields = memberPage.getByRole("region", { name: "Champs" });
     const tabs = memberPage.getByRole("tablist", { name: "Sections de la fiche" });
 
-    await expect(tabs.getByRole("tab", { name: /^Fiche/ })).toHaveAttribute("aria-current", "page");
+    const ficheTab = tabs.getByRole("tab", { name: /^Fiche/ });
+    const filTab = tabs.getByRole("tab", { name: /^Fil d'activité/ });
+    await expect(ficheTab).toHaveAttribute("aria-current", "page");
     await expect(fields).toBeVisible();
     await expect(feed).toBeHidden();
 
-    await tabs.getByRole("tab", { name: /^Fil d'activité/ }).click();
+    /* Chaque onglet désigne ses volets, chaque volet est un tabpanel nommé par son onglet ; seul celui de l'onglet courant s'affiche. */
+    for (const panel of await panelsOf(memberPage, ficheTab)) await expect(panel).toBeVisible();
+    for (const panel of await panelsOf(memberPage, filTab)) await expect(panel).toBeHidden();
+
+    await filTab.click();
     await expect(feed).toBeVisible();
     await expect(fields).toBeHidden();
+    /* L'idiome du projet reste servi : l'entrée courante porte aussi `aria-current`. */
+    await expect(filTab).toHaveAttribute("aria-current", "page");
+    await expect(ficheTab).not.toHaveAttribute("aria-current", "page");
+    for (const panel of await panelsOf(memberPage, filTab)) await expect(panel).toBeVisible();
+    for (const panel of await panelsOf(memberPage, ficheTab)) await expect(panel).toBeHidden();
     /* Le libellé « Fil d'activité » ne se lit qu'une fois : l'onglet le porte, le titre de section s'efface. */
     await expect(feed.getByRole("heading", { level: 2, name: "Fil d'activité" })).toBeHidden();
     const overflow = await memberPage.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
