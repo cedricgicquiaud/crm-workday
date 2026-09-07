@@ -112,3 +112,14 @@ export function registerPaletteSource(source: PaletteSource): () => void {
 export function getPaletteSources(): readonly PaletteSource[] {
   return sourcesSnapshot;
 }
+
+/** Sous ce nombre de caractères saisis (espaces retirés), aucune source n'est interrogée (D8). */
+export const PALETTE_SEARCH_MIN_LENGTH = 3;
+
+/** Interroge les sources avec la saisie ; rien sous le seuil. */
+export async function searchPaletteSources(query: string): Promise<PaletteResult[]> {
+  const text = query.trim();
+  if (text.length < PALETTE_SEARCH_MIN_LENGTH) return [];
+  const results = await Promise.all(sourcesSnapshot.map((source) => source.search(text)));
+  return results.flat();
+}
