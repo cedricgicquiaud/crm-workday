@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { search } from "@/features/search/search";
+import { search, SEARCH_MAX_LENGTH, SEARCH_MIN_LENGTH } from "@/features/search/search";
 import { HttpError, requireSession, withApi } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
-
-const SEARCH_MIN_LENGTH = 3;
-const SEARCH_MAX_LENGTH = 120;
 
 const querySchema = z.string().trim().min(SEARCH_MIN_LENGTH).max(SEARCH_MAX_LENGTH);
 
