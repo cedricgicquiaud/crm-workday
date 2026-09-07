@@ -1,9 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type KeyboardEvent } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ContactProfile } from "@/features/persons/contact-profile";
@@ -18,17 +17,16 @@ const FAILED = "La modification n'a pas pu être enregistrée.";
 
 /**
  * Section « Profil contact » de la fiche personne (D3) : sans profil, un bouton « Ajouter un profil
- * contact » ouvre le choix de l'entreprise (obligatoire) ; avec profil, l'entreprise, le poste et le
- * rôle s'éditent en place. La valeur affichée ne change qu'après la réponse 2xx ; un refus s'affiche
- * sous le champ (`role="alert"`) et la valeur enregistrée revient. Le sélecteur ne propose que des
- * entreprises actives.
+ * contact » ouvre le choix de l'entreprise (obligatoire) ; avec profil, l'entreprise et le rôle
+ * s'éditent en place (le poste, champ déclaré de la personne, s'édite dans « Champs »). La valeur
+ * affichée ne change qu'après la réponse 2xx ; un refus s'affiche sous le champ (`role="alert"`) et
+ * la valeur enregistrée revient. Le sélecteur ne propose que des entreprises actives.
  */
 export function ContactProfileSection({ personId, profile: initial, companies }: Props) {
   const router = useRouter();
   const [profile, setProfile] = useState(initial);
   const [adding, setAdding] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [jobTitle, setJobTitle] = useState(initial?.jobTitle ?? "");
 
   /** Enregistre un changement du profil (création au premier choix d'entreprise) ; rend vrai si accepté. */
   async function save(field: string, value: string): Promise<boolean> {
@@ -45,29 +43,10 @@ export function ContactProfileSection({ personId, profile: initial, companies }:
     const body = (await res.json().catch(() => null)) as (ContactProfile & Failure) | null;
     if (!res.ok) return fail(body?.fields?.[field] ?? body?.message ?? FAILED);
     setErrors((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== field)));
-    if (body) {
-      setProfile(body);
-      setJobTitle(body.jobTitle ?? "");
-    }
+    if (body) setProfile(body);
     setAdding(false);
     router.refresh();
     return true;
-  }
-
-  async function commitJobTitle() {
-    const value = jobTitle.trim();
-    if (value === (profile?.jobTitle ?? "")) return;
-    if (!(await save("jobTitle", value))) setJobTitle(profile?.jobTitle ?? "");
-  }
-
-  function onJobTitleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Escape") {
-      setJobTitle(profile?.jobTitle ?? "");
-      event.currentTarget.blur();
-    } else if (event.key === "Enter") {
-      event.preventDefault();
-      event.currentTarget.blur();
-    }
   }
 
   const companyError = errors.companyId;
@@ -91,15 +70,12 @@ export function ContactProfileSection({ personId, profile: initial, companies }:
       {!profile && adding && (
         <div className="grid gap-3">
           {companyField}
-          <p className="text-xs text-muted-foreground">Choisir l&apos;entreprise crée le profil ; le poste et le rôle se règlent ensuite.</p>
+          <p className="text-xs text-muted-foreground">Choisir l&apos;entreprise crée le profil ; le rôle se règle ensuite, le poste dans « Champs ».</p>
         </div>
       )}
       {profile && (
         <div className="grid gap-3">
           {companyField}
-          <Field id="profil-contact-jobTitle" label="Poste" error={errors.jobTitle}>
-            <Input id="profil-contact-jobTitle" className="h-7 truncate" value={jobTitle} title={jobTitle || undefined} aria-invalid={errors.jobTitle ? true : undefined} aria-describedby={errors.jobTitle ? "profil-contact-jobTitle-error" : undefined} onChange={(e) => setJobTitle(e.target.value)} onBlur={() => void commitJobTitle()} onKeyDown={onJobTitleKeyDown} />
-          </Field>
           <Field id="profil-contact-decisionRole" label="Rôle dans la décision" error={errors.decisionRole}>
             <Select items={DECISION_ROLES.map((role) => ({ value: role.value, label: role.label }))} value={profile.decisionRole} onValueChange={(next) => next && void save("decisionRole", next)}>
               <SelectTrigger id="profil-contact-decisionRole" aria-label="Rôle dans la décision" size="sm" aria-invalid={errors.decisionRole ? true : undefined} aria-describedby={errors.decisionRole ? "profil-contact-decisionRole-error" : undefined} className="w-full">

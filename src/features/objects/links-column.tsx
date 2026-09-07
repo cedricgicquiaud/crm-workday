@@ -2,8 +2,11 @@ import { cn } from "cn";
 import { and, desc, eq, getTableColumns, isNull } from "drizzle-orm";
 import Link from "next/link";
 import "@/features/objects/manifest.server";
+import { QuickCreateDialog } from "@/features/objects/quick-create-dialog";
 import { getObject, listObjects, type Relation } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
+import { listUserOptions } from "@/features/objects/service";
+import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
 export type LinkedRecord = { id: string; title: string; href: string };
@@ -60,13 +63,21 @@ export async function linkedGroups(type: string, id: string): Promise<LinkedGrou
   return [...own, ...inverse];
 }
 
+/** « Ajouter une personne », « Ajouter un consultant » : le genre vient de l'article déclaré. */
+const addLabel = (objectKey: string) => {
+  const { labels } = getObject(objectKey);
+  return `Ajouter ${labels.article === "une" ? "une" : "un"} ${labels.singular.toLowerCase()}`;
+};
+
 /**
  * Colonne des liens de la fiche (D4, D5) : un groupe par relation déclarée, vers cet objet ou depuis
- * lui, avec les fiches liées chargées par le registre. Sans relation déclarée, la colonne montre son
- * état vide.
+ * lui, avec les fiches liées chargées par le registre. Un groupe inverse dont la relation déclare un
+ * `prefill` offre la création rapide de la fiche liée, pré-remplie avec celle-ci (« ajouter un
+ * contact », D7) : bouton secondaire, le bouton plein reste celui de la liste. Sans relation
+ * déclarée, la colonne montre son état vide.
  */
 export async function LinksColumn({ type, id, className }: { type: string; id: string; className?: string }) {
-  const groups = await linkedGroups(type, id);
+  const [groups, users, { user }] = await Promise.all([linkedGroups(type, id), listUserOptions(), requireSession()]);
   return (
     <section aria-label="Liens" className={cn("grid min-w-0 content-start gap-3", className)}>
       <h2 className="text-base font-medium">Liens</h2>
@@ -74,8 +85,9 @@ export async function LinksColumn({ type, id, className }: { type: string; id: s
         <p className="text-sm text-muted-foreground">Aucune fiche liée pour l&apos;instant.</p>
       ) : (
         groups.map((group) => (
-          <section key={group.key} aria-label={group.label} className="grid gap-1">
+          <section key={group.key} aria-label={group.label} className="grid justify-items-start gap-1">
             <h3 className="text-sm font-medium text-muted-foreground">{group.label}</h3>
+            {group.create && <QuickCreateDialog type={group.create.type} users={users} currentUserId={user.id} prefill={group.create.prefill} trigger={{ label: addLabel(group.create.type), variant: "outline", size: "sm" }} />}
             {group.records.length === 0 ? (
               <p className="text-sm text-muted-foreground">Aucune fiche liée.</p>
             ) : (

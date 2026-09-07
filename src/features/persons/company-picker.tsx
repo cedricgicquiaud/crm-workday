@@ -1,6 +1,6 @@
 "use client";
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RelationSelect } from "@/features/objects/quick-create-dialog";
 
 export type CompanyOption = { id: string; name: string };
 
@@ -15,21 +15,8 @@ type Props = {
   onChange: (companyId: string) => void;
 };
 
-/** Sélecteur d'entreprise de rattachement (D3) : les entreprises actives, la dernière modifiée en tête. */
+/** Sélecteur d'entreprise de rattachement du profil contact (D3) : le sélecteur de relation des mécanismes, avec l'entreprise courante même archivée. */
 export function CompanyPicker({ id, value, options, current, error, describedBy, onChange }: Props) {
   const items = current && !options.some((option) => option.id === current.id) ? [...options, { id: current.id, name: `${current.name} (archivée)` }] : options;
-  return (
-    <Select items={items.map((option) => ({ value: option.id, label: option.name }))} value={value} onValueChange={(next) => next && onChange(next)}>
-      <SelectTrigger id={id} aria-label="Entreprise" size="sm" aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="w-full min-w-0">
-        <SelectValue className="min-w-0 truncate" placeholder="Choisir une entreprise…" />
-      </SelectTrigger>
-      <SelectContent>
-        {items.map((option) => (
-          <SelectItem key={option.id} value={option.id}>
-            {option.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
+  return <RelationSelect id={id} label="Entreprise" value={value} options={items} placeholder="Choisir une entreprise…" error={error} describedBy={describedBy} onChange={onChange} />;
 }
