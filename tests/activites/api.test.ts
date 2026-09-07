@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PATCH as patchActivity } from "@/app/api/activites/[id]/route";
-import { POST as postActivity } from "@/app/api/objets/[type]/[id]/activites/route";
+import { GET as getFeed, POST as postActivity } from "@/app/api/objets/[type]/[id]/activites/route";
 import { DELETE as deleteHistory, PATCH as patchHistory } from "@/app/api/objets/[type]/[id]/historique/route";
 import { POST as postCompany } from "@/app/api/entreprises/route";
 import { POST as postPerson } from "@/app/api/personnes/route";
@@ -135,5 +135,23 @@ describe("API des activités — cocher une tâche (CRM-45, contrat 12)", () => 
     const archivee = await patchActivity(jsonRequest("PATCH", `/api/activites/${id}`, { done: true }, memberCookie), byId(id));
     expect(archivee.status).toBe(409);
     expect(await archivee.json()).toMatchObject({ error: "fiche_archivee" });
+  });
+});
+
+describe("API des activités — lecture du fil (CRM-44)", () => {
+  it("rend le fil d'une fiche, la plus récente d'abord, et répond 404 pour une fiche inconnue, 401 sans session", async () => {
+    const companyId = await createCompany("Lecture du fil");
+    const context = on("company", companyId);
+    await postActivity(jsonRequest("POST", `/api/objets/company/${companyId}/activites`, { type: "note", body: "Première note." }, memberCookie), context);
+
+    const read = await getFeed(jsonRequest("GET", `/api/objets/company/${companyId}/activites`, undefined, memberCookie), context);
+    expect(read.status).toBe(200);
+    const { entries } = (await read.json()) as { entries: { kind: string; text: string | null }[] };
+    expect(entries[0]).toMatchObject({ kind: "note", text: "Première note." });
+    expect(entries.some((entry) => entry.kind === "changement")).toBe(true);
+
+    const inconnue = "00000000-0000-4000-8000-000000000000";
+    expect((await getFeed(jsonRequest("GET", `/api/objets/company/${inconnue}/activites`, undefined, memberCookie), on("company", inconnue))).status).toBe(404);
+    expect((await getFeed(jsonRequest("GET", `/api/objets/company/${companyId}/activites`), context)).status).toBe(401);
   });
 });
