@@ -25,9 +25,10 @@ async function openPalette(page: Page) {
   return palette;
 }
 
-async function createAcme(page: Page): Promise<{ id: string; name: string }> {
+/** Crée « ACME SAS … (e2e) » ; le SIREN, unique en base, n'est posé que par le test qui cherche par SIREN. */
+async function createAcme(page: Page, siren?: string): Promise<{ id: string; name: string }> {
   const name = `ACME SAS ${suffix()}`;
-  const created = await page.request.post("/api/entreprises", { data: { name, type: "client", siren: ACME_SIREN } });
+  const created = await page.request.post("/api/entreprises", { data: { name, type: "client", siren } });
   expect(created.status()).toBe(201);
   const { id } = (await created.json()) as { id: string };
   return { id, name };
@@ -35,7 +36,7 @@ async function createAcme(page: Page): Promise<{ id: string; name: string }> {
 
 test.describe("recherche dans la palette (CRM-39, contrat 3)", () => {
   test("« acm », « me s » et le SIREN font apparaître « ACME SAS » en tête, préfixée de l'icône entreprise et présélectionnée ; Entrée ouvre sa fiche ; sous trois caractères, aucune requête ne part", async ({ memberPage }) => {
-    const { id, name } = await createAcme(memberPage);
+    const { id, name } = await createAcme(memberPage, ACME_SIREN);
     const searches: string[] = [];
     memberPage.on("request", (request) => {
       const url = new URL(request.url());
