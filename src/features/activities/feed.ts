@@ -6,6 +6,7 @@
  * dernières portent la fiche d'origine, que l'écran nomme.
  */
 import { and, desc, eq, getTableColumns, inArray, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { activity, user } from "@/db/schema";
 import { historyLabel } from "@/features/history/history-list";
 import { listHistory } from "@/features/history/history";
@@ -14,6 +15,7 @@ import { getServerObject } from "@/features/objects/registry.server";
 import { listUserOptions } from "@/features/objects/service";
 import { db } from "@/lib/db";
 import { listEmailLog } from "@/lib/mail/journal";
+import { isOverdue } from "./overdue";
 import { CHANGE, EMAIL, TASK } from "./schema";
 
 /** Auteur d'une entrée ; `null` = le système (D11), seul cas qui porte la mention « automatique ». */
@@ -21,6 +23,9 @@ export type FeedAuthor = { id: string; name: string } | null;
 
 /** Fiche d'origine d'une entrée venue d'une autre fiche que celle du fil (un contact). */
 export type FeedSource = { type: string; id: string; title: string; href: string };
+
+/** Ce qu'une tâche ajoute à son entrée : de quoi la cocher et dire si elle est en retard (D13). */
+export type FeedTask = { activityId: string; done: boolean; dueDate: string | null; overdue: boolean; assignee: string | null };
 
 export type FeedItem = {
   /** clé stable dans le fil, préfixée par la provenance de l'entrée */
@@ -35,6 +40,8 @@ export type FeedItem = {
   source: FeedSource | null;
   /** statut d'un email (envoyé, échec) ; nul pour les autres entrées */
   status: string | null;
+  /** état d'une tâche ; nul pour les autres entrées */
+  task: FeedTask | null;
 };
 
 const nameOf = (firstName: string | null, lastName: string | null) => `${firstName ?? ""} ${lastName ?? ""}`.trim();
@@ -66,6 +73,7 @@ async function sourcesOf(origins: readonly { objectType: string; objectId: strin
 
 /** Activités de la fiche et de celles qui l'avaient pour parent, la plus récente d'abord. */
 async function activityItems(objectType: string, objectId: string): Promise<FeedItem[]> {
+  const assignee = alias(user, "assignee");
   const rows = await db
     .select({
       id: activity.id,
@@ -74,13 +82,19 @@ async function activityItems(objectType: string, objectId: string): Promise<Feed
       type: activity.type,
       body: activity.body,
       title: activity.title,
+      dueDate: activity.dueDate,
+      doneAt: activity.doneAt,
       createdAt: activity.createdAt,
       authorId: activity.authorId,
       authorFirstName: user.firstName,
       authorLastName: user.lastName,
+      assigneeId: activity.assigneeId,
+      assigneeFirstName: assignee.firstName,
+      assigneeLastName: assignee.lastName,
     })
     .from(activity)
     .leftJoin(user, eq(user.id, activity.authorId))
+    .leftJoin(assignee, eq(assignee.id, activity.assigneeId))
     .where(or(and(eq(activity.objectType, objectType), eq(activity.objectId, objectId)), and(eq(activity.parentType, objectType), eq(activity.parentId, objectId))))
     .orderBy(desc(activity.createdAt), desc(activity.id));
   const sources = await sourcesOf(rows.filter((row) => row.objectId !== objectId).map((row) => ({ objectType: row.objectType, objectId: row.objectId })));
@@ -92,6 +106,7 @@ async function activityItems(objectType: string, objectId: string): Promise<Feed
     text: row.type === TASK ? row.title : row.body,
     source: row.objectId === objectId ? null : sources.get(`${row.objectType}:${row.objectId}`) ?? null,
     status: null,
+    task: row.type === TASK ? { activityId: row.id, done: row.doneAt !== null, dueDate: row.dueDate, overdue: row.doneAt === null && isOverdue(row.dueDate), assignee: row.assigneeId ? nameOf(row.assigneeFirstName, row.assigneeLastName) : null } : null,
   }));
 }
 
@@ -106,6 +121,7 @@ async function changeItems(objectType: string, objectId: string): Promise<FeedIt
     text: historyLabel(objectType, entry, users),
     source: null,
     status: null,
+    task: null,
   }));
 }
 
@@ -120,6 +136,7 @@ async function emailItems(objectType: string, objectId: string): Promise<FeedIte
     text: entry.subject,
     source: null,
     status: entry.status,
+    task: null,
   }));
 }
 
