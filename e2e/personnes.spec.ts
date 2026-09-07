@@ -137,18 +137,19 @@ test.describe("personne sans email ni entreprise, Profils dérivé, deux adresse
     await expect(profile.getByRole("combobox", { name: "Rôle dans la décision" })).toContainText("Non précisé");
     await expect(memberPage.getByRole("region", { name: "Historique" }).getByText("Profils : Aucun → Contact")).toBeVisible();
 
-    /* Un champ en lecture seule se lit comme du texte : un contrôle éteint serait à demi transparent (défaut d'audit 2.2). */
-    const readOnly = memberPage.getByRole("region", { name: "Champs" });
-    await expect(readOnly.getByRole("combobox", { name: "Profils" })).toHaveCount(0);
-    await expect(readOnly.getByLabel("Profils")).toHaveText("Contact");
-    await expect(readOnly.getByRole("textbox", { name: "Nom complet" })).toHaveCount(0);
-    await expect(readOnly.getByLabel("Nom complet")).toHaveText(fullName);
     await expect(memberPage.getByRole("region", { name: "Liens" }).getByRole("link", { name: company })).toBeVisible();
     await memberPage.goto("/personnes");
     await expect(table.getByRole("row").filter({ has: memberPage.getByRole("link", { name: fullName }) })).toContainText("Contact");
 
     await memberPage.goto(`/personnes/${id}`);
     const fields = memberPage.getByRole("region", { name: "Champs" });
+
+    /* Un champ en lecture seule se lit comme du texte : rendu par un contrôle éteint, il serait à demi transparent (défaut d'audit 2.2). */
+    await expect(fields.getByRole("combobox", { name: "Profils" })).toHaveCount(0);
+    await expect(fields.getByLabel("Profils")).toHaveText("Contact");
+    await expect(fields.getByRole("textbox", { name: "Nom complet" })).toHaveCount(0);
+    await expect(fields.getByLabel("Nom complet")).toHaveText(fullName);
+
     const stamp = Date.now().toString(36);
     await fields.getByLabel("Email principal").fill(`Camille.Faure.${stamp}@Vaubourg.fr`);
     await memberPage.keyboard.press("Enter");
