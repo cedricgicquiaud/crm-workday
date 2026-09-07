@@ -20,8 +20,8 @@ export function CompanyPicker({ id, value, options, current, error, describedBy,
   const items = current && !options.some((option) => option.id === current.id) ? [...options, { id: current.id, name: `${current.name} (archivée)` }] : options;
   return (
     <Select items={items.map((option) => ({ value: option.id, label: option.name }))} value={value} onValueChange={(next) => next && onChange(next)}>
-      <SelectTrigger id={id} aria-label="Entreprise" size="sm" aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="w-full">
-        <SelectValue placeholder="Choisir une entreprise…" />
+      <SelectTrigger id={id} aria-label="Entreprise" size="sm" aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="w-full min-w-0">
+        <SelectValue className="min-w-0 truncate" placeholder="Choisir une entreprise…" />
       </SelectTrigger>
       <SelectContent>
         {items.map((option) => (

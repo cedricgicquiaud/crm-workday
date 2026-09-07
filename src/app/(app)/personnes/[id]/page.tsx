@@ -53,11 +53,11 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </header>
       <div className="grid gap-6 min-[900px]:grid-cols-[minmax(0,1fr)_var(--pane-right-w)] xl:grid-cols-[var(--pane-left-w)_minmax(0,1fr)_var(--pane-right-w)]">
         <LinksColumn type={TYPE} id={id} className="min-[900px]:hidden xl:block" />
-        <div className="grid content-start gap-6">
+        <div className="grid min-w-0 content-start gap-6">
           <FieldsSection type={TYPE} record={serializeRecord(record)} users={users} />
           <ContactProfileSection personId={id} profile={profile} companies={companies.map((company) => ({ id: company.id, name: String(company.name) }))} />
         </div>
-        <section aria-label="Historique" className="grid content-start gap-3">
+        <section aria-label="Historique" className="grid min-w-0 content-start gap-3">
           <h2 className="text-base font-medium">Historique</h2>
           <HistoryList type={TYPE} id={id} users={users} />
         </section>

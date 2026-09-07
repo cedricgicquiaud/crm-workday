@@ -61,7 +61,7 @@ export async function linkedGroups(type: string, id: string): Promise<LinkedGrou
 export async function LinksColumn({ type, id, className }: { type: string; id: string; className?: string }) {
   const groups = await linkedGroups(type, id);
   return (
-    <section aria-label="Liens" className={cn("grid content-start gap-3", className)}>
+    <section aria-label="Liens" className={cn("grid min-w-0 content-start gap-3", className)}>
       <h2 className="text-base font-medium">Liens</h2>
       {groups.length === 0 ? (
         <p className="text-sm text-muted-foreground">Aucune fiche liée pour l&apos;instant.</p>
@@ -74,7 +74,7 @@ export async function LinksColumn({ type, id, className }: { type: string; id: s
             ) : (
               <ul className="grid gap-0.5">
                 {group.records.map((record) => (
-                  <li key={record.id} className="truncate text-sm" title={record.title}>
+                  <li key={record.id} className="min-w-0 truncate text-sm" title={record.title}>
                     <Link href={record.href} className="hover:underline focus-visible:rounded-sm">
                       {record.title}
                     </Link>
