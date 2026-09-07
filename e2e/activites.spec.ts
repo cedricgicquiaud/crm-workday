@@ -170,3 +170,44 @@ test.describe("le fil sous 900 px (CRM-44, D5)", () => {
     await expect(fields).toBeVisible();
   });
 });
+
+test.describe("fil d'activité d'une personne (CRM-44, contrat 11)", () => {
+  test("un membre ajoute une note, un appel et une tâche avec échéance sur la fiche d'une personne : les trois sont dans son fil groupé par jour, la tâche échue met la bannière sur sa fiche, et le fil de son entreprise les reprend sous son nom", async ({ memberPage }) => {
+    const companyId = await createCompany(memberPage, `Assurances Vaubourg ${suffix()}`);
+    const lastName = `Benali ${suffix()}`;
+    const personId = await createPerson(memberPage, "Sofia", lastName, companyId);
+
+    await memberPage.goto(`/personnes/${personId}`);
+    const feed = memberPage.getByRole("region", { name: "Fil d'activité" });
+    const composer = feed.getByRole("group", { name: "Nouvelle activité" });
+
+    await composer.getByRole("textbox").fill("Le budget SIRH est validé.");
+    await composer.getByRole("button", { name: "Enregistrer" }).click();
+    await expect(feed.getByText("Le budget SIRH est validé.")).toBeVisible();
+
+    await composer.getByRole("button", { name: "Appel", exact: true }).click();
+    await composer.getByRole("textbox").fill("Appel de cadrage, 20 minutes.");
+    await composer.getByRole("button", { name: "Enregistrer" }).click();
+    await expect(feed.getByText("Appel de cadrage, 20 minutes.")).toBeVisible();
+
+    await composer.getByRole("button", { name: "Tâche", exact: true }).click();
+    await composer.getByLabel("Titre").fill("Envoyer le calendrier de projet");
+    await composer.getByLabel("Échéance").fill(parisDay(-1));
+    await composer.getByRole("button", { name: "Enregistrer" }).click();
+
+    const today = feed.getByRole("region", { name: dayLabel() });
+    await expect(today.getByText("Le budget SIRH est validé.")).toBeVisible();
+    await expect(today.getByText("Appel de cadrage, 20 minutes.")).toBeVisible();
+    await expect(today.getByText("Envoyer le calendrier de projet")).toBeVisible();
+
+    /* L'échéance est celle de la veille : la fiche de la personne porte la bannière (contrat 12). */
+    await expect(memberPage.getByRole("status").filter({ hasText: "tâche échue" })).toHaveText("1 tâche échue.");
+
+    await memberPage.goto(`/entreprises/${companyId}`);
+    const companyFeed = memberPage.getByRole("region", { name: "Fil d'activité" });
+    for (const text of ["Le budget SIRH est validé.", "Appel de cadrage, 20 minutes.", "Envoyer le calendrier de projet"]) {
+      await expect(companyFeed.getByText(text)).toBeVisible();
+    }
+    await expect(companyFeed.getByRole("link", { name: `Sofia ${lastName}` })).toHaveCount(3);
+  });
+});
