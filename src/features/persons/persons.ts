@@ -46,10 +46,20 @@ async function prepareInput(input: unknown, exceptPersonId: string | null, curre
   const primary = primaryOf(fields, currentEmail);
   if (primary) await assertEmailAvailable(primary, exceptPersonId);
   const prepared: PreparedInput = { fields, otherEmails: null, profile: Object.keys(profile).length > 0 ? profile : null };
-  if (otherEmails === undefined) return prepared;
+  if (otherEmails === undefined) return { ...prepared, otherEmails: exceptPersonId && primary ? await withoutPromoted(exceptPersonId, primary) : null };
   const addresses = parseOtherEmails(typeof otherEmails === "string" ? otherEmails : "", primary);
   await assertOtherEmailsAvailable(addresses, exceptPersonId);
   return { ...prepared, otherEmails: addresses };
+}
+
+/**
+ * Les autres adresses d'une personne sans celle qui vient de passer principale ; `null` quand elles ne
+ * changent pas. Sans ce retrait, une adresse promue resterait dans « Autres emails » et la fiche
+ * l'afficherait deux fois (défaut d'audit 2.2).
+ */
+async function withoutPromoted(personId: string, primary: string): Promise<string[] | null> {
+  const current = await otherEmailsOf(personId);
+  return current.includes(primary) ? current.filter((address) => address !== primary) : null;
 }
 
 /** L'adresse principale normalisée après la modification : celle saisie, sinon celle enregistrée ; `null` si aucune. */
