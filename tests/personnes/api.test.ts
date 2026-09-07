@@ -182,4 +182,23 @@ describe("API des personnes — autres adresses (CRM-40, CRM-41, D2, contrat 8 e
     const freed = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Tom", lastName: "Libre", email: "lea@perso.fr" }, memberCookie));
     expect(freed.status).toBe(201);
   });
+
+  it("promouvoir une autre adresse en adresse principale la retire des autres adresses : la fiche ne l'affiche pas deux fois", async () => {
+    await cleanup();
+    const created = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Nina", lastName: "Roche", email: "nina.roche@acme.fr" }, memberCookie));
+    const { id } = (await created.json()) as { id: string };
+    expect((await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { otherEmails: "nina@perso.fr, n.roche@autre.fr" }, memberCookie), byId(id))).status).toBe(200);
+
+    const promoted = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { email: "Nina@Perso.fr" }, memberCookie), byId(id));
+    expect(promoted.status).toBe(200);
+    expect(await promoted.json()).toMatchObject({ email: "nina@perso.fr", otherEmails: "n.roche@autre.fr" });
+    const read = await getPerson(jsonRequest("GET", `/api/personnes/${id}`, undefined, memberCookie), byId(id));
+    expect(await read.json()).toMatchObject({ email: "nina@perso.fr", otherEmails: "n.roche@autre.fr" });
+    const history = await db.select({ field: auditLog.field, oldValue: auditLog.oldValue, newValue: auditLog.newValue }).from(auditLog).where(eq(auditLog.objectId, id));
+    expect(history).toContainEqual({ field: "otherEmails", oldValue: "n.roche@autre.fr, nina@perso.fr", newValue: "n.roche@autre.fr" });
+
+    /* Une adresse principale qui ne figure pas dans les autres adresses ne les touche pas. */
+    const other = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { email: "nina.roche@acme.fr" }, memberCookie), byId(id));
+    expect(await other.json()).toMatchObject({ email: "nina.roche@acme.fr", otherEmails: "n.roche@autre.fr" });
+  });
 });

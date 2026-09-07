@@ -66,13 +66,13 @@ test.describe("contact d'une entreprise : liens, rôle, changement d'entreprise 
     const history = memberPage.getByRole("region", { name: "Historique" });
     await pickOption(memberPage, profile.getByRole("combobox", { name: "Rôle dans la décision" }), "Décideur");
     await expect(profile.getByRole("combobox", { name: "Rôle dans la décision" })).toContainText("Décideur");
-    await expect(history.getByText("decisionRole : Non précisé → Décideur")).toBeVisible();
+    await expect(history.getByText("Rôle dans la décision : Non précisé → Décideur")).toBeVisible();
 
     await pickOption(memberPage, profile.getByRole("combobox", { name: "Entreprise" }), ferrandi);
     await expect(profile.getByRole("combobox", { name: "Entreprise" })).toContainText(ferrandi);
     await expect(links.getByRole("link", { name: ferrandi })).toBeVisible();
     await expect(links.getByRole("link", { name: solveige })).toHaveCount(0);
-    await expect(history.getByText(`companyId : ${solveige} → ${ferrandi}`)).toBeVisible();
+    await expect(history.getByText(`Entreprise : ${solveige} → ${ferrandi}`)).toBeVisible();
 
     await memberPage.reload();
     await expect(profile.getByRole("combobox", { name: "Entreprise" })).toContainText(ferrandi);
@@ -136,6 +136,13 @@ test.describe("personne sans email ni entreprise, Profils dérivé, deux adresse
     await expect(memberPage.getByRole("region", { name: "Champs" }).getByLabel("Poste")).toHaveValue("");
     await expect(profile.getByRole("combobox", { name: "Rôle dans la décision" })).toContainText("Non précisé");
     await expect(memberPage.getByRole("region", { name: "Historique" }).getByText("Profils : Aucun → Contact")).toBeVisible();
+
+    /* Un champ en lecture seule se lit comme du texte : un contrôle éteint serait à demi transparent (défaut d'audit 2.2). */
+    const readOnly = memberPage.getByRole("region", { name: "Champs" });
+    await expect(readOnly.getByRole("combobox", { name: "Profils" })).toHaveCount(0);
+    await expect(readOnly.getByLabel("Profils")).toHaveText("Contact");
+    await expect(readOnly.getByRole("textbox", { name: "Nom complet" })).toHaveCount(0);
+    await expect(readOnly.getByLabel("Nom complet")).toHaveText(fullName);
     await expect(memberPage.getByRole("region", { name: "Liens" }).getByRole("link", { name: company })).toBeVisible();
     await memberPage.goto("/personnes");
     await expect(table.getByRole("row").filter({ has: memberPage.getByRole("link", { name: fullName }) })).toContainText("Contact");

@@ -3,10 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET as getProfile, PATCH as patchProfile } from "@/app/api/personnes/[id]/profil-contact/route";
 import { GET as getPerson, PATCH as patchPerson } from "@/app/api/personnes/[id]/route";
 import { GET as listPersons, POST as postPerson } from "@/app/api/personnes/route";
-import { auditLog, company, person, user } from "@/db/schema";
+import { auditLog, company, contactProfile, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { listHistory } from "@/features/history/history";
 import { createObject } from "@/features/objects/service";
+import { getContactProfile, prepareContactProfile, writeContactProfile } from "@/features/persons/contact-profile";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
@@ -105,6 +106,28 @@ describe("profil contact — ajout sur une personne (CRM-40, CRM-41, D3, contrat
     expect(await again.json()).toMatchObject({ companyId: solveigeId, jobTitle: "Directrice des achats", decisionRole: "acheteur" });
     expect((await changesOf(id)).filter(([field]) => field === "profiles")).toEqual([["profiles", "aucun", "contact"]]);
     expect(await changesOf(id)).toContainEqual(["jobTitle", "Acheteuse", "Directrice des achats"]);
+  });
+});
+
+describe("profil contact — écriture tout ou rien (CRM-40, contrat 10)", () => {
+  it("si le rattachement de l'entreprise échoue après l'insertion du profil, rien n'est écrit : aucune personne ne garde un profil sans entreprise", async () => {
+    const id = await createPerson({ firstName: "Tout", lastName: "Ourien" });
+    const doomed = (await createObject("company", { name: "Éphémère SA", type: "client" }, { id: memberId })).id;
+    /* L'entreprise disparaît entre la validation et l'écriture : la seconde écriture (`person.company_id`) échoue. */
+    const prepared = await prepareContactProfile({ companyId: doomed }, null);
+    await db.delete(company).where(eq(company.id, doomed));
+    await expect(writeContactProfile(id, prepared, { id: memberId })).rejects.toThrow();
+
+    expect(await db.select({ id: contactProfile.id }).from(contactProfile).where(eq(contactProfile.personId, id))).toEqual([]);
+    expect(await readPerson(id)).toMatchObject({ profiles: "aucun", companyId: null });
+    expect(await changesOf(id)).toEqual([]);
+  });
+
+  it("un profil dont la personne n'a plus d'entreprise est signalé, jamais rendu avec une entreprise vide", async () => {
+    const id = await createPerson({ firstName: "Profil", lastName: "Orphelin" });
+    await db.insert(contactProfile).values({ personId: id, jobTitle: "DSI", decisionRole: "decideur" });
+    await expect(getContactProfile(id)).rejects.toMatchObject({ status: 500, code: "profil_sans_entreprise" });
+    await db.delete(contactProfile).where(eq(contactProfile.personId, id));
   });
 });
 

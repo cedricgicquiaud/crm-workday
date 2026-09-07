@@ -3,6 +3,7 @@ import "@/features/objects/manifest.server";
 import { eq } from "drizzle-orm";
 import { auditLog, company, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { fieldsOf, historyFieldsOf } from "@/features/objects/fields";
 import { getObject, listObjects } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
 import { createObject } from "@/features/objects/service";
@@ -48,6 +49,20 @@ describe("déclaration de la personne dans le registre (CRM-41, D4)", () => {
     expect(definition.fields.find((f) => f.key === "jobTitle")).toMatchObject({ label: "Poste", type: "text", maxLength: 120 });
     expect(definition.fields.find((f) => f.key === "profiles")).toMatchObject({ type: "list", editable: false });
     expect(definition.fields.find((f) => f.key === "name")).toMatchObject({ editable: false });
+  });
+});
+
+/** L'historique nomme un champ par son libellé ; ceux du profil contact s'éditent hors de la section « Champs » et doivent être déclarés quand même. */
+describe("libellés des champs édités hors de la section « Champs » (CRM-42, D12)", () => {
+  it("déclare « Entreprise » et « Rôle dans la décision » pour l'historique, sans les ajouter à la section « Champs » de la fiche", () => {
+    const labels = new Map(historyFieldsOf("person").map((field) => [field.key, field.label]));
+    expect(labels.get("companyId")).toBe("Entreprise");
+    expect(labels.get("decisionRole")).toBe("Rôle dans la décision");
+    /* Les champs de la fiche restent lisibles par le même chemin. */
+    expect(labels.get("profiles")).toBe("Profils");
+    expect(labels.get("jobTitle")).toBe("Poste");
+    expect(fieldsOf("person").map((field) => field.key)).not.toContain("companyId");
+    expect(fieldsOf("person").map((field) => field.key)).not.toContain("decisionRole");
   });
 });
 

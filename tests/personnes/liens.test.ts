@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { auditLog, company, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
-import { linkedGroups } from "@/features/objects/links-column";
+import { LINKED_RECORDS_LIMIT, linkedGroups } from "@/features/objects/links-column";
 import { createObject } from "@/features/objects/service";
 import { createPerson, updatePerson } from "@/features/persons/persons";
 import { closeDb, db } from "@/lib/db";
@@ -58,5 +58,26 @@ describe("colonne des liens — fiches liées par relation déclarée (CRM-42, D
     expect(await linkedGroups("person", jean.id)).toEqual([{ key: "person-company-companyId", label: "Entreprise", records: [{ id: solveige.id, title: "Banque Solveige", href: `/entreprises/${solveige.id}` }] }]);
     expect(await linkedGroups("person", alone.id)).toEqual([{ key: "person-company-companyId", label: "Entreprise", records: [] }]);
     expect((await linkedGroups("company", ferrandi.id))[0].records.map((r) => r.title)).toEqual(["Chez Ferrandi"]);
+  });
+});
+
+/** Une entreprise à trois cents contacts n'en affiche pas trois cents : la colonne borne sa liste et dit le reste. */
+describe("colonne des liens — liste bornée (CRM-42, D4)", () => {
+  it("n'affiche que les vingt dernières fiches liées et compte les autres", async () => {
+    const grande = await createObject("company", { name: "Grande Maison", type: "client" }, { id: actorId });
+    const total = LINKED_RECORDS_LIMIT + 3;
+    for (let rang = 1; rang <= total; rang += 1) {
+      await createPerson({ firstName: "Contact", lastName: `Numéro ${String(rang).padStart(2, "0")}`, companyId: grande.id }, { id: actorId });
+    }
+    const [contacts] = await linkedGroups("company", grande.id);
+    expect(contacts.records).toHaveLength(LINKED_RECORDS_LIMIT);
+    expect(contacts.more).toBe(total - LINKED_RECORDS_LIMIT);
+
+    /* Sous la borne, rien n'est annoncé en trop. */
+    const petite = await createObject("company", { name: "Petite Maison", type: "client" }, { id: actorId });
+    await createPerson({ firstName: "Seul", lastName: "Contact", companyId: petite.id }, { id: actorId });
+    const [peu] = await linkedGroups("company", petite.id);
+    expect(peu.records).toHaveLength(1);
+    expect(peu.more).toBeUndefined();
   });
 });
