@@ -146,3 +146,40 @@ describe("API des personnes — adresse déjà portée (CRM-40, D19, contrat 9)"
     expect(await archived.json()).toMatchObject({ message: "L'adresse jean.dupont@acme.fr est déjà portée par « Jean Dupont » (fiche archivée).", archived: true });
   });
 });
+
+describe("API des personnes — autres adresses (CRM-40, CRM-41, D2, contrat 8 et 9)", () => {
+  it("PATCH « Autres emails » enregistre deux adresses normalisées, les relit, les historise ; une adresse mal formée → 400, une adresse portée ailleurs → 409 dans les deux sens ; vider retire tout", async () => {
+    await cleanup();
+    const created = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Léa", lastName: "Bernard", email: "lea.bernard@acme.fr" }, memberCookie));
+    const { id } = (await created.json()) as { id: string };
+
+    const patched = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { otherEmails: "Lea@Perso.fr ; l.bernard@autre.fr, lea.bernard@acme.fr" }, memberCookie), byId(id));
+    expect(patched.status).toBe(200);
+    /* L'adresse principale répétée n'est pas une autre adresse ; les autres sont normalisées et dédoublonnées. */
+    expect(await patched.json()).toMatchObject({ otherEmails: "lea@perso.fr, l.bernard@autre.fr" });
+    const read = await getPerson(jsonRequest("GET", `/api/personnes/${id}`, undefined, memberCookie), byId(id));
+    expect(await read.json()).toMatchObject({ email: "lea.bernard@acme.fr", otherEmails: "lea@perso.fr, l.bernard@autre.fr" });
+    const history = await db.select({ field: auditLog.field, oldValue: auditLog.oldValue, newValue: auditLog.newValue }).from(auditLog).where(eq(auditLog.objectId, id));
+    expect(history).toContainEqual({ field: "otherEmails", oldValue: null, newValue: "lea@perso.fr, l.bernard@autre.fr" });
+
+    const malformed = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { otherEmails: "lea@perso.fr, pas-une-adresse" }, memberCookie), byId(id));
+    expect(malformed.status).toBe(400);
+    expect(await malformed.json()).toMatchObject({ error: "donnees_invalides", fields: { otherEmails: "Cette adresse n'est pas valide : pas-une-adresse." } });
+
+    const other = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Tom", lastName: "Petit", email: "Lea@Perso.fr" }, memberCookie));
+    expect(other.status).toBe(409);
+    expect(await other.json()).toMatchObject({ error: "valeur_deja_portee", message: "L'adresse lea@perso.fr est déjà portée par « Léa Bernard ».", existingId: id });
+    const tom = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Tom", lastName: "Petit", email: "tom.petit@acme.fr" }, memberCookie));
+    const { id: tomId } = (await tom.json()) as { id: string };
+    const stolen = await patchPerson(jsonRequest("PATCH", `/api/personnes/${tomId}`, { otherEmails: "LEA.BERNARD@acme.fr" }, memberCookie), byId(tomId));
+    expect(stolen.status).toBe(409);
+    expect(await stolen.json()).toMatchObject({ error: "valeur_deja_portee", field: "otherEmails", existingName: "Léa Bernard" });
+    expect(await getPerson(jsonRequest("GET", `/api/personnes/${tomId}`, undefined, memberCookie), byId(tomId)).then((r) => r.json())).toMatchObject({ otherEmails: "" });
+
+    const cleared = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { otherEmails: "" }, memberCookie), byId(id));
+    expect(cleared.status).toBe(200);
+    expect(await cleared.json()).toMatchObject({ otherEmails: "" });
+    const freed = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Tom", lastName: "Libre", email: "lea@perso.fr" }, memberCookie));
+    expect(freed.status).toBe(201);
+  });
+});
