@@ -37,7 +37,9 @@ async function loadPerson(id: string): Promise<PersonRecord> {
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const definition = getObject(TYPE);
-  const [record, users, profile, companies, feed, session] = await Promise.all([loadPerson(id), listUserOptions(), getContactProfile(id), listRecordOptions("company"), listFeed(TYPE, id), requireSession()]);
+  const [record, users, profile, companies, session] = await Promise.all([loadPerson(id), listUserOptions(), getContactProfile(id), listRecordOptions("company"), requireSession()]);
+  /* Les options d'utilisateurs sont lues une fois pour la fiche, puis passées au fil : il ne les relit pas. */
+  const feed = await listFeed(TYPE, id, users);
   const fields = fieldsOf(TYPE);
   const owner = fields.find((f) => f.key === "ownerId")!;
   const profiles = fields.find((f) => f.key === "profiles")!;
@@ -56,7 +58,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </header>
       <SheetBanners type={TYPE} id={id} />
       <SheetPanes
-        feedCount={feed.length}
+        feedCount={feed.items.length}
         links={<LinksColumn type={TYPE} id={id} />}
         main={
           <div className="grid min-w-0 content-start gap-6">
@@ -64,7 +66,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <ContactProfileSection personId={id} profile={profile} companies={companies} />
           </div>
         }
-        feed={<ActivityFeed type={TYPE} id={id} items={feed} users={users} currentUserId={session.user.id} />}
+        feed={<ActivityFeed type={TYPE} id={id} items={feed.items} more={feed.more} users={users} currentUserId={session.user.id} />}
       />
     </div>
   );

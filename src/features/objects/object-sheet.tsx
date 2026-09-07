@@ -31,7 +31,9 @@ async function loadRecord(type: string, id: string): Promise<ObjectRecord> {
 export async function ObjectSheet({ type, id }: { type: string; id: string }) {
   const definition = getObject(type);
   const record = await loadRecord(type, id);
-  const [users, feed, session] = await Promise.all([listUserOptions(), listFeed(type, id), requireSession()]);
+  const [users, session] = await Promise.all([listUserOptions(), requireSession()]);
+  /* Les options d'utilisateurs sont lues une fois pour la fiche, puis passées au fil : il ne les relit pas. */
+  const feed = await listFeed(type, id, users);
   const fields = fieldsOf(type);
   const title = displayValue(fields.find((f) => f.key === definition.titleField)!, record[definition.titleField], users);
   const owner = fields.find((f) => f.type === "user" && f.key === "ownerId");
@@ -52,10 +54,10 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
       </header>
       <SheetBanners type={type} id={id} />
       <SheetPanes
-        feedCount={feed.length}
+        feedCount={feed.items.length}
         links={<LinksColumn type={type} id={id} />}
         main={<FieldsSection type={type} record={serializeRecord(record)} users={users} />}
-        feed={<ActivityFeed type={type} id={id} items={feed} users={users} currentUserId={session.user.id} />}
+        feed={<ActivityFeed type={type} id={id} items={feed.items} more={feed.more} users={users} currentUserId={session.user.id} />}
       />
     </div>
   );

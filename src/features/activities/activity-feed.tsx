@@ -12,7 +12,7 @@ import { ActivityComposer } from "./activity-composer";
 import type { FeedItem } from "./feed";
 import { ALL, feedFilters, feedKinds } from "./schema";
 
-type Props = { type: string; id: string; items: readonly FeedItem[]; users: readonly UserOption[]; currentUserId: string };
+type Props = { type: string; id: string; items: readonly FeedItem[]; more: number; users: readonly UserOption[]; currentUserId: string };
 
 const FAILED = "La tâche n'a pas pu être enregistrée.";
 
@@ -33,9 +33,10 @@ function byDay(items: readonly FeedItem[]): { day: string; items: FeedItem[] }[]
  * jour, filtrable par type en puces qui portent leur compteur. Chaque entrée dit son type, son
  * auteur et sa date ; celles dont l'auteur est le système portent la mention « automatique » en
  * toutes lettres, jamais un simple gris. Une tâche se coche ici même ; l'écran ne change qu'après
- * la réponse 2xx du serveur, et un refus s'affiche sous l'entrée.
+ * la réponse 2xx du serveur, et un refus s'affiche sous l'entrée. Le fil est borné : quand des
+ * entrées plus anciennes n'ont pas été chargées, une ligne dit combien.
  */
-export function ActivityFeed({ type, id, items, users, currentUserId }: Props) {
+export function ActivityFeed({ type, id, items, more, users, currentUserId }: Props) {
   const router = useRouter();
   const [filter, setFilter] = useState(ALL);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -97,6 +98,7 @@ export function ActivityFeed({ type, id, items, users, currentUserId }: Props) {
           ))}
         </div>
       )}
+      {more > 0 && <p className="text-xs text-muted-foreground">{`et ${more} entrée${more > 1 ? "s" : ""} plus ancienne${more > 1 ? "s" : ""}`}</p>}
     </section>
   );
 }

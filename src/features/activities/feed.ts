@@ -5,15 +5,14 @@
  * pour parent au moment où elles ont été écrites (`parent_type` / `parent_id`, contrat 7) ; ces
  * dernières portent la fiche d'origine, que l'écran nomme.
  */
-import { and, desc, eq, getTableColumns, inArray, or } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, inArray, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { activity, user } from "@/db/schema";
-import { listHistory, type HistoryEntry } from "@/features/history/history";
+import { countHistory, listHistory, type HistoryEntry } from "@/features/history/history";
 import { historyFieldsOf } from "@/features/objects/fields";
 import { displayValue, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
-import { listUserOptions } from "@/features/objects/service";
 import { db } from "@/lib/db";
 import { listEmailLog } from "@/lib/mail/journal";
 import { isOverdue } from "./overdue";
@@ -25,8 +24,24 @@ export type FeedAuthor = { id: string; name: string } | null;
 /** Fiche d'origine d'une entrée venue d'une autre fiche que celle du fil (un contact). */
 export type FeedSource = { type: string; id: string; title: string; href: string };
 
-/** Ce qu'une tâche ajoute à son entrée : de quoi la cocher et dire si elle est en retard (D13). */
-export type FeedTask = { activityId: string; done: boolean; dueDate: string | null; overdue: boolean; assignee: string | null };
+/**
+ * Ce qu'une tâche ajoute à son entrée : de quoi la cocher, dire si elle est en retard (D13) et
+ * afficher la date de son cochage (`doneAt`, contrat 12). `assigneeId` accompagne le nom du
+ * responsable : l'écran ne le répète pas quand c'est l'auteur, déjà nommé sur la même ligne.
+ */
+export type FeedTask = { activityId: string; done: boolean; doneAt: string | null; dueDate: string | null; overdue: boolean; assignee: string | null; assigneeId: string | null };
+
+/** Entrées du fil d'une fiche, bornées : `more` compte celles, plus anciennes, qui n'ont pas été chargées. */
+export type Feed = { items: FeedItem[]; more: number };
+
+/**
+ * Entrées chargées au plus par le fil, toutes provenances confondues : une fiche de trois ans
+ * d'historique n'en charge pas trois ans à chaque rendu (comme la colonne des liens en 2.2).
+ */
+export const FEED_ITEMS_LIMIT = 50;
+
+/** Ce qu'une provenance rend au fil : ses entrées les plus récentes, et le nombre total qu'elle porte. */
+type FeedPart = { items: FeedItem[]; total: number };
 
 export type FeedItem = {
   /** clé stable dans le fil, préfixée par la provenance de l'entrée */
@@ -72,9 +87,10 @@ async function sourcesOf(origins: readonly { objectType: string; objectId: strin
   return sources;
 }
 
-/** Activités de la fiche et de celles qui l'avaient pour parent, la plus récente d'abord. */
-async function activityItems(objectType: string, objectId: string): Promise<FeedItem[]> {
+/** Activités de la fiche et de celles qui l'avaient pour parent, la plus récente d'abord, bornées. */
+async function activityItems(objectType: string, objectId: string): Promise<FeedPart> {
   const assignee = alias(user, "assignee");
+  const scope = or(and(eq(activity.objectType, objectType), eq(activity.objectId, objectId)), and(eq(activity.parentType, objectType), eq(activity.parentId, objectId)));
   const rows = await db
     .select({
       id: activity.id,
@@ -96,19 +112,44 @@ async function activityItems(objectType: string, objectId: string): Promise<Feed
     .from(activity)
     .leftJoin(user, eq(user.id, activity.authorId))
     .leftJoin(assignee, eq(assignee.id, activity.assigneeId))
-    .where(or(and(eq(activity.objectType, objectType), eq(activity.objectId, objectId)), and(eq(activity.parentType, objectType), eq(activity.parentId, objectId))))
-    .orderBy(desc(activity.createdAt), desc(activity.id));
-  const sources = await sourcesOf(rows.filter((row) => row.objectId !== objectId).map((row) => ({ objectType: row.objectType, objectId: row.objectId })));
-  return rows.map((row) => ({
+    .where(scope)
+    .orderBy(desc(activity.createdAt), desc(activity.id))
+    .limit(FEED_ITEMS_LIMIT);
+  /* Une fiche d'un autre objet peut porter le même identifiant : la provenance se juge sur les deux. */
+  const elsewhere = (row: { objectType: string; objectId: string }) => row.objectType !== objectType || row.objectId !== objectId;
+  const sources = await sourcesOf(rows.filter(elsewhere).map((row) => ({ objectType: row.objectType, objectId: row.objectId })));
+  const items = rows.map((row) => ({
     id: `activite:${row.id}`,
     kind: row.type,
     at: row.createdAt.toISOString(),
     author: row.authorId ? { id: row.authorId, name: nameOf(row.authorFirstName, row.authorLastName) } : null,
     text: row.type === TASK ? row.title : row.body,
-    source: row.objectId === objectId ? null : sources.get(`${row.objectType}:${row.objectId}`) ?? null,
+    source: elsewhere(row) ? sources.get(`${row.objectType}:${row.objectId}`) ?? null : null,
     status: null,
-    task: row.type === TASK ? { activityId: row.id, done: row.doneAt !== null, dueDate: row.dueDate, overdue: row.doneAt === null && isOverdue(row.dueDate), assignee: row.assigneeId ? nameOf(row.assigneeFirstName, row.assigneeLastName) : null } : null,
+    task:
+      row.type === TASK
+        ? {
+            activityId: row.id,
+            done: row.doneAt !== null,
+            doneAt: row.doneAt?.toISOString() ?? null,
+            dueDate: row.dueDate,
+            overdue: row.doneAt === null && isOverdue(row.dueDate),
+            assignee: row.assigneeId ? nameOf(row.assigneeFirstName, row.assigneeLastName) : null,
+            assigneeId: row.assigneeId,
+          }
+        : null,
   }));
+  return { items, total: await totalOf(items.length, () => db.select({ value: count() }).from(activity).where(scope)) };
+}
+
+/**
+ * Total d'une provenance : les entrées chargées suffisent tant que la borne n'est pas atteinte ;
+ * en dessous, aucune requête de compte n'est faite.
+ */
+async function totalOf(loaded: number, countRows: () => Promise<{ value: number }[]>): Promise<number> {
+  if (loaded < FEED_ITEMS_LIMIT) return loaded;
+  const [row] = await countRows();
+  return Math.max(Number(row?.value ?? loaded), loaded);
 }
 
 const ACTION_LABELS: Record<HistoryEntry["action"], string> = { creee: "Fiche créée", modifiee: "Champ modifié", archivee: "Fiche archivée", restauree: "Fiche restaurée", fusionnee: "Fiche fusionnée" };
@@ -126,10 +167,13 @@ function historyLabel(type: string, entry: HistoryEntry, users: readonly UserOpt
   return entry.action === "modifiee" ? changeLabel(historyFieldsOf(type), entry, users) : ACTION_LABELS[entry.action];
 }
 
-/** Changements de la fiche (D12) : l'historique est un type d'entrée du fil, il n'a plus de colonne à lui. */
-async function changeItems(objectType: string, objectId: string): Promise<FeedItem[]> {
-  const [entries, users] = await Promise.all([listHistory(objectType, objectId), listUserOptions()]);
-  return entries.map((entry) => ({
+/**
+ * Changements de la fiche (D12) : l'historique est un type d'entrée du fil, il n'a plus de colonne à
+ * lui. Les options d'utilisateurs viennent de l'appelant, qui les a déjà lues pour la fiche.
+ */
+async function changeItems(objectType: string, objectId: string, users: readonly UserOption[]): Promise<FeedPart> {
+  const entries = await listHistory(objectType, objectId, FEED_ITEMS_LIMIT);
+  const items = entries.map((entry) => ({
     id: `changement:${entry.id}`,
     kind: CHANGE,
     at: entry.createdAt.toISOString(),
@@ -139,12 +183,16 @@ async function changeItems(objectType: string, objectId: string): Promise<FeedIt
     status: null,
     task: null,
   }));
+  return { items, total: items.length < FEED_ITEMS_LIMIT ? items.length : await countHistory(objectType, objectId) };
 }
 
-/** Emails du journal qui portent la référence de la fiche (D10) : lecture seule, sujet et statut. */
-async function emailItems(objectType: string, objectId: string): Promise<FeedItem[]> {
+/**
+ * Emails du journal qui portent la référence de la fiche (D10) : lecture seule, sujet et statut. Le
+ * journal borne déjà sa propre lecture ; le fil n'en garde que les plus récents.
+ */
+async function emailItems(objectType: string, objectId: string): Promise<FeedPart> {
   const entries = await listEmailLog({ objectType, objectId });
-  return entries.map((entry) => ({
+  const items = entries.slice(0, FEED_ITEMS_LIMIT).map((entry) => ({
     id: `email:${entry.id}`,
     kind: EMAIL,
     at: entry.createdAt.toISOString(),
@@ -154,13 +202,18 @@ async function emailItems(objectType: string, objectId: string): Promise<FeedIte
     status: entry.status,
     task: null,
   }));
+  return { items, total: entries.length };
 }
 
 /**
- * Entrées du fil d'une fiche, toutes provenances mêlées, la plus récente d'abord. Le tri est stable :
- * deux entrées de même date gardent l'ordre de leur provenance, jamais un ordre au hasard.
+ * Entrées du fil d'une fiche, toutes provenances mêlées, la plus récente d'abord, bornées à
+ * `FEED_ITEMS_LIMIT` ; `more` dit combien d'entrées plus anciennes n'ont pas été chargées. Le tri est
+ * stable : deux entrées de même date gardent l'ordre de leur provenance, jamais un ordre au hasard.
+ * Les options d'utilisateurs sont reçues, jamais relues : la fiche les a déjà lues pour ses champs.
  */
-export async function listFeed(objectType: string, objectId: string): Promise<FeedItem[]> {
-  const parts = await Promise.all([activityItems(objectType, objectId), changeItems(objectType, objectId), emailItems(objectType, objectId)]);
-  return parts.flat().sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+export async function listFeed(objectType: string, objectId: string, users: readonly UserOption[]): Promise<Feed> {
+  const parts = await Promise.all([activityItems(objectType, objectId), changeItems(objectType, objectId, users), emailItems(objectType, objectId)]);
+  const merged = parts.flatMap((part) => part.items).sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  const items = merged.slice(0, FEED_ITEMS_LIMIT);
+  return { items, more: Math.max(parts.reduce((total, part) => total + part.total, 0) - items.length, 0) };
 }
