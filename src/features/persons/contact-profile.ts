@@ -57,7 +57,10 @@ export async function getContactProfile(personId: string): Promise<ContactProfil
     .where(eq(contactProfile.personId, personId))
     .limit(1);
   if (!row) return null;
-  return { ...row, companyId: row.companyId ?? "", companyName: row.companyName ?? "" };
+  /* Un profil sans entreprise de rattachement n'existe pas (contrat 10) : le rendre avec une entreprise vide
+     masquerait une écriture faite à moitié au lieu de la signaler. */
+  if (!row.companyId || !row.companyName) throw new HttpError(500, "profil_sans_entreprise", "Profil contact sans entreprise de rattachement : la fiche est incohérente.", { personId });
+  return { ...row, companyId: row.companyId, companyName: row.companyName };
 }
 
 /** Valeurs validées d'un profil et l'entreprise chargée ; rien n'est écrit. */
@@ -89,8 +92,12 @@ export async function writeContactProfile(personId: string, prepared: PreparedCo
   if (!existing) {
     if (!target) throw invalid({ companyId: "« Entreprise » est obligatoire." });
     changes.push({ field: "profiles", oldValue: String(current.profiles), newValue: "contact" });
-    await db.insert(contactProfile).values({ personId, jobTitle: (values.jobTitle as string | null) ?? null, decisionRole: String(values.decisionRole) });
-    await db.update(person).set({ companyId: target.id, profiles: "contact", updatedAt: now }).where(eq(person.id, personId));
+    /* Les deux écritures sont indissociables : un profil resté sans entreprise parce que la seconde a échoué
+       violerait le contrat 10 et ne serait plus lisible (contrat 10, défaut d'audit 2.2). */
+    await db.transaction(async (tx) => {
+      await tx.insert(contactProfile).values({ personId, jobTitle: (values.jobTitle as string | null) ?? null, decisionRole: String(values.decisionRole) });
+      await tx.update(person).set({ companyId: target.id, profiles: "contact", updatedAt: now }).where(eq(person.id, personId));
+    });
     changes.push({ field: "companyId", oldValue: await companyNameOf(current.companyId as string | null), newValue: target.name });
     changes.push({ field: "jobTitle", oldValue: null, newValue: (values.jobTitle as string | null) ?? null });
     changes.push({ field: "decisionRole", oldValue: null, newValue: roleLabel(values.decisionRole) });
