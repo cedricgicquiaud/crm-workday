@@ -2,10 +2,15 @@
  * Règles de la personne (D2, D3) : listes fermées, descripteurs de champs. Seule source de ces
  * règles, appliquée par le service (API) et par les formulaires. Les clés des champs sont les noms
  * de colonnes Drizzle en camelCase ; `otherEmails` n'est pas une colonne mais la table
- * `person_email`, lue et écrite par `emails.ts`.
+ * `person_email`, lue et écrite par `emails.ts`. Ce fichier est importable côté client : aucune base.
  */
 import type { FieldDescriptor, ListValue } from "@/features/objects/registry";
-import { EMAIL_RULE, EMAIL_REGEX, normalizeEmail } from "./emails";
+
+export const EMAIL_RULE = "Cette adresse n'est pas valide.";
+export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Minuscules, espaces retirés : « Jean.Dupont@Acme.fr » et « jean.dupont@acme.fr » sont la même adresse. */
+export const normalizeEmail = (value: string): string => value.toLowerCase().replace(/\s+/g, "");
 
 /** Valeurs du champ dérivé Profils ; la feature 3 ajoutera « consultant ». */
 export const PROFILES: readonly ListValue[] = [

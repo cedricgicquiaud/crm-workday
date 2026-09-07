@@ -6,8 +6,8 @@
 import { assertWritable, createObject, getObjectRecord, listObjectRecords, updateObject, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { CONTACT_PROFILE_KEYS, prepareContactProfile, writeContactProfile, type PreparedContactProfile } from "./contact-profile";
-import { assertEmailAvailable, assertOtherEmailsAvailable, normalizeEmail, otherEmailsOf, parseOtherEmails, setOtherEmails } from "./emails";
-import { DERIVED_FIELDS } from "./schema";
+import { assertEmailAvailable, assertOtherEmailsAvailable, otherEmailsOf, parseOtherEmails, setOtherEmails } from "./emails";
+import { DERIVED_FIELDS, normalizeEmail } from "./schema";
 
 const TYPE = "person";
 

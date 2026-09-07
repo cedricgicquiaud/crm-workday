@@ -1,19 +1,14 @@
 /**
- * Adresses email d'une personne (D2, D19) : la règle de forme et de normalisation, partagée entre
- * les descripteurs, le service et l'écran ; l'unicité d'une adresse dans tout le CRM (principale ou
- * autre, archivées comprises) ; la lecture des autres adresses (`person_email`).
+ * Adresses email d'une personne (D2, D19), côté serveur : l'unicité d'une adresse dans tout le CRM
+ * (principale ou autre, archivées comprises) et les autres adresses (`person_email`). La règle de
+ * forme et de normalisation vit dans `schema.ts`, partagée avec l'écran.
  */
 import { and, asc, eq, ne, type SQL } from "drizzle-orm";
 import { person, personEmail } from "@/db/schema";
 import { recordHistory } from "@/features/history/history";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-
-export const EMAIL_RULE = "Cette adresse n'est pas valide.";
-export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/** Minuscules, espaces retirés : « Jean.Dupont@Acme.fr » et « jean.dupont@acme.fr » sont la même adresse. */
-export const normalizeEmail = (value: string): string => value.toLowerCase().replace(/\s+/g, "");
+import { EMAIL_REGEX, EMAIL_RULE, normalizeEmail } from "./schema";
 
 /** Autres adresses d'une personne, par ordre alphabétique (le même à la saisie et à la lecture). */
 export async function otherEmailsOf(personId: string): Promise<string[]> {

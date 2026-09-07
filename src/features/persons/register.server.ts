@@ -7,7 +7,7 @@ import { and, desc, eq, exists, ilike, isNull, or } from "drizzle-orm";
 import { company, person, personEmail } from "@/db/schema";
 import { registerServerObject, type SearchHit } from "@/features/objects/registry.server";
 import { db } from "@/lib/db";
-import { normalizeEmail } from "./emails";
+import { normalizeEmail } from "./schema";
 
 const MAX_HITS = 20;
 
