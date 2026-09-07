@@ -95,8 +95,16 @@ export type PaletteSource = {
 const sources = new Map<string, PaletteSource>();
 let sourcesSnapshot: readonly PaletteSource[] = [];
 
+/** `order` croissant, les sources sans rang en dernier, puis identifiant : l'ordre ne dépend jamais de l'ordre des imports. */
+function compareSources(a: PaletteSource, b: PaletteSource): number {
+  if (a.order !== undefined && b.order !== undefined && a.order !== b.order) return a.order - b.order;
+  if (a.order !== undefined && b.order === undefined) return -1;
+  if (a.order === undefined && b.order !== undefined) return 1;
+  return a.id.localeCompare(b.id, "fr");
+}
+
 function notifySources() {
-  sourcesSnapshot = Array.from(sources.values());
+  sourcesSnapshot = Array.from(sources.values()).sort(compareSources);
 }
 
 /** Enregistre une source ; rend la fonction qui la retire. */
