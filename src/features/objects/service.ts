@@ -137,8 +137,9 @@ export const RECORD_OPTIONS_LIMIT = 200;
  * toutes leurs colonnes à chaque ouverture d'une fiche qui porte un sélecteur.
  */
 export async function listRecordOptions(type: string, { limit = RECORD_OPTIONS_LIMIT } = {}): Promise<{ id: string; name: string }[]> {
-  const definition = getObject(type);
+  /* Le registre serveur d'abord : une clé inconnue est une ressource inexistante (404), pas une panne. */
   const { table } = getServerObject(type);
+  const definition = getObject(type);
   const columns = getTableColumns(table);
   const rows = await db
     .select({ id: columns.id, title: columns[definition.titleField] })

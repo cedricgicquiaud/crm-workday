@@ -81,7 +81,7 @@ export async function linkedGroups(type: string, id: string): Promise<LinkedGrou
 /** « Ajouter une personne », « Ajouter un consultant » : le genre vient de l'article déclaré. */
 const addLabel = (objectKey: string) => {
   const { labels } = getObject(objectKey);
-  return `Ajouter ${labels.article === "une" ? "une" : "un"} ${labels.singular.toLowerCase()}`;
+  return `Ajouter ${labels.article} ${labels.singular.toLowerCase()}`;
 };
 
 /**

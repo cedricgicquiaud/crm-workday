@@ -42,17 +42,16 @@ function entriesOf(type: string): Entry[] {
 }
 
 /**
- * Fiches non archivées de l'objet lié, pour le sélecteur d'une relation. Chaque objet expose sa liste
- * sous une clé qui lui est propre (`{ companies }`, `{ persons }`…) : on lit le premier tableau de la
- * réponse ; le titre vient du champ titre déclaré.
+ * Fiches non archivées de l'objet lié, pour le sélecteur d'une relation : la source bornée des
+ * mécanismes (identifiant et titre seulement). La liste complète de l'objet chargerait toutes ses
+ * fiches avec toutes leurs colonnes à chaque ouverture du dialogue.
  */
 async function loadRelationOptions(objectKey: string): Promise<RelationOption[]> {
   const definition = getObject(objectKey);
-  const res = await fetch(definition.apiBase);
+  const res = await fetch(`/api/objets/${encodeURIComponent(objectKey)}/options`);
   if (!res.ok) throw new Error(`Liste des ${definition.labels.plural.toLowerCase()} indisponible (${res.status}).`);
-  const body = (await res.json()) as Record<string, unknown>;
-  const rows = (Object.values(body).find(Array.isArray) ?? []) as Record<string, unknown>[];
-  return rows.map((row) => ({ id: String(row.id), name: String(row[definition.titleField] ?? "") }));
+  const { options } = (await res.json()) as { options: RelationOption[] };
+  return options;
 }
 
 /**
@@ -141,7 +140,7 @@ export function QuickCreateDialog({ type, users, currentUserId, prefill, trigger
               <QuickField key={entry.key} type={type} field={entry.field} value={valueOf(entry.field)} error={errors[entry.key]} users={users} onChange={(value) => set(entry.key, value)} />
             ) : (
               <Field key={entry.key} id={fieldId(type, entry.key)} label={entry.relation.label} error={errors[entry.key]}>
-                <RelationSelect id={fieldId(type, entry.key)} label={entry.relation.label} value={values[entry.key] ?? null} options={options[entry.key] ?? []} error={errors[entry.key]} describedBy={errors[entry.key] ? `${fieldId(type, entry.key)}-error` : undefined} onChange={(value) => set(entry.key, value)} />
+                <RelationSelect id={fieldId(type, entry.key)} label={entry.relation.label} value={values[entry.key] ?? null} options={options[entry.key] ?? []} size="default" error={errors[entry.key]} describedBy={errors[entry.key] ? `${fieldId(type, entry.key)}-error` : undefined} onChange={(value) => set(entry.key, value)} />
               </Field>
             ),
           )}
@@ -188,18 +187,24 @@ function Field({ id, label, error, children }: { id: string; label: string; erro
   );
 }
 
-type RelationSelectProps = { id: string; label: string; value: string | null; options: readonly RelationOption[]; placeholder?: string; error?: string; describedBy?: string; onChange: (id: string) => void };
+type RelationSelectProps = { id: string; label: string; value: string | null; options: readonly RelationOption[]; placeholder?: string; size?: "sm" | "default"; error?: string; describedBy?: string; onChange: (id: string) => void };
 
-/** Sélecteur d'une fiche liée : les fiches proposées par la liste de l'objet (jamais une archivée, D21), la valeur tronquée si elle est longue. */
-export function RelationSelect({ id, label, value, options, placeholder = "Choisir…", error, describedBy, onChange }: RelationSelectProps) {
+/**
+ * Sélecteur d'une fiche liée : les fiches proposées par la source bornée de l'objet (jamais une
+ * archivée, D21), la valeur tronquée si elle est longue. `size` suit les champs de l'écran qui le
+ * porte : « sm » sur une fiche, où les champs font 28 px, la taille par défaut dans un dialogue, où
+ * ils en font 32.
+ */
+export function RelationSelect({ id, label, value, options, placeholder = "Choisir…", size = "sm", error, describedBy, onChange }: RelationSelectProps) {
   /* Une valeur pré-remplie avant que la liste soit chargée reste sélectionnée : l'élément est ajouté sans libellé jusque-là. */
   const items = value && !options.some((option) => option.id === value) ? [...options, { id: value, name: "…" }] : options;
   return (
     <Select items={items.map((option) => ({ value: option.id, label: option.name }))} value={value} onValueChange={(next) => next && onChange(next)}>
-      <SelectTrigger id={id} aria-label={label} size="sm" aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="w-full min-w-0">
+      <SelectTrigger id={id} aria-label={label} size={size} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="w-full min-w-0">
         <SelectValue className="min-w-0 truncate" placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent>
+      {/* La liste s'ouvre alignée sur le champ ; alignée sur l'option choisie, elle déborderait de quelques pixels sur sa droite. */}
+      <SelectContent alignItemWithTrigger={false}>
         {items.map((option) => (
           <SelectItem key={option.id} value={option.id}>
             {option.name}

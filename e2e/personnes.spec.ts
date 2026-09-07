@@ -91,7 +91,8 @@ test.describe("contact d'une entreprise : liens, rôle, changement d'entreprise 
  */
 test.describe("dialogue « Nouvelle personne » : hauteur des champs et alignement de la liste (repasse visuelle 2.2)", () => {
   test("le sélecteur « Entreprise » a la hauteur des autres champs, sa liste s'ouvre alignée sur lui, et les entreprises proposées viennent de la source bornée", async ({ memberPage }) => {
-    await createCompany(memberPage, `Banque Solveige ${suffix()}`);
+    const entreprise = `Banque Solveige ${suffix()}`;
+    await createCompany(memberPage, entreprise);
     await memberPage.goto("/personnes");
     const demandes: string[] = [];
     memberPage.on("request", (request) => demandes.push(new URL(request.url()).pathname));
@@ -101,17 +102,33 @@ test.describe("dialogue « Nouvelle personne » : hauteur des champs et aligneme
     const picker = dialog.getByRole("combobox", { name: "Entreprise" });
     await expect(picker).toBeVisible();
 
-    const champ = await dialog.getByLabel("Prénom").boundingBox();
-    const selecteur = await picker.boundingBox();
-    expect(selecteur!.height, "hauteur du sélecteur").toBe(champ!.height);
-    expect(selecteur!.width, "largeur du sélecteur").toBe(champ!.width);
+    /* Le dialogue et la liste s'ouvrent par une mise à l'échelle : on remesure jusqu'à ce qu'ils ne bougent plus, un écart de position réel ne se résorbant jamais. */
+    await expect(async () => {
+      const champ = (await dialog.getByLabel("Prénom").boundingBox())!;
+      const selecteur = (await picker.boundingBox())!;
+      expect(Math.round(selecteur.height), "hauteur du sélecteur").toBe(Math.round(champ.height));
+      expect(Math.round(selecteur.width), "largeur du sélecteur").toBe(Math.round(champ.width));
+    }).toPass({ timeout: 5_000 });
+
+    const liste = memberPage.locator('[data-slot="select-content"]');
+    const alignee = async (quand: string) => {
+      await expect(liste).toBeVisible();
+      await expect(async () => {
+        const ouverte = (await liste.boundingBox())!;
+        const selecteur = (await picker.boundingBox())!;
+        expect(Math.round(ouverte.width), `largeur de la liste ${quand}`).toBe(Math.round(selecteur.width));
+        expect(Math.round(ouverte.x), `bord gauche de la liste ${quand}`).toBe(Math.round(selecteur.x));
+      }).toPass({ timeout: 5_000 });
+      await memberPage.keyboard.press("Escape");
+    };
 
     await picker.click();
-    const liste = memberPage.locator('[data-slot="select-content"]');
-    await expect(liste).toBeVisible();
-    const ouverte = await liste.boundingBox();
-    expect(Math.round(ouverte!.x), "bord gauche de la liste").toBe(Math.round(selecteur!.x));
-    await memberPage.keyboard.press("Escape");
+    await alignee("sans entreprise choisie");
+
+    /* Une entreprise choisie : la liste reste alignée sur le champ, au lieu de se caler sur l'option retenue. */
+    await pickOption(memberPage, picker, entreprise);
+    await picker.click();
+    await alignee("une entreprise choisie");
 
     /* Les entreprises proposées viennent de la source bornée des mécanismes, jamais de la liste complète. */
     expect(demandes).toContain("/api/objets/company/options");
