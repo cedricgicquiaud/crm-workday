@@ -53,7 +53,10 @@ dépôt, avec contrôle mécanique que l'agent y reste), `disallowedTools`, `mem
    Un agent qui sait qu'un autre relira son travail se surveille mieux qu'un agent qui se croit
    seul juge. Ne dis jamais *quand* il intervient : il ne choisit pas son moment, il est lancé.
 3. **Le contexte de travail** — seul ou non, dans quelle copie du dépôt, avec quoi déjà écrit
-   pour lui. Et, pour tous : personne ne répondra à une question posée en chemin.
+   pour lui. Et, pour tous : personne ne répondra à une question posée en chemin, et une
+   commande hors liste blanche attend ce même humain absent. Les agents qui ont `Bash`
+   portent la règle de la commande simple : une par appel, sans `sleep`, `curl` ni `echo`
+   autour, parce qu'une chaîne n'est autorisée que si chacun de ses morceaux l'est.
 4. **La langue** — une phrase.
 5. **Le cœur du métier** — voir les deux familles ci-dessous.
 6. **Ce que tu rends** — le format exact, montré et non décrit.

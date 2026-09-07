@@ -46,8 +46,11 @@ Pour chaque feature « En revue » de la team : retrouver la PR de sa livraison 
 (`gh pr list --search "<CODE>-<n>"`). Si mergée et toutes les tâches de la livraison
 terminées → jalon terminé (ses tâches le sont) ; s'il reste des livraisons → feature
 « En développement » ; sinon → feature « Terminée ». Dans
-`.pilot/calibration.md`, compléter la ligne d'historique (mergée, heures réelles = temps de
-session entre début et PR ouverte), puis recalculer `feature_hours_<T>` du projet = médiane
+`.pilot/calibration.md`, compléter la ligne d'historique (mergée, heures réelles = colonne
+« actif » du relevé `cout-agents.py`, jamais l'horloge : l'horloge contient les attentes de
+permission et les agents en veille, et le 05/09 elle a fait passer une livraison de 81 minutes
+pour 6 heures). Une durée que l'outil n'a pas mesurée s'écrit « estimée » et n'entre pas dans
+la médiane. Puis recalculer `feature_hours_<T>` du projet = médiane
 des heures réelles de cette taille (dès 2 mesures ; sinon garder le barème global) et
 `days_per_week` observé = jours avec au moins un merge / semaines depuis la première feature.
 **Dates réelles** : à chaque livraison mergée, poser sur le jalon `targetDate` = date du merge

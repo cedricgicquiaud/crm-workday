@@ -139,11 +139,20 @@ qu'on ne peut pas interrompre au bon moment.
    ```
 
    Colle son tableau dans la réponse finale, sous la chronologie, et reporte sa dernière
-   ligne (heures d'agents, échanges, jetons) dans `.pilot/calibration.md` à côté de la
-   feature. **Si un agent ressort au-dessus des seuils, dis-le en clair** : quel agent,
-   quel écart, et ce qu'il faisait — un agent qui dérape est un symptôme (consigne floue,
-   test qui résiste, écran introuvable), pas une fatalité. C'est la seule occasion où la
-   dépense est visible : après, plus personne ne regarde.
+   ligne (heures d'agents, heures d'attente, échanges, jetons) dans `.pilot/calibration.md`
+   à côté de la feature. **Si un agent ressort au-dessus des seuils, dis-le en clair** : quel
+   agent, quel écart, et ce qu'il faisait — un agent qui dérape est un symptôme (consigne
+   floue, test qui résiste, écran introuvable), pas une fatalité. C'est la seule occasion où
+   la dépense est visible : après, plus personne ne regarde.
+
+   **Lis la colonne « attente » avant d'écrire une cause.** Un agent qui attend une
+   permission ressemble à un agent qui travaille : son horloge tourne, son rapport arrive en
+   retard, et rien ne dit qu'il n'a rien fait. Le relevé nomme chaque attente de plus de cinq
+   minutes avec la commande qui la précède. Si le relecteur affiche 161 minutes d'horloge
+   pour 9 minutes actives après une commande composée, la cause est la permission, pas les
+   tests. Le 05/09, le lead a écrit « le relecteur a relancé les tests et le build » sans
+   regarder : c'était faux, et la fausse cause est devenue une fausse leçon dans la note du
+   projet. Une durée que l'outil n'a pas mesurée s'écrit « estimée », jamais sous son nom.
 8. Suite proposée : « merge, puis `sync` ».
 
 Sans worktree possible (dépôt non clonable, une seule livraison) : même discipline dans la

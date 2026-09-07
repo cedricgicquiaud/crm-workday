@@ -74,10 +74,18 @@ sur ce workspace ; intégration GitHub activée dans ce workspace (Settings → 
 7. Poser la base de la boucle : les lignes `Lancer l'app :` et `Testeur :` de la section
    Pilot (déduites de la stack : page statique → `python3 -m http.server 8765` et navigateur
    piloté ; app avec serveur → sa commande de dev ; mobile Expo → simulateur + Maestro),
-   confirmées d'un mot ; `.claude/settings.json` avec l'allowlist (commande de tests
-   du projet, `git status/diff/log/add/commit/push/branch`, lectures, outils MCP Linear de
-   lecture et `save_issue`/`save_project`/`save_comment`) s'il n'existe pas ; `.pilot/MISSION.template.md`
-   copié depuis `reference/MISSION.template.md`, commande de tests adaptée.
+   confirmées d'un mot ; `.claude/settings.json` avec l'allowlist s'il n'existe pas, au
+   modèle du § 2.4 de `BOUCLE-AGENTS.md` : la commande de tests, la commande de lancement
+   de l'app et celle de build, `git status/diff/log/show/add/commit/push/branch`, les
+   lectures (`ls`, `cat`, `grep`, `find`, `head`, `tail`, `sort`, `echo`), ce qu'il faut
+   pour éteindre un serveur (`lsof`, `ps`, `kill`, `pkill`, `sleep`, `curl` vers l'app
+   locale), les outils MCP Linear de lecture et `save_issue`/`save_project`/`save_comment`.
+   **Une commande composée n'est autorisée que si chacun de ses morceaux l'est** : un agent
+   qui écrit `pkill -f "next dev"; sleep 1; curl localhost:3000` attend un humain sur
+   `sleep`, même si `pkill` est autorisé. Sur crm-workday, quatre commandes de ce genre ont
+   coûté près de six heures d'attente en deux jours, agents à l'arrêt et personne devant
+   l'écran. Puis `.pilot/MISSION.template.md` copié depuis `reference/MISSION.template.md`,
+   commande de tests adaptée.
 8. Si aucun barème n'existe : proposer `benchmark`.
 9. Suite proposée : `roadmap`.
 
