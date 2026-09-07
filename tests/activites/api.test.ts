@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as postActivity } from "@/app/api/objets/[type]/[id]/activites/route";
+import { DELETE as deleteHistory, PATCH as patchHistory } from "@/app/api/objets/[type]/[id]/historique/route";
 import { POST as postCompany } from "@/app/api/entreprises/route";
 import { POST as postPerson } from "@/app/api/personnes/route";
 import { activity, auditLog, company, person, user } from "@/db/schema";
@@ -87,5 +88,18 @@ describe("API des activités — refus (CRM-43, contrat 16)", () => {
     const archivee = await postActivity(jsonRequest("POST", `/api/objets/company/${companyId}/activites`, { type: "note", body: "Après archivage" }, memberCookie), on("company", companyId));
     expect(archivee.status).toBe(409);
     expect(await archivee.json()).toMatchObject({ error: "fiche_archivee" });
+  });
+});
+
+describe("l'historique ne se modifie ni ne se supprime (CRM-44, contrat 15)", () => {
+  it("répond 405 avec l'entête « allow: GET » sur PATCH et sur DELETE, là où le fil de la même fiche accepte une activité", async () => {
+    const companyId = await createCompany("Historique Immuable");
+    const context = on("company", companyId);
+    for (const handler of [patchHistory, deleteHistory]) {
+      const refused = await handler(jsonRequest("PATCH", `/api/objets/company/${companyId}/historique`, { oldValue: "x" }, memberCookie), context);
+      expect(refused.status).toBe(405);
+      expect(refused.headers.get("allow")).toBe("GET");
+    }
+    expect((await postActivity(jsonRequest("POST", `/api/objets/company/${companyId}/activites`, { type: "note", body: "Le fil, lui, accepte une écriture." }, memberCookie), context)).status).toBe(201);
   });
 });
