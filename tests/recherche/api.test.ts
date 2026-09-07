@@ -89,6 +89,14 @@ describe("API de recherche — fiches archivées (CRM-38, D21)", () => {
   });
 });
 
+describe("API de recherche — plafond (CRM-38)", () => {
+  it("ne rend jamais plus de 20 résultats, même quand la saisie tapée et sa forme normalisée en trouvent plus à elles deux", async () => {
+    for (let i = 1; i <= 20; i++) await createCompany({ name: `Lot ${i}`, type: "client" });
+    for (let i = 1; i <= 5; i++) await createCompany({ name: `Lôt accentué ${i}`, type: "client" });
+    expect((await results("lôt")).length).toBe(20);
+  });
+});
+
 describe("API de recherche — accents dans la saisie (CRM-38, D8)", () => {
   it("« acmé » et « ACMÉ » trouvent « ACME SAS » (saisie normalisée) et « Acmé Éditions » (saisie telle que tapée), chacune une seule fois", async () => {
     await createCompany({ name: "Acmé Éditions", type: "partenaire" });
