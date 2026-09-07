@@ -63,7 +63,7 @@ test.describe("contact d'une entreprise : liens, rôle, changement d'entreprise 
     await expect(memberPage).toHaveURL(`/personnes/${id}`);
     await expect(profile.getByRole("combobox", { name: "Rôle dans la décision" })).toContainText("Non précisé");
 
-    const history = memberPage.getByRole("region", { name: "Historique" });
+    const history = memberPage.getByRole("region", { name: "Fil d'activité" });
     await pickOption(memberPage, profile.getByRole("combobox", { name: "Rôle dans la décision" }), "Décideur");
     await expect(profile.getByRole("combobox", { name: "Rôle dans la décision" })).toContainText("Décideur");
     await expect(history.getByText("Rôle dans la décision : Non précisé → Décideur")).toBeVisible();
@@ -170,7 +170,7 @@ test.describe("personne sans email ni entreprise, Profils dérivé, deux adresse
     const id = memberPage.url().split("/").pop()!;
     await expect(memberPage.getByRole("heading", { level: 1, name: fullName })).toBeVisible();
     await expect(memberPage.getByText("Profils : Aucun")).toBeVisible();
-    for (const region of ["Liens", "Champs", "Profil contact", "Historique"]) await expect(memberPage.getByRole("region", { name: region })).toBeVisible();
+    for (const region of ["Liens", "Champs", "Profil contact", "Fil d'activité"]) await expect(memberPage.getByRole("region", { name: region })).toBeVisible();
     await expect(memberPage.getByRole("region", { name: "Liens" }).getByRole("region", { name: "Entreprise" }).getByText("Aucune fiche liée.")).toBeVisible();
 
     await memberPage.goto("/personnes");
@@ -186,7 +186,7 @@ test.describe("personne sans email ni entreprise, Profils dérivé, deux adresse
     await expect(memberPage.getByText("Profils : Contact")).toBeVisible();
     await expect(memberPage.getByRole("region", { name: "Champs" }).getByLabel("Poste")).toHaveValue("");
     await expect(profile.getByRole("combobox", { name: "Rôle dans la décision" })).toContainText("Non précisé");
-    await expect(memberPage.getByRole("region", { name: "Historique" }).getByText("Profils : Aucun → Contact")).toBeVisible();
+    await expect(memberPage.getByRole("region", { name: "Fil d'activité" }).getByText("Profils : Aucun → Contact")).toBeVisible();
 
     await expect(memberPage.getByRole("region", { name: "Liens" }).getByRole("link", { name: company })).toBeVisible();
     await memberPage.goto("/personnes");
@@ -207,7 +207,7 @@ test.describe("personne sans email ni entreprise, Profils dérivé, deux adresse
     await expect(fields.getByLabel("Email principal")).toHaveValue(`camille.faure.${stamp}@vaubourg.fr`);
     await fields.getByLabel("Autres emails").fill(`camille.${stamp}@perso.fr`);
     await memberPage.keyboard.press("Enter");
-    await expect(memberPage.getByRole("region", { name: "Historique" }).getByText(`Autres emails : vide → camille.${stamp}@perso.fr`)).toBeVisible();
+    await expect(memberPage.getByRole("region", { name: "Fil d'activité" }).getByText(`Autres emails : vide → camille.${stamp}@perso.fr`)).toBeVisible();
 
     for (const query of [`faure.${stamp}@vaubourg`, `camille.${stamp}@perso.fr`, `mille ${lastName.slice(0, 5)}`]) {
       const palette = await openPalette(memberPage);
@@ -302,7 +302,10 @@ test.describe("téléphone, 375 px (contrat 25 de la feature 1, D9)", () => {
 
     await memberPage.goto(`/personnes/${id}`);
     await fitsTheScreen(memberPage, "fiche personne");
-    for (const region of ["Liens", "Champs", "Profil contact", "Historique"]) await expect(memberPage.getByRole("region", { name: region })).toBeVisible();
+    for (const region of ["Liens", "Champs", "Profil contact"]) await expect(memberPage.getByRole("region", { name: region })).toBeVisible();
+    /* Sous 900 px le fil est le second onglet de la fiche (D5) : il s'affiche quand on l'ouvre. */
+    await memberPage.getByRole("tab", { name: /^Fil d'activité/ }).click();
+    await expect(memberPage.getByRole("region", { name: "Fil d'activité" })).toBeVisible();
   });
 });
 
