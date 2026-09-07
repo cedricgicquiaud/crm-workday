@@ -17,8 +17,8 @@ registerObject({
   apiBase: "/api/personnes",
   titleField: "name",
   fields: PERSON_FIELDS,
-  /** D7 prévoit aussi l'entreprise et le poste : le dialogue générique n'a pas de sélecteur d'entreprise, ils se règlent sur la fiche (section « Profil contact »). */
-  quickCreate: ["firstName", "lastName", "email", "ownerId"],
+  /** D7 : cinq champs ; `companyId` est le `prefill` de la relation, rendu par le dialogue comme un sélecteur ; le rôle se règle sur la fiche. */
+  quickCreate: ["firstName", "lastName", "email", "companyId", "jobTitle"],
   /** colonnes minimales ; l'entreprise attend une colonne de relation (2.5a) */
   listColumns: ["profiles", "ownerId"],
   relations: [{ to: "company", fkColumn: "companyId", label: "Entreprise", inverseLabel: "Contacts", prefill: "companyId" }],

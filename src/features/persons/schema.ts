@@ -30,6 +30,9 @@ export const DEFAULT_DECISION_ROLE = "non_precise";
 
 export const LINKEDIN_RULE = "Le lien LinkedIn doit être une adresse web (https://…).";
 
+/** Poste du profil contact (D3) : déclaré parmi les champs de la personne pour la création rapide, la fiche et l'historique ; enregistré dans `contact_profile` par `contact-profile.ts`. */
+export const JOB_TITLE_FIELD: FieldDescriptor = { key: "jobTitle", label: "Poste", type: "text", maxLength: 120, order: 90 };
+
 export const PERSON_FIELDS: readonly FieldDescriptor[] = [
   /* Calculée par la base : titre de la fiche et première colonne de la liste, jamais saisie. */
   { key: "name", label: "Nom complet", type: "text", editable: false, sortable: true, order: 5 },
@@ -42,6 +45,7 @@ export const PERSON_FIELDS: readonly FieldDescriptor[] = [
   /* Dérivé des profils attachés : lecture seule sur la fiche, colonne de liste, filtre en 2.5a. */
   { key: "profiles", label: "Profils", type: "list", values: PROFILES, default: "aucun", editable: false, sortable: true, order: 70 },
   { key: "ownerId", label: "Responsable", type: "user", required: true, default: "actor", sortable: true, order: 80 },
+  JOB_TITLE_FIELD,
   { key: "notes", label: "Notes", type: "text", maxLength: 2000, multiline: true, order: 200 },
 ];
 
