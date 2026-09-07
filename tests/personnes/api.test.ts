@@ -155,12 +155,12 @@ describe("API des personnes — autres adresses (CRM-40, CRM-41, D2, contrat 8 e
 
     const patched = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { otherEmails: "Lea@Perso.fr ; l.bernard@autre.fr, lea.bernard@acme.fr" }, memberCookie), byId(id));
     expect(patched.status).toBe(200);
-    /* L'adresse principale répétée n'est pas une autre adresse ; les autres sont normalisées et dédoublonnées. */
-    expect(await patched.json()).toMatchObject({ otherEmails: "lea@perso.fr, l.bernard@autre.fr" });
+    /* L'adresse principale répétée n'est pas une autre adresse ; les autres sont normalisées, dédoublonnées et rangées par ordre alphabétique. */
+    expect(await patched.json()).toMatchObject({ otherEmails: "l.bernard@autre.fr, lea@perso.fr" });
     const read = await getPerson(jsonRequest("GET", `/api/personnes/${id}`, undefined, memberCookie), byId(id));
-    expect(await read.json()).toMatchObject({ email: "lea.bernard@acme.fr", otherEmails: "lea@perso.fr, l.bernard@autre.fr" });
+    expect(await read.json()).toMatchObject({ email: "lea.bernard@acme.fr", otherEmails: "l.bernard@autre.fr, lea@perso.fr" });
     const history = await db.select({ field: auditLog.field, oldValue: auditLog.oldValue, newValue: auditLog.newValue }).from(auditLog).where(eq(auditLog.objectId, id));
-    expect(history).toContainEqual({ field: "otherEmails", oldValue: null, newValue: "lea@perso.fr, l.bernard@autre.fr" });
+    expect(history).toContainEqual({ field: "otherEmails", oldValue: null, newValue: "l.bernard@autre.fr, lea@perso.fr" });
 
     const malformed = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { otherEmails: "lea@perso.fr, pas-une-adresse" }, memberCookie), byId(id));
     expect(malformed.status).toBe(400);

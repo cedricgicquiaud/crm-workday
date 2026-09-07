@@ -5,6 +5,7 @@
  */
 import { and, asc, eq, ne, type SQL } from "drizzle-orm";
 import { person, personEmail } from "@/db/schema";
+import { recordHistory } from "@/features/history/history";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
@@ -14,9 +15,9 @@ export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Minuscules, espaces retirés : « Jean.Dupont@Acme.fr » et « jean.dupont@acme.fr » sont la même adresse. */
 export const normalizeEmail = (value: string): string => value.toLowerCase().replace(/\s+/g, "");
 
-/** Autres adresses d'une personne, dans l'ordre d'ajout. */
+/** Autres adresses d'une personne, par ordre alphabétique (le même à la saisie et à la lecture). */
 export async function otherEmailsOf(personId: string): Promise<string[]> {
-  const rows = await db.select({ address: personEmail.address }).from(personEmail).where(eq(personEmail.personId, personId)).orderBy(asc(personEmail.createdAt), asc(personEmail.address));
+  const rows = await db.select({ address: personEmail.address }).from(personEmail).where(eq(personEmail.personId, personId)).orderBy(asc(personEmail.address));
   return rows.map((row) => row.address);
 }
 
@@ -54,4 +55,40 @@ export async function assertEmailAvailable(address: string, exceptPersonId: stri
     existingName: holder.name,
     archived,
   });
+}
+
+const OTHER_EMAILS = "otherEmails";
+
+/**
+ * Les autres adresses telles que saisies dans le champ « Autres emails » (séparées par virgules,
+ * points-virgules ou espaces) : normalisées, dédoublonnées, sans l'adresse principale, par ordre
+ * alphabétique ; une adresse mal formée est refusée (400) avant toute écriture.
+ */
+export function parseOtherEmails(text: string, primary: string | null): string[] {
+  const addresses = Array.from(new Set(text.split(/[\s,;]+/).filter(Boolean).map(normalizeEmail)))
+    .filter((address) => address !== primary)
+    .sort();
+  const malformed = addresses.find((address) => !EMAIL_REGEX.test(address));
+  if (malformed) {
+    const message = `${EMAIL_RULE.slice(0, -1)} : ${malformed}.`;
+    throw new HttpError(400, "donnees_invalides", message, { fields: { [OTHER_EMAILS]: message } });
+  }
+  return addresses;
+}
+
+/** Chaque autre adresse doit être libre dans tout le CRM (409 sinon), hors celles de la personne elle-même. */
+export async function assertOtherEmailsAvailable(addresses: readonly string[], personId: string | null): Promise<void> {
+  for (const address of addresses) await assertEmailAvailable(address, personId, OTHER_EMAILS);
+}
+
+/** Remplace les autres adresses d'une personne et écrit une entrée d'historique si elles changent. */
+export async function setOtherEmails(personId: string, addresses: readonly string[], actor: { id: string }): Promise<void> {
+  const before = await otherEmailsOf(personId);
+  const oldValue = before.join(", ") || null;
+  const newValue = addresses.join(", ") || null;
+  if (oldValue === newValue) return;
+  await db.delete(personEmail).where(eq(personEmail.personId, personId));
+  if (addresses.length > 0) await db.insert(personEmail).values(addresses.map((address) => ({ personId, address })));
+  await db.update(person).set({ updatedAt: new Date() }).where(eq(person.id, personId));
+  await recordHistory([{ objectType: "person", objectId: personId, action: "modifiee", field: OTHER_EMAILS, oldValue, newValue, authorId: actor.id }]);
 }

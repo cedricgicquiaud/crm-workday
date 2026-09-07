@@ -3,9 +3,9 @@
  * générique des objets (validation par les descripteurs, colonnes de base, historique) ; ce module
  * ajoute ce qui est propre à la personne : ses adresses (`emails.ts`) et le refus des champs dérivés.
  */
-import { createObject, getObjectRecord, listObjectRecords, updateObject, type Actor, type ObjectRecord } from "@/features/objects/service";
+import { assertWritable, createObject, getObjectRecord, listObjectRecords, updateObject, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
-import { assertEmailAvailable, normalizeEmail, otherEmailsOf } from "./emails";
+import { assertEmailAvailable, assertOtherEmailsAvailable, normalizeEmail, otherEmailsOf, parseOtherEmails, setOtherEmails } from "./emails";
 import { DERIVED_FIELDS } from "./schema";
 
 const TYPE = "person";
@@ -32,20 +32,45 @@ async function assertPrimaryEmailAvailable(input: Record<string, unknown>, excep
   await assertEmailAvailable(normalizeEmail(input.email), exceptPersonId);
 }
 
+/** Les autres adresses saisies (`otherEmails`), vérifiées avant toute écriture ; `null` si le champ n'est pas envoyé. */
+async function otherEmailsToSet(input: Record<string, unknown>, primary: string | null, exceptPersonId: string | null): Promise<string[] | null> {
+  if (!("otherEmails" in input)) return null;
+  const addresses = parseOtherEmails(typeof input.otherEmails === "string" ? input.otherEmails : "", primary);
+  await assertOtherEmailsAvailable(addresses, exceptPersonId);
+  return addresses;
+}
+
+const primaryOf = (input: Record<string, unknown>, fallback: unknown): string | null => {
+  const value = "email" in input ? input.email : fallback;
+  return typeof value === "string" && value.trim() !== "" ? normalizeEmail(value) : null;
+};
+
 export async function createPerson(input: unknown, actor: Actor): Promise<PersonRecord> {
-  const raw = asObject(input);
+  const { otherEmails: _ignored, ...raw } = asObject(input);
   refuseDerived(raw);
   await assertPrimaryEmailAvailable(raw, null);
-  return withEmails(await createObject(TYPE, raw, actor));
+  const others = await otherEmailsToSet(asObject(input), primaryOf(raw, null), null);
+  const record = await createObject(TYPE, raw, actor);
+  if (others) await setOtherEmails(record.id, others, actor);
+  return withEmails(record);
 }
 
 export const getPerson = async (id: string): Promise<PersonRecord> => withEmails(await getObjectRecord(TYPE, id));
 
 export async function updatePerson(id: string, patch: unknown, actor: Actor): Promise<PersonRecord> {
-  const raw = asObject(patch);
+  const { otherEmails: _ignored, ...raw } = asObject(patch);
   refuseDerived(raw);
+  const current = await getObjectRecord(TYPE, id);
+  assertWritable(TYPE, current);
   await assertPrimaryEmailAvailable(raw, id);
-  return withEmails(await updateObject(TYPE, id, raw, actor));
+  const others = await otherEmailsToSet(asObject(patch), primaryOf(raw, current.email), id);
+  let record = current;
+  if (Object.keys(raw).length > 0) record = await updateObject(TYPE, id, raw, actor);
+  if (others) {
+    await setOtherEmails(id, others, actor);
+    record = await getObjectRecord(TYPE, id);
+  }
+  return withEmails(record);
 }
 
 export const listPersons = (): Promise<ObjectRecord[]> => listObjectRecords(TYPE);
