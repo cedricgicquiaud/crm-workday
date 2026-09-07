@@ -34,12 +34,17 @@ const listeners = new Set<() => void>();
 /** Instantané stable entre deux changements : `useSyncExternalStore` compare les références. */
 let snapshot: readonly PaletteEntry[] = [];
 
+/** Rang croissant, les éléments sans rang en dernier ; 0 quand le rang ne départage pas. */
+function compareOrder(a: number | undefined, b: number | undefined): number {
+  if (a !== undefined && b !== undefined) return a - b;
+  if (a !== undefined) return -1;
+  if (b !== undefined) return 1;
+  return 0;
+}
+
 /** Ordre déterministe, indépendant de l'ordre de chargement des modules : `order` croissant, puis libellé. */
 function compareEntries(a: PaletteEntry, b: PaletteEntry): number {
-  if (a.order !== undefined && b.order !== undefined && a.order !== b.order) return a.order - b.order;
-  if (a.order !== undefined && b.order === undefined) return -1;
-  if (a.order === undefined && b.order !== undefined) return 1;
-  return a.label.localeCompare(b.label, "fr");
+  return compareOrder(a.order, b.order) || a.label.localeCompare(b.label, "fr");
 }
 
 function notify() {
@@ -97,10 +102,7 @@ let sourcesSnapshot: readonly PaletteSource[] = [];
 
 /** `order` croissant, les sources sans rang en dernier, puis identifiant : l'ordre ne dépend jamais de l'ordre des imports. */
 function compareSources(a: PaletteSource, b: PaletteSource): number {
-  if (a.order !== undefined && b.order !== undefined && a.order !== b.order) return a.order - b.order;
-  if (a.order !== undefined && b.order === undefined) return -1;
-  if (a.order === undefined && b.order !== undefined) return 1;
-  return a.id.localeCompare(b.id, "fr");
+  return compareOrder(a.order, b.order) || a.id.localeCompare(b.id, "fr");
 }
 
 function notifySources() {
