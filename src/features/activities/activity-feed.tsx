@@ -151,6 +151,12 @@ function FeedEntry({ item, error, onToggle }: { item: FeedItem; error?: string; 
   );
 }
 
+/** Identifiants des volets et des onglets d'une fiche : `aria-controls` et `aria-labelledby` s'y réfèrent, une fiche ne montant qu'un jeu d'onglets. */
+const LINKS_PANE = "volet-liens";
+const MAIN_PANE = "volet-contenu";
+const FEED_PANE = "volet-fil";
+const tabId = (key: string) => `onglet-${key}`;
+
 /**
  * Les trois colonnes d'une fiche et leurs deux volets (D5, fondations « Briques de fiche ») : liens
  * à gauche (260 px), contenu au centre, **fil d'activité à droite** (380 px). Sous 1280 px la colonne
@@ -158,12 +164,17 @@ function FeedEntry({ item, error, onToggle }: { item: FeedItem; error?: string; 
  * onglets (32 px, soulignement accent, compteur à droite) dont un seul s'affiche à la fois. Ce
  * composant vit avec le fil parce que c'est lui qui devient l'onglet ; les fiches le montent autour
  * de leurs colonnes.
+ *
+ * Motif ARIA complet : chaque onglet désigne ses volets (`aria-controls`, une liste d'identifiants
+ * — l'onglet « Fiche » en porte deux, les liens et le contenu restant deux colonnes distinctes au
+ * large), et chaque volet est un `tabpanel` que son onglet nomme (`aria-labelledby`). L'entrée
+ * courante garde `aria-current="page"` à côté d'`aria-selected`, comme l'idiome du projet le demande.
  */
 export function SheetPanes({ links, main, feed, feedCount }: { links: ReactNode; main: ReactNode; feed: ReactNode; feedCount: number }) {
   const [tab, setTab] = useState<"fiche" | "fil">("fiche");
   const tabs = [
-    { key: "fiche" as const, label: "Fiche", count: null as number | null },
-    { key: "fil" as const, label: "Fil d'activité", count: feedCount },
+    { key: "fiche" as const, label: "Fiche", count: null as number | null, panels: [LINKS_PANE, MAIN_PANE] },
+    { key: "fil" as const, label: "Fil d'activité", count: feedCount, panels: [FEED_PANE] },
   ];
   return (
     <div className="grid gap-4">
@@ -171,9 +182,11 @@ export function SheetPanes({ links, main, feed, feedCount }: { links: ReactNode;
         {tabs.map((entry) => (
           <button
             key={entry.key}
+            id={tabId(entry.key)}
             type="button"
             role="tab"
             aria-selected={tab === entry.key}
+            aria-controls={entry.panels.join(" ")}
             aria-current={tab === entry.key ? "page" : undefined}
             onClick={() => setTab(entry.key)}
             className={cn(
@@ -187,9 +200,15 @@ export function SheetPanes({ links, main, feed, feedCount }: { links: ReactNode;
         ))}
       </div>
       <div className="grid gap-6 min-[900px]:grid-cols-[minmax(0,1fr)_var(--pane-right-w)] xl:grid-cols-[var(--pane-left-w)_minmax(0,1fr)_var(--pane-right-w)]">
-        <div className={cn("min-w-0 min-[900px]:hidden xl:block", tab === "fil" && "max-[899px]:hidden")}>{links}</div>
-        <div className={cn("min-w-0", tab === "fil" && "max-[899px]:hidden")}>{main}</div>
-        <div className={cn("min-w-0", tab === "fiche" && "max-[899px]:hidden")}>{feed}</div>
+        <div id={LINKS_PANE} role="tabpanel" aria-labelledby={tabId("fiche")} className={cn("min-w-0 min-[900px]:hidden xl:block", tab === "fil" && "max-[899px]:hidden")}>
+          {links}
+        </div>
+        <div id={MAIN_PANE} role="tabpanel" aria-labelledby={tabId("fiche")} className={cn("min-w-0", tab === "fil" && "max-[899px]:hidden")}>
+          {main}
+        </div>
+        <div id={FEED_PANE} role="tabpanel" aria-labelledby={tabId("fil")} className={cn("min-w-0", tab === "fiche" && "max-[899px]:hidden")}>
+          {feed}
+        </div>
       </div>
     </div>
   );
