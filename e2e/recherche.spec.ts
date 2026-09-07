@@ -116,6 +116,26 @@ test.describe("téléphone, 375 px (contrat 25 de la feature 1)", () => {
   });
 });
 
+test.describe("fondations de la palette (contour de focus, intitulés de groupe)", () => {
+  test("le champ de saisie montre le contour de focus des fondations et les intitulés de groupe sont en capitales espacées", async ({ memberPage }) => {
+    await memberPage.goto("/accueil");
+    const palette = await openPalette(memberPage);
+    const input = palette.getByPlaceholder(PALETTE_INPUT);
+    await expect(input).toBeFocused();
+    /* `--focus-outline` : 2 px pleins, jamais supprimés (le composant shadcn pose `outline-hidden`). */
+    await expect(input).toHaveCSS("outline-style", "solid");
+    await expect(input).toHaveCSS("outline-width", "2px");
+
+    /* Brique ⌘K : micro-libellé de groupe, 10 px, graisse 600, capitales espacées. */
+    for (const heading of ["Navigation", "Actions"]) {
+      const label = palette.getByRole("listbox").getByText(heading, { exact: true });
+      await expect(label).toHaveCSS("text-transform", "uppercase");
+      await expect(label).toHaveCSS("font-size", "10px");
+      await expect(label).toHaveCSS("font-weight", "600");
+    }
+  });
+});
+
 test.describe("échec de la recherche (idiome : aucun appel serveur avalé en silence)", () => {
   test("quand l'API répond 500, la palette le dit dans un message d'alerte et repart quand l'API répond", async ({ memberPage }) => {
     const { name } = await createAcme(memberPage);
@@ -125,6 +145,8 @@ test.describe("échec de la recherche (idiome : aucun appel serveur avalé en si
     const input = palette.getByPlaceholder(PALETTE_INPUT);
     await input.fill("acme");
     await expect(palette.getByRole("alert")).toHaveText("La recherche n'a pas répondu.");
+    /* Le message n'est pas une option : il vit hors du `listbox`, qui n'attend que des options et des groupes. */
+    await expect(palette.getByRole("listbox").getByRole("alert")).toHaveCount(0);
     await expect(palette.getByRole("group", { name: "Résultats" })).toBeHidden();
     await expect(palette.getByText("Aucun résultat.")).toBeHidden();
 
