@@ -4,12 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { ActivityFeed, SheetPanes } from "@/features/activities/activity-feed";
 import { listFeed } from "@/features/activities/feed";
 import { HistoryList } from "@/features/history/history-list";
+import { SheetBanners } from "@/features/objects/banners";
 import { fieldsOf } from "@/features/objects/fields";
 import { FieldsSection } from "@/features/objects/fields-section";
 import { displayValue, formatDate } from "@/features/objects/labels";
 import { LinksColumn } from "@/features/objects/links-column";
 import { getObject } from "@/features/objects/registry";
-import { SheetBanners } from "@/features/objects/banners";
 import { getObjectRecord, listUserOptions, serializeRecord, type ObjectRecord } from "@/features/objects/service";
 import { HttpError, requireSession } from "@/lib/auth/session";
 
