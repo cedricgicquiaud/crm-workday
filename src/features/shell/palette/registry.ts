@@ -68,3 +68,47 @@ export function subscribePalette(listener: () => void): () => void {
 export function getPaletteEntries(): readonly PaletteEntry[] {
   return snapshot;
 }
+
+/* --------------------------------------------------------------------------------------------
+ * Sources de résultats (D8) : un objet enregistre sa recherche asynchrone ; la palette affiche
+ * ce qu'elle rend dans le groupe « Résultats », sans jamais nommer l'objet.
+ * ------------------------------------------------------------------------------------------ */
+
+/** Une fiche trouvée : son libellé, son icône d'objet et l'adresse que la touche Entrée ouvre. */
+export type PaletteResult = {
+  /** Unique entre toutes les sources (préfixer par la clé de l'objet). */
+  id: string;
+  label: string;
+  subtitle?: string;
+  icon?: LucideIcon;
+  href: string;
+};
+
+export type PaletteSource = {
+  /** Identifiant stable : ré-enregistrer le même identifiant remplace la source. */
+  id: string;
+  /** Rang des résultats de cette source parmi les autres (croissant). */
+  order?: number;
+  search: (query: string) => Promise<PaletteResult[]>;
+};
+
+const sources = new Map<string, PaletteSource>();
+let sourcesSnapshot: readonly PaletteSource[] = [];
+
+function notifySources() {
+  sourcesSnapshot = Array.from(sources.values());
+}
+
+/** Enregistre une source ; rend la fonction qui la retire. */
+export function registerPaletteSource(source: PaletteSource): () => void {
+  sources.set(source.id, source);
+  notifySources();
+  return () => {
+    sources.delete(source.id);
+    notifySources();
+  };
+}
+
+export function getPaletteSources(): readonly PaletteSource[] {
+  return sourcesSnapshot;
+}
