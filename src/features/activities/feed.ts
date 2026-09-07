@@ -7,10 +7,18 @@
  */
 import { and, desc, eq, getTableColumns, inArray, or } from "drizzle-orm";
 import { activity, user } from "@/db/schema";
+import { historyLabel } from "@/features/history/history-list";
+import { listHistory } from "@/features/history/history";
 import { getObject } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
+import { listUserOptions } from "@/features/objects/service";
 import { db } from "@/lib/db";
+import { listEmailLog } from "@/lib/mail/journal";
 import { TASK } from "./schema";
+
+/** Provenances qui ne sont pas des activités : un changement de champ (D12) et un email du journal (D10). */
+export const CHANGE = "changement";
+export const EMAIL = "email";
 
 /** Auteur d'une entrée ; `null` = le système (D11), seul cas qui porte la mention « automatique ». */
 export type FeedAuthor = { id: string; name: string } | null;
@@ -26,9 +34,11 @@ export type FeedItem = {
   /** date de l'entrée, en chaîne ISO */
   at: string;
   author: FeedAuthor;
-  /** texte principal : corps d'une note, titre d'une tâche */
+  /** texte principal : corps d'une note, titre d'une tâche, phrase d'un changement, sujet d'un email */
   text: string | null;
   source: FeedSource | null;
+  /** statut d'un email (envoyé, échec) ; nul pour les autres entrées */
+  status: string | null;
 };
 
 const nameOf = (firstName: string | null, lastName: string | null) => `${firstName ?? ""} ${lastName ?? ""}`.trim();
@@ -58,8 +68,8 @@ async function sourcesOf(origins: readonly { objectType: string; objectId: strin
   return sources;
 }
 
-/** Entrées du fil d'une fiche, la plus récente d'abord. */
-export async function listFeed(objectType: string, objectId: string): Promise<FeedItem[]> {
+/** Activités de la fiche et de celles qui l'avaient pour parent, la plus récente d'abord. */
+async function activityItems(objectType: string, objectId: string): Promise<FeedItem[]> {
   const rows = await db
     .select({
       id: activity.id,
@@ -85,5 +95,43 @@ export async function listFeed(objectType: string, objectId: string): Promise<Fe
     author: row.authorId ? { id: row.authorId, name: nameOf(row.authorFirstName, row.authorLastName) } : null,
     text: row.type === TASK ? row.title : row.body,
     source: row.objectId === objectId ? null : sources.get(`${row.objectType}:${row.objectId}`) ?? null,
+    status: null,
   }));
+}
+
+/** Changements de la fiche (D12), lus tels que l'historique les rend et libellés comme lui. */
+async function changeItems(objectType: string, objectId: string): Promise<FeedItem[]> {
+  const [entries, users] = await Promise.all([listHistory(objectType, objectId), listUserOptions()]);
+  return entries.map((entry) => ({
+    id: `changement:${entry.id}`,
+    kind: CHANGE,
+    at: entry.createdAt.toISOString(),
+    author: entry.author,
+    text: historyLabel(objectType, entry, users),
+    source: null,
+    status: null,
+  }));
+}
+
+/** Emails du journal qui portent la référence de la fiche (D10) : lecture seule, sujet et statut. */
+async function emailItems(objectType: string, objectId: string): Promise<FeedItem[]> {
+  const entries = await listEmailLog({ objectType, objectId });
+  return entries.map((entry) => ({
+    id: `email:${entry.id}`,
+    kind: EMAIL,
+    at: entry.createdAt.toISOString(),
+    author: entry.author,
+    text: entry.subject,
+    source: null,
+    status: entry.status,
+  }));
+}
+
+/**
+ * Entrées du fil d'une fiche, toutes provenances mêlées, la plus récente d'abord. Le tri est stable :
+ * deux entrées de même date gardent l'ordre de leur provenance, jamais un ordre au hasard.
+ */
+export async function listFeed(objectType: string, objectId: string): Promise<FeedItem[]> {
+  const parts = await Promise.all([activityItems(objectType, objectId), changeItems(objectType, objectId), emailItems(objectType, objectId)]);
+  return parts.flat().sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
 }

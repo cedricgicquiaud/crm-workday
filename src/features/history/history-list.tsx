@@ -19,13 +19,21 @@ function changeLabel(fields: readonly FieldDescriptor[], entry: HistoryEntry, us
 }
 
 /**
+ * Phrase d'une entrée d'historique — « Fiche créée », « Type : Prospect → Client ». Le fil d'activité
+ * la lit aussi : l'historique y est un type d'entrée parmi les autres (D11, D12), et une seule
+ * écriture de cette phrase sert les deux rendus.
+ */
+export function historyLabel(type: string, entry: HistoryEntry, users: readonly UserOption[]): string {
+  return entry.action === "modifiee" ? changeLabel(historyFieldsOf(type), entry, users) : ACTION_LABELS[entry.action];
+}
+
+/**
  * Historique des changements d'une fiche (D12) : antéchronologique, groupé par jour ; chaque entrée
  * porte le champ, l'ancienne et la nouvelle valeur, l'auteur et l'heure. Rendu côté serveur : il se
  * rafraîchit avec la fiche après chaque enregistrement.
  */
 export async function HistoryList({ type, id, users }: Props) {
   const entries = await listHistory(type, id);
-  const fields = historyFieldsOf(type);
   if (entries.length === 0) return <p className="text-sm text-muted-foreground">Aucun changement pour l&apos;instant.</p>;
   const days = new Map<string, HistoryEntry[]>();
   for (const entry of entries) {
@@ -40,7 +48,7 @@ export async function HistoryList({ type, id, users }: Props) {
           <ol className="grid gap-2">
             {dayEntries.map((entry) => (
               <li key={entry.id} className="grid gap-0.5 border-l-2 border-border pl-3 text-sm">
-                <p className="font-medium">{entry.action === "modifiee" ? changeLabel(fields, entry, users) : ACTION_LABELS[entry.action]}</p>
+                <p className="font-medium">{historyLabel(type, entry, users)}</p>
                 <p className="tabular text-xs text-muted-foreground">{`${entry.author?.name ?? "Système"} · ${formatDateTime(entry.createdAt)}${entry.author ? "" : " · automatique"}`}</p>
               </li>
             ))}
