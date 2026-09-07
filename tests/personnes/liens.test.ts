@@ -43,10 +43,12 @@ describe("colonne des liens — fiches liées par relation déclarée (CRM-42, D
     await createPerson({ firstName: "Chez", lastName: "Ferrandi", companyId: ferrandi.id }, { id: actorId });
     await updatePerson(jean.id, { phone: "01 02 03 04 05" }, { id: actorId });
 
+    /* Le groupe inverse dit aussi quelle fiche créer depuis ici et avec quel champ pré-rempli (« ajouter un contact », D7). */
     expect(await linkedGroups("company", solveige.id)).toEqual([
       {
         key: "person-companyId",
         label: "Contacts",
+        create: { type: "person", prefill: { companyId: solveige.id } },
         records: [
           { id: jean.id, title: "Jean Dupont", href: `/personnes/${jean.id}` },
           { id: marie.id, title: "Marie Curie", href: `/personnes/${marie.id}` },
