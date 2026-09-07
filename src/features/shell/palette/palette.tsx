@@ -23,6 +23,7 @@ const RESULTS_HEADING = "Résultats";
 const SEARCH_DEBOUNCE_MS = 200;
 /** Les valeurs des résultats commencent par ce préfixe : c'est ainsi que le filtre les reconnaît. */
 const RESULT_VALUE_PREFIX = "resultat:";
+const SEARCH_FAILED = "La recherche n'a pas répondu.";
 
 /** Ordre des sections (fondations : résultats puis actions). */
 const GROUPS: readonly { id: PaletteGroup; heading: string }[] = [
@@ -37,8 +38,8 @@ const resultValue = (result: PaletteResult) => `${RESULT_VALUE_PREFIX}${result.i
 /** Les résultats arrivent déjà filtrés par le serveur : cmdk ne les refiltre pas et les classe en tête ; les entrées gardent son classement flou. */
 const paletteFilter = (value: string, search: string, keywords?: string[]) => (value.startsWith(RESULT_VALUE_PREFIX) ? 1 : defaultFilter(value, search, keywords));
 
-/** Les résultats et la saisie qui les a produits : tant qu'elles diffèrent, une recherche est en cours. */
-type Found = { query: string; results: PaletteResult[] };
+/** Les résultats et la saisie qui les a produits : tant qu'elles diffèrent, une recherche est en cours. `failed` : une source n'a pas répondu. */
+type Found = { query: string; results: PaletteResult[]; failed?: boolean };
 
 /** Contenu de la palette : monté à l'ouverture, démonté à la fermeture, sa saisie repart donc vide. */
 function PaletteCommand({ context }: { context: PaletteContext }) {
@@ -48,16 +49,22 @@ function PaletteCommand({ context }: { context: PaletteContext }) {
   const [found, setFound] = useState<Found>({ query: "", results: [] });
   const results = isSearchableQuery(query) ? found.results : [];
   const searching = isSearchableQuery(query) && found.query !== query;
+  const failed = isSearchableQuery(query) && found.query === query && found.failed === true;
 
   /* Interroge les sources après un temps d'arrêt, à partir de trois caractères ; le premier résultat prend la première ligne, même si une entrée était déjà sélectionnée. */
   useEffect(() => {
     if (!isSearchableQuery(query)) return;
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const hits = await searchPaletteSources(query);
-      if (cancelled) return;
-      setFound({ query, results: hits });
-      if (hits[0]) setSelected(resultValue(hits[0]));
+      try {
+        const hits = await searchPaletteSources(query);
+        if (cancelled) return;
+        setFound({ query, results: hits });
+        if (hits[0]) setSelected(resultValue(hits[0]));
+      } catch {
+        /* Un échec se dit à l'écran (idiome : rien d'avalé en silence) ; la saisie suivante relance la recherche. */
+        if (!cancelled) setFound({ query, results: [], failed: true });
+      }
     }, SEARCH_DEBOUNCE_MS);
     return () => {
       cancelled = true;
@@ -69,7 +76,12 @@ function PaletteCommand({ context }: { context: PaletteContext }) {
     <Command filter={paletteFilter} value={selected} onValueChange={setSelected}>
       <CommandInput placeholder={PALETTE_PLACEHOLDER} value={query} onValueChange={setQuery} />
       <CommandList>
-        {!searching && <CommandEmpty>Aucun résultat.</CommandEmpty>}
+        {!searching && !failed && <CommandEmpty>Aucun résultat.</CommandEmpty>}
+        {failed && (
+          <p role="alert" className="px-3 py-2 text-xs text-danger">
+            {SEARCH_FAILED}
+          </p>
+        )}
         {results.length > 0 && (
           <CommandGroup heading={RESULTS_HEADING}>
             {results.map((result) => (
