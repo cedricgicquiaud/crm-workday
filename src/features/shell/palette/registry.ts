@@ -126,10 +126,12 @@ export function getPaletteSources(): readonly PaletteSource[] {
 /** Sous ce nombre de caractères saisis (espaces retirés), aucune source n'est interrogée (D8). */
 export const PALETTE_SEARCH_MIN_LENGTH = 3;
 
+/** Vrai quand la saisie atteint le seuil : la palette montre le groupe « Résultats » et les sources sont interrogées. */
+export const isSearchableQuery = (query: string) => query.trim().length >= PALETTE_SEARCH_MIN_LENGTH;
+
 /** Interroge les sources avec la saisie ; rien sous le seuil. */
 export async function searchPaletteSources(query: string): Promise<PaletteResult[]> {
-  const text = query.trim();
-  if (text.length < PALETTE_SEARCH_MIN_LENGTH) return [];
-  const results = await Promise.all(sourcesSnapshot.map((source) => source.search(text)));
+  if (!isSearchableQuery(query)) return [];
+  const results = await Promise.all(sourcesSnapshot.map((source) => source.search(query.trim())));
   return results.flat();
 }

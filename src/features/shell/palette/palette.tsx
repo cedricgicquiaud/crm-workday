@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { closePalette, isPaletteOpen, setPaletteOpen, subscribePaletteOpen, togglePalette } from "@/features/shell/palette/open-state";
 import {
   getPaletteEntries,
-  PALETTE_SEARCH_MIN_LENGTH,
+  isSearchableQuery,
   searchPaletteSources,
   subscribePalette,
   type PaletteContext,
@@ -37,8 +37,6 @@ const resultValue = (result: PaletteResult) => `${RESULT_VALUE_PREFIX}${result.i
 /** Les résultats arrivent déjà filtrés par le serveur : cmdk ne les refiltre pas et les classe en tête ; les entrées gardent son classement flou. */
 const paletteFilter = (value: string, search: string, keywords?: string[]) => (value.startsWith(RESULT_VALUE_PREFIX) ? 1 : defaultFilter(value, search, keywords));
 
-const isSearchable = (query: string) => query.trim().length >= PALETTE_SEARCH_MIN_LENGTH;
-
 /** Les résultats et la saisie qui les a produits : tant qu'elles diffèrent, une recherche est en cours. */
 type Found = { query: string; results: PaletteResult[] };
 
@@ -48,12 +46,12 @@ function PaletteCommand({ context }: { context: PaletteContext }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState("");
   const [found, setFound] = useState<Found>({ query: "", results: [] });
-  const results = isSearchable(query) ? found.results : [];
-  const searching = isSearchable(query) && found.query !== query;
+  const results = isSearchableQuery(query) ? found.results : [];
+  const searching = isSearchableQuery(query) && found.query !== query;
 
   /* Interroge les sources après un temps d'arrêt, à partir de trois caractères ; le premier résultat prend la première ligne, même si une entrée était déjà sélectionnée. */
   useEffect(() => {
-    if (!isSearchable(query)) return;
+    if (!isSearchableQuery(query)) return;
     let cancelled = false;
     const timer = setTimeout(async () => {
       const hits = await searchPaletteSources(query);
