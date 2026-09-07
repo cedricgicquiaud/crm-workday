@@ -85,6 +85,40 @@ test.describe("contact d'une entreprise : liens, rôle, changement d'entreprise 
   });
 });
 
+/**
+ * Mesures d'écran du dialogue de création rapide (défauts de la repasse visuelle 2.2) : un champ plus
+ * court que ses voisins et une liste décalée se voient à l'œil mais se constatent au pixel.
+ */
+test.describe("dialogue « Nouvelle personne » : hauteur des champs et alignement de la liste (repasse visuelle 2.2)", () => {
+  test("le sélecteur « Entreprise » a la hauteur des autres champs, sa liste s'ouvre alignée sur lui, et les entreprises proposées viennent de la source bornée", async ({ memberPage }) => {
+    await createCompany(memberPage, `Banque Solveige ${suffix()}`);
+    await memberPage.goto("/personnes");
+    const demandes: string[] = [];
+    memberPage.on("request", (request) => demandes.push(new URL(request.url()).pathname));
+
+    await memberPage.getByRole("button", { name: "Nouvelle personne" }).click();
+    const dialog = memberPage.getByRole("dialog", { name: "Nouvelle personne" });
+    const picker = dialog.getByRole("combobox", { name: "Entreprise" });
+    await expect(picker).toBeVisible();
+
+    const champ = await dialog.getByLabel("Prénom").boundingBox();
+    const selecteur = await picker.boundingBox();
+    expect(selecteur!.height, "hauteur du sélecteur").toBe(champ!.height);
+    expect(selecteur!.width, "largeur du sélecteur").toBe(champ!.width);
+
+    await picker.click();
+    const liste = memberPage.locator('[data-slot="select-content"]');
+    await expect(liste).toBeVisible();
+    const ouverte = await liste.boundingBox();
+    expect(Math.round(ouverte!.x), "bord gauche de la liste").toBe(Math.round(selecteur!.x));
+    await memberPage.keyboard.press("Escape");
+
+    /* Les entreprises proposées viennent de la source bornée des mécanismes, jamais de la liste complète. */
+    expect(demandes).toContain("/api/objets/company/options");
+    expect(demandes).not.toContain("/api/entreprises");
+  });
+});
+
 const PALETTE_INPUT = "Rechercher une page ou une action";
 
 /** Cmd+K (Ctrl+K hors macOS). Le raccourci n'existe qu'une fois la page hydratée : on réessaie. */
