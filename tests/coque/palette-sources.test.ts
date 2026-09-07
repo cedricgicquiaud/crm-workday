@@ -37,3 +37,18 @@ describe("seuil de trois caractères (CRM-37, D8)", () => {
     unregister();
   });
 });
+
+describe("ordre des résultats (CRM-37)", () => {
+  it("range les résultats par « order » de source croissant (sans rang en dernier), puis dans l'ordre rendu par chaque source, quel que soit l'ordre d'enregistrement ou de réponse", async () => {
+    const hit = (id: string, label: string): PaletteResult => ({ id, label, href: `/x/${id}` });
+    const slow = <T,>(value: T) => new Promise<T>((resolve) => setTimeout(() => resolve(value), 20));
+    const unregisters = [
+      registerPaletteSource({ id: "ordre-sans", search: async () => [hit("sans:1", "Sans rang")] }),
+      registerPaletteSource({ id: "ordre-20", order: 20, search: async () => [hit("b:1", "B un"), hit("b:2", "B deux")] }),
+      registerPaletteSource({ id: "ordre-10", order: 10, search: () => slow([hit("a:2", "A deux"), hit("a:1", "A un")]) }),
+    ];
+    const labels = (await searchPaletteSources("abc")).map((r) => r.label);
+    for (const unregister of unregisters) unregister();
+    expect(labels).toEqual(["A deux", "A un", "B un", "B deux", "Sans rang"]);
+  });
+});
