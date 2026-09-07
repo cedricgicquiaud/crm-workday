@@ -55,3 +55,24 @@ describe("API des personnes — création (CRM-40, contrat 8)", () => {
     expect((await getPerson(jsonRequest("GET", "/api/personnes/abc", undefined, memberCookie), byId("abc"))).status).toBe(404);
   });
 });
+
+describe("API des personnes — liste (CRM-41, D6)", () => {
+  it("liste les personnes non archivées par dernière modification décroissante : une fiche modifiée remonte en tête, avec son champ Profils", async () => {
+    await cleanup();
+    const ids: string[] = [];
+    for (const lastName of ["Ancienne", "Moyenne", "Récente"]) {
+      const res = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Liste", lastName }, memberCookie));
+      ids.push(((await res.json()) as { id: string }).id);
+    }
+    const patched = await patchPerson(jsonRequest("PATCH", `/api/personnes/${ids[0]}`, { phone: "06 12 34 56 78" }, memberCookie), byId(ids[0]));
+    expect(patched.status).toBe(200);
+    expect(await patched.json()).toMatchObject({ id: ids[0], phone: "06 12 34 56 78" });
+    await db.update(person).set({ archivedAt: new Date() }).where(eq(person.id, ids[1]));
+
+    const list = await listPersons(jsonRequest("GET", "/api/personnes", undefined, memberCookie));
+    expect(list.status).toBe(200);
+    const { persons } = (await list.json()) as { persons: { name: string; profiles: string }[] };
+    expect(persons.map((p) => p.name)).toEqual(["Liste Ancienne", "Liste Récente"]);
+    expect(persons.every((p) => p.profiles === "aucun")).toBe(true);
+  });
+});
