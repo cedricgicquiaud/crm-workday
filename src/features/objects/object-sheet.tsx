@@ -1,14 +1,16 @@
 import { notFound } from "next/navigation";
 import "@/features/objects/manifest.server";
 import { Badge } from "@/components/ui/badge";
-import { HistoryList } from "@/features/history/history-list";
+import { ActivityFeed, SheetPanes } from "@/features/activities/activity-feed";
+import { listFeed } from "@/features/activities/feed";
+import { SheetBanners } from "@/features/objects/banners";
 import { fieldsOf } from "@/features/objects/fields";
 import { FieldsSection } from "@/features/objects/fields-section";
 import { displayValue, formatDate } from "@/features/objects/labels";
 import { LinksColumn } from "@/features/objects/links-column";
 import { getObject } from "@/features/objects/registry";
 import { getObjectRecord, listUserOptions, serializeRecord, type ObjectRecord } from "@/features/objects/service";
-import { HttpError } from "@/lib/auth/session";
+import { HttpError, requireSession } from "@/lib/auth/session";
 
 async function loadRecord(type: string, id: string): Promise<ObjectRecord> {
   try {
@@ -20,13 +22,18 @@ async function loadRecord(type: string, id: string): Promise<ObjectRecord> {
 }
 
 /**
- * Fiche d'un objet en trois colonnes (D5, fondations « Briques de fiche ») : liens à gauche (260 px),
- * champs éditables en place au centre, historique à droite (380 px). Sous 1280 px la colonne de gauche
- * se replie ; sous 900 px tout passe en une colonne. En-tête : titre `<h1>` et badge de type.
+ * Fiche d'un objet (D5, fondations « Briques de fiche ») : bannière de signalement en haut du
+ * contenu, puis trois colonnes — liens à gauche (260 px), champs éditables en place au centre, fil
+ * d'activité à droite (380 px), où les changements de champs entrent comme un type d'entrée parmi
+ * les autres. Sous 1280 px la colonne de gauche se replie ; sous 900 px tout passe en une colonne et
+ * le fil devient un onglet. En-tête : titre `<h1>` et badge de type.
  */
 export async function ObjectSheet({ type, id }: { type: string; id: string }) {
   const definition = getObject(type);
-  const [record, users] = await Promise.all([loadRecord(type, id), listUserOptions()]);
+  const record = await loadRecord(type, id);
+  const [users, session] = await Promise.all([listUserOptions(), requireSession()]);
+  /* Les options d'utilisateurs sont lues une fois pour la fiche, puis passées au fil : il ne les relit pas. */
+  const feed = await listFeed(type, id, users);
   const fields = fieldsOf(type);
   const title = displayValue(fields.find((f) => f.key === definition.titleField)!, record[definition.titleField], users);
   const owner = fields.find((f) => f.type === "user" && f.key === "ownerId");
@@ -45,14 +52,13 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
           {owner ? ` · responsable : ${displayValue(owner, record.ownerId, users)}` : ""}
         </p>
       </header>
-      <div className="grid gap-6 min-[900px]:grid-cols-[minmax(0,1fr)_var(--pane-right-w)] xl:grid-cols-[var(--pane-left-w)_minmax(0,1fr)_var(--pane-right-w)]">
-        <LinksColumn type={type} id={id} className="min-[900px]:hidden xl:block" />
-        <FieldsSection type={type} record={serializeRecord(record)} users={users} />
-        <section aria-label="Historique" className="grid content-start gap-3">
-          <h2 className="text-base font-medium">Historique</h2>
-          <HistoryList type={type} id={id} users={users} />
-        </section>
-      </div>
+      <SheetBanners type={type} id={id} />
+      <SheetPanes
+        feedCount={feed.items.length}
+        links={<LinksColumn type={type} id={id} />}
+        main={<FieldsSection type={type} record={serializeRecord(record)} users={users} />}
+        feed={<ActivityFeed type={type} id={id} items={feed.items} more={feed.more} users={users} currentUserId={session.user.id} />}
+      />
     </div>
   );
 }
