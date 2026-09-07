@@ -5,6 +5,7 @@
  */
 import { assertWritable, createObject, getObjectRecord, listObjectRecords, updateObject, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
+import { CONTACT_PROFILE_KEYS, prepareContactProfile, writeContactProfile, type PreparedContactProfile } from "./contact-profile";
 import { assertEmailAvailable, assertOtherEmailsAvailable, normalizeEmail, otherEmailsOf, parseOtherEmails, setOtherEmails } from "./emails";
 import { DERIVED_FIELDS } from "./schema";
 
@@ -31,15 +32,20 @@ async function withEmails(record: ObjectRecord): Promise<PersonRecord> {
  * l'unicité dans tout le CRM est vérifiée ici, avant toute écriture. Une adresse mal formée est
  * refusée par les descripteurs (principale) ou par `parseOtherEmails` (autres), en 400.
  */
-async function prepareInput(input: unknown, exceptPersonId: string | null, currentEmail: unknown): Promise<{ fields: Record<string, unknown>; otherEmails: string[] | null }> {
-  const { otherEmails, ...fields } = asObject(input);
+type PreparedInput = { fields: Record<string, unknown>; otherEmails: string[] | null; profile: Record<string, unknown> | null };
+
+async function prepareInput(input: unknown, exceptPersonId: string | null, currentEmail: unknown): Promise<PreparedInput> {
+  const { otherEmails, ...rest } = asObject(input);
+  const profile = Object.fromEntries(Object.entries(rest).filter(([key]) => CONTACT_PROFILE_KEYS.includes(key)));
+  const fields = Object.fromEntries(Object.entries(rest).filter(([key]) => !CONTACT_PROFILE_KEYS.includes(key)));
   refuseDerived(fields);
   const primary = primaryOf(fields, currentEmail);
   if (primary) await assertEmailAvailable(primary, exceptPersonId);
-  if (otherEmails === undefined) return { fields, otherEmails: null };
+  const prepared: PreparedInput = { fields, otherEmails: null, profile: Object.keys(profile).length > 0 ? profile : null };
+  if (otherEmails === undefined) return prepared;
   const addresses = parseOtherEmails(typeof otherEmails === "string" ? otherEmails : "", primary);
   await assertOtherEmailsAvailable(addresses, exceptPersonId);
-  return { fields, otherEmails: addresses };
+  return { ...prepared, otherEmails: addresses };
 }
 
 /** L'adresse principale normalisée après la modification : celle saisie, sinon celle enregistrée ; `null` si aucune. */
@@ -48,11 +54,14 @@ function primaryOf(fields: Record<string, unknown>, currentEmail: unknown): stri
   return typeof value === "string" && value.trim() !== "" ? normalizeEmail(value) : null;
 }
 
+/** Création en un appel (D7 : prénom, nom, email, entreprise, poste) : le profil contact est validé avant que la personne soit écrite, puis attaché. */
 export async function createPerson(input: unknown, actor: Actor): Promise<PersonRecord> {
-  const { fields, otherEmails } = await prepareInput(input, null, null);
+  const { fields, otherEmails, profile } = await prepareInput(input, null, null);
+  const preparedProfile: PreparedContactProfile | null = profile ? await prepareContactProfile(profile, null) : null;
   const record = await createObject(TYPE, fields, actor);
   if (otherEmails) await setOtherEmails(record.id, otherEmails, actor);
-  return withEmails(record);
+  if (preparedProfile) await writeContactProfile(record.id, preparedProfile, actor);
+  return getPerson(record.id);
 }
 
 export const getPerson = async (id: string): Promise<PersonRecord> => withEmails(await getObjectRecord(TYPE, id));
