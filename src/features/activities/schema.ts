@@ -5,21 +5,48 @@
  */
 import { z } from "zod";
 
-/** Un type d'activité : sa clé enregistrée, son libellé et son rang (l'ordre ne dépend jamais de l'ordre des imports). */
-export type ActivityType = { key: string; label: string; order: number };
+/** Un type d'activité : sa clé enregistrée, ses libellés (au singulier pour une entrée, au pluriel pour sa puce de filtre) et son rang (l'ordre ne dépend jamais de l'ordre des imports). */
+export type ActivityType = { key: string; label: string; plural: string; order: number };
 
 /** Clé du type « tâche » : le seul qui porte une échéance, un responsable et un état « faite ». */
 export const TASK = "tache";
 
 export const ACTIVITY_TYPES: readonly ActivityType[] = [
-  { key: "note", label: "Note", order: 10 },
-  { key: "appel", label: "Appel", order: 20 },
-  { key: "reunion", label: "Réunion", order: 30 },
-  { key: TASK, label: "Tâche", order: 40 },
+  { key: "note", label: "Note", plural: "Notes", order: 10 },
+  { key: "appel", label: "Appel", plural: "Appels", order: 20 },
+  { key: "reunion", label: "Réunion", plural: "Réunions", order: 30 },
+  { key: TASK, label: "Tâche", plural: "Tâches", order: 40 },
+];
+
+/** Provenances du fil qui ne sont pas des activités : un changement de champ (D12) et un email du journal (D10). */
+export const CHANGE = "changement";
+export const EMAIL = "email";
+
+/** Puce « Tout » : le fil entier, sans filtre. */
+export const ALL = "tout";
+
+/**
+ * Types d'entrée du fil, activités et provenances mêlées, avec leur rang : les puces de filtre et
+ * l'ordre des types viennent d'ici, jamais de l'ordre des imports (D11, contrat 14).
+ */
+export const FEED_KINDS: readonly ActivityType[] = [
+  ...ACTIVITY_TYPES,
+  { key: CHANGE, label: "Changement", plural: "Changements", order: 50 },
+  { key: EMAIL, label: "Email", plural: "Emails", order: 60 },
 ];
 
 /** Types d'activité par rang croissant. */
 export const activityTypes = (): readonly ActivityType[] => [...ACTIVITY_TYPES].sort((a, b) => a.order - b.order);
+
+/** Types d'entrée du fil par rang croissant. */
+export const feedKinds = (): readonly ActivityType[] => [...FEED_KINDS].sort((a, b) => a.order - b.order);
+
+export type FeedFilter = { key: string; label: string; count: number };
+
+/** Puces de filtre du fil : « Tout » et son total, puis un type par rang déclaré avec le nombre d'entrées qu'il porte. */
+export function feedFilters(items: readonly { kind: string }[]): FeedFilter[] {
+  return [{ key: ALL, label: "Tout", count: items.length }, ...feedKinds().map((kind) => ({ key: kind.key, label: kind.plural, count: items.filter((item) => item.kind === kind.key).length }))];
+}
 
 const ACTIVITY_TYPE_KEYS = activityTypes().map((type) => type.key) as [string, ...string[]];
 

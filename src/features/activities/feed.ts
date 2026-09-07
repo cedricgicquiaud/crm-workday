@@ -14,11 +14,7 @@ import { getServerObject } from "@/features/objects/registry.server";
 import { listUserOptions } from "@/features/objects/service";
 import { db } from "@/lib/db";
 import { listEmailLog } from "@/lib/mail/journal";
-import { TASK } from "./schema";
-
-/** Provenances qui ne sont pas des activités : un changement de champ (D12) et un email du journal (D10). */
-export const CHANGE = "changement";
-export const EMAIL = "email";
+import { CHANGE, EMAIL, TASK } from "./schema";
 
 /** Auteur d'une entrée ; `null` = le système (D11), seul cas qui porte la mention « automatique ». */
 export type FeedAuthor = { id: string; name: string } | null;
