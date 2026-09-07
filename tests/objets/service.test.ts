@@ -8,7 +8,7 @@ import { listHistory } from "@/features/history/history";
 import { serializeValue } from "@/features/objects/fields";
 import { registerObject, type FieldDescriptor } from "@/features/objects/registry";
 import { registerServerObject } from "@/features/objects/registry.server";
-import { createObject, updateObject } from "@/features/objects/service";
+import { RECORD_OPTIONS_LIMIT, createObject, listRecordOptions, updateObject } from "@/features/objects/service";
 import { closeDb, db, rawSql } from "@/lib/db";
 
 const ACTOR = { email: "acteur-service@exemple.fr", firstName: "Nora", lastName: "Blanc", password: "MotDePasse-Service-1", role: "membre" as const };
@@ -154,5 +154,23 @@ describe("service générique — champs date et number (CRM-33, D4, D12)", () =
     expect(serializeValue(AMOUNT, 12.5)).toBe("12.5");
     expect(serializeValue(AMOUNT, null)).toBeNull();
     expect(serializeValue(AMOUNT, "")).toBeNull();
+  });
+});
+
+/** Un sélecteur ne charge ni toutes les fiches ni toutes leurs colonnes : identifiant et titre, bornés. */
+describe("service générique — options d'un sélecteur (CRM-42, D7)", () => {
+  it("ne rend que l'identifiant et le titre des fiches actives, la dernière modifiée en tête, dans la limite demandée", async () => {
+    const noms = ["Alpha", "Beta", "Gamma"];
+    for (const name of noms) await createObject(TYPED, { name }, { id: actorId });
+    const archivée = await createObject(TYPED, { name: "Archivée" }, { id: actorId });
+    await db.update(typedTable).set({ archivedAt: new Date() }).where(eq(typedTable.id, archivée.id));
+
+    const options = await listRecordOptions(TYPED);
+    expect(options.slice(0, 3).map((o) => o.name)).toEqual(["Gamma", "Beta", "Alpha"]);
+    expect(Object.keys(options[0]).sort()).toEqual(["id", "name"]);
+    expect(options.map((o) => o.id)).not.toContain(archivée.id);
+
+    expect(await listRecordOptions(TYPED, { limit: 2 })).toHaveLength(2);
+    expect(RECORD_OPTIONS_LIMIT).toBeGreaterThan(0);
   });
 });

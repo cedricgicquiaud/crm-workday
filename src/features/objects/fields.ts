@@ -9,6 +9,16 @@ export function fieldsOf(type: string): readonly FieldDescriptor[] {
   return [...getObject(type).fields].sort((a, b) => a.order - b.order);
 }
 
+/**
+ * Champs dont l'historique d'une fiche peut nommer le libellé : ceux de la fiche, plus ceux que
+ * l'objet déclare comme édités ailleurs (`historyFields`). Un champ absent d'ici s'afficherait dans
+ * l'historique par sa clé brute (« decisionRole ») au lieu de son libellé.
+ */
+export function historyFieldsOf(type: string): readonly FieldDescriptor[] {
+  const definition = getObject(type);
+  return [...definition.fields, ...(definition.historyFields ?? [])].sort((a, b) => a.order - b.order);
+}
+
 /** Valeurs validées : texte pour `text`, `list`, `user` et `date` (jour ISO), nombre pour `number`, `null` pour un champ vidé. */
 export type FieldValues = Record<string, string | number | null>;
 export type FieldErrors = Record<string, string>;

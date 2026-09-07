@@ -128,6 +128,28 @@ export async function listObjectRecords(type: string, { includeArchived = false 
   return rows as ObjectRecord[];
 }
 
+/** Fiches proposées par un sélecteur, au plus : un sélecteur ne charge jamais toute la table (2.5a ajoutera la recherche). */
+export const RECORD_OPTIONS_LIMIT = 200;
+
+/**
+ * Options d'un sélecteur de fiches (D7) : l'identifiant et le titre des fiches actives seulement, la
+ * dernière modifiée en tête, bornées. Passer par `listObjectRecords` chargerait toutes les fiches avec
+ * toutes leurs colonnes à chaque ouverture d'une fiche qui porte un sélecteur.
+ */
+export async function listRecordOptions(type: string, { limit = RECORD_OPTIONS_LIMIT } = {}): Promise<{ id: string; name: string }[]> {
+  /* Le registre serveur d'abord : une clé inconnue est une ressource inexistante (404), pas une panne. */
+  const { table } = getServerObject(type);
+  const definition = getObject(type);
+  const columns = getTableColumns(table);
+  const rows = await db
+    .select({ id: columns.id, title: columns[definition.titleField] })
+    .from(table)
+    .where(isNull(columns.archivedAt))
+    .orderBy(desc(columns.updatedAt), desc(columns.id))
+    .limit(limit);
+  return rows.map((row) => ({ id: String(row.id), name: String(row.title ?? "") }));
+}
+
 /**
  * Un champ ne change que si sa sérialisation stable change (`serializeValue`) : une valeur absente et
  * une chaîne vide sont la même chose, « 99.00 » relu en base et 99 reçu aussi ; l'historique reçoit

@@ -46,7 +46,7 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
         </p>
       </header>
       <div className="grid gap-6 min-[900px]:grid-cols-[minmax(0,1fr)_var(--pane-right-w)] xl:grid-cols-[var(--pane-left-w)_minmax(0,1fr)_var(--pane-right-w)]">
-        <LinksColumn type={type} className="min-[900px]:hidden xl:block" />
+        <LinksColumn type={type} id={id} className="min-[900px]:hidden xl:block" />
         <FieldsSection type={type} record={serializeRecord(record)} users={users} />
         <section aria-label="Historique" className="grid content-start gap-3">
           <h2 className="text-base font-medium">Historique</h2>
