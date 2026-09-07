@@ -139,3 +139,30 @@ describe("profil contact — refus (CRM-40, CRM-41, contrat 10, D21)", () => {
     expect((await patchProfile(jsonRequest("PATCH", `/api/personnes/${id}/profil-contact`, { companyId: solveigeId }), byId(id))).status).toBe(401);
   });
 });
+
+describe("profil contact — rôle et changement d'entreprise (CRM-41, CRM-42, contrats 6 et 7)", () => {
+  it("le rôle « décideur » se règle par PATCH ; changer l'entreprise déplace la personne (companyId) et l'historique garde l'ancienne par son nom ; un PATCH sans changement n'écrit rien", async () => {
+    const id = await createPerson({ firstName: "Hugo", lastName: "Marchand", companyId: solveigeId, jobTitle: "DAF" });
+    const role = await patchProfile(jsonRequest("PATCH", `/api/personnes/${id}/profil-contact`, { decisionRole: "decideur" }, memberCookie), byId(id));
+    expect(role.status).toBe(200);
+    expect(await role.json()).toMatchObject({ companyId: solveigeId, jobTitle: "DAF", decisionRole: "decideur" });
+    expect(await changesOf(id)).toContainEqual(["decisionRole", "Non précisé", "Décideur"]);
+
+    const moved = await patchProfile(jsonRequest("PATCH", `/api/personnes/${id}/profil-contact`, { companyId: ferrandiId }, memberCookie), byId(id));
+    expect(moved.status).toBe(200);
+    expect(await moved.json()).toMatchObject({ companyId: ferrandiId, companyName: "Groupe Ferrandi", jobTitle: "DAF", decisionRole: "decideur" });
+    expect(await readPerson(id)).toMatchObject({ companyId: ferrandiId, profiles: "contact" });
+    expect(await changesOf(id)).toContainEqual(["companyId", "Banque Solveige", "Groupe Ferrandi"]);
+
+    const count = (await changesOf(id)).length;
+    const same = await patchProfile(jsonRequest("PATCH", `/api/personnes/${id}/profil-contact`, { companyId: ferrandiId, jobTitle: "DAF", decisionRole: "decideur" }, memberCookie), byId(id));
+    expect(same.status).toBe(200);
+    expect((await changesOf(id)).length).toBe(count);
+
+    /* Une personne archivée ne reçoit plus de profil ni de changement (D21). */
+    await db.update(person).set({ archivedAt: new Date() }).where(eq(person.id, id));
+    const archived = await patchProfile(jsonRequest("PATCH", `/api/personnes/${id}/profil-contact`, { decisionRole: "acheteur" }, memberCookie), byId(id));
+    expect(archived.status).toBe(409);
+    expect(await archived.json()).toMatchObject({ error: "fiche_archivee" });
+  });
+});
