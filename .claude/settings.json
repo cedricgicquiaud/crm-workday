@@ -34,7 +34,13 @@
       "mcp__linear__list_issue_statuses",
       "mcp__linear__save_issue",
       "mcp__linear__save_project",
-      "mcp__linear__save_comment"
+      "mcp__linear__save_comment",
+      "Bash(sleep:*)",
+      "Bash(curl:*)",
+      "Bash(echo:*)",
+      "Bash(sort:*)",
+      "Bash(git show:*)",
+      "Bash(ps:*)"
     ]
   }
 }

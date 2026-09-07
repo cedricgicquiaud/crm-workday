@@ -16,6 +16,12 @@ nommés, sans rien changer d'autre.
 Tu ne peux poser aucune question : personne ne suit ton travail pendant qu'il se fait. S'il te
 manque une information, écris-le dans ton rapport et arrête-toi. Ne devine pas.
 
+Une commande que la liste blanche n'autorise pas te bloque de la même façon : elle attend un
+clic d'un humain qui n'est pas là. **Une commande composée n'est autorisée que si chacun de
+ses morceaux l'est.** `pkill -f "next dev"; sleep 1; curl localhost:3000` s'arrête sur `sleep`
+même si `pkill` est autorisé. Lance une commande à la fois, sans `sleep`, `curl` ni `echo`
+autour ; si elle est refusée, note-le dans ton rapport et continue sans elle.
+
 Tu communiques en **français**.
 
 ## La liste est fermée

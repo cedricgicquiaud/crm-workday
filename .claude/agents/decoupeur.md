@@ -58,6 +58,15 @@ Les livraisons dans l'ordre, puis les frontières que tu n'as pas su trancher.
 Les tailles S, M, L, XL sont définies dans `.pilot/calibration.md`, avec le nombre de tâches et
 d'échanges que chacune a coûté sur ce projet. Lis ce fichier avant d'attribuer une taille.
 
+La taille se juge en lignes de diff, et le barème vient d'un autre projet tant que celui-ci n'a
+pas de mesures. Regarde ce que la dernière livraison mergée a coûté ici : `git log --stat` sur
+sa branche, ou la ligne d'historique de la calibration. Un écran avec son API, sa migration et
+ses tests de bout en bout fait rarement moins de 1 000 lignes sur une application avec serveur
+et base ; la même chose sur une page statique en fait 200. Sur crm-workday, cinq livraisons
+sur cinq sont sorties une taille au-dessus de l'annonce, parce que le barème venait d'une page
+statique. Quand tu hésites entre deux tailles, prends la plus grande : le calendrier se date
+dessus.
+
 ```
 ## Découpage — <feature>
 
