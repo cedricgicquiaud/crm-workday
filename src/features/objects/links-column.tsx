@@ -7,7 +7,9 @@ import { getServerObject } from "@/features/objects/registry.server";
 import { db } from "@/lib/db";
 
 export type LinkedRecord = { id: string; title: string; href: string };
-export type LinkedGroup = { key: string; label: string; records: LinkedRecord[] };
+/** Création rapide depuis ce groupe (D7) : l'objet à créer et le champ pré-rempli avec la fiche courante. */
+export type LinkedCreate = { type: string; prefill: Record<string, string> };
+export type LinkedGroup = { key: string; label: string; records: LinkedRecord[]; create?: LinkedCreate };
 
 /** Fiches d'un objet dont la colonne `fkColumn` vaut `id`, non archivées, la dernière modifiée en tête. */
 async function recordsPointingTo(objectKey: string, fkColumn: string, id: string): Promise<LinkedRecord[]> {
@@ -48,7 +50,12 @@ export async function linkedGroups(type: string, id: string): Promise<LinkedGrou
     listObjects()
       .filter((object) => object.key !== type)
       .flatMap((object) => object.relations.filter((relation) => relation.to === type).map((relation) => ({ object, relation })))
-      .map(async ({ object, relation }) => ({ key: `${object.key}-${relation.fkColumn}`, label: relation.inverseLabel, records: await recordsPointingTo(object.key, relation.fkColumn, id) })),
+      .map(async ({ object, relation }) => ({
+        key: `${object.key}-${relation.fkColumn}`,
+        label: relation.inverseLabel,
+        ...(relation.prefill ? { create: { type: object.key, prefill: { [relation.prefill]: id } } } : {}),
+        records: await recordsPointingTo(object.key, relation.fkColumn, id),
+      })),
   );
   return [...own, ...inverse];
 }
