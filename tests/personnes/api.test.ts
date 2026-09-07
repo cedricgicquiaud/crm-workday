@@ -112,3 +112,37 @@ describe("API des personnes — refus 400 (CRM-40, CRM-41, contrat 10)", () => {
     expect(await read.json()).toMatchObject({ name: "Bien Formée", profiles: "aucun", email: null });
   });
 });
+
+describe("API des personnes — adresse déjà portée (CRM-40, D19, contrat 9)", () => {
+  it("enregistre « Jean.Dupont@Acme.fr » en minuscules et refuse (409) « jean.dupont@acme.fr » à une autre personne, archivée comprise, en la nommant ; le PATCH d'une adresse vers une adresse portée est refusé pareil", async () => {
+    const first = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Jean", lastName: "Dupont", email: "Jean.Dupont@Acme.fr" }, memberCookie));
+    expect(first.status).toBe(201);
+    const { id } = (await first.json()) as { id: string };
+    const read = await getPerson(jsonRequest("GET", `/api/personnes/${id}`, undefined, memberCookie), byId(id));
+    expect(await read.json()).toMatchObject({ email: "jean.dupont@acme.fr" });
+
+    const before = (await db.select({ id: person.id }).from(person)).length;
+    const active = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Jeanne", lastName: "Dupont", email: "jean.dupont@acme.fr" }, memberCookie));
+    expect(active.status).toBe(409);
+    expect(await active.json()).toMatchObject({ error: "valeur_deja_portee", message: "L'adresse jean.dupont@acme.fr est déjà portée par « Jean Dupont ».", field: "email", existingId: id, existingName: "Jean Dupont", archived: false });
+    const spaced = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Jeanne", lastName: "Dupont", email: " JEAN.DUPONT@acme.fr " }, memberCookie));
+    expect(spaced.status).toBe(409);
+    expect((await db.select({ id: person.id }).from(person)).length).toBe(before);
+
+    const other = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Paul", lastName: "Martin", email: "paul.martin@acme.fr" }, memberCookie));
+    const { id: paulId } = (await other.json()) as { id: string };
+    const moved = await patchPerson(jsonRequest("PATCH", `/api/personnes/${paulId}`, { email: "Jean.Dupont@Acme.fr" }, memberCookie), byId(paulId));
+    expect(moved.status).toBe(409);
+    expect(await moved.json()).toMatchObject({ error: "valeur_deja_portee", existingId: id, existingName: "Jean Dupont" });
+    const unchanged = await getPerson(jsonRequest("GET", `/api/personnes/${paulId}`, undefined, memberCookie), byId(paulId));
+    expect(await unchanged.json()).toMatchObject({ email: "paul.martin@acme.fr" });
+    /* Sa propre adresse, autrement écrite, n'est pas un conflit. */
+    const same = await patchPerson(jsonRequest("PATCH", `/api/personnes/${paulId}`, { email: "Paul.Martin@Acme.fr" }, memberCookie), byId(paulId));
+    expect(same.status).toBe(200);
+
+    await db.update(person).set({ archivedAt: new Date() }).where(eq(person.id, id));
+    const archived = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Jeanne", lastName: "Dupont", email: "jean.dupont@acme.fr" }, memberCookie));
+    expect(archived.status).toBe(409);
+    expect(await archived.json()).toMatchObject({ message: "L'adresse jean.dupont@acme.fr est déjà portée par « Jean Dupont » (fiche archivée).", archived: true });
+  });
+});
