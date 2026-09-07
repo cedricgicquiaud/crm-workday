@@ -78,3 +78,16 @@ test.describe("recherche dans la palette (CRM-39, contrat 3)", () => {
     await expect(acme).toBeHidden();
   });
 });
+
+test.describe("aucun résultat (CRM-39, refus)", () => {
+  test("« zzz » affiche « Aucun résultat. » et Entrée n'ouvre rien", async ({ memberPage }) => {
+    await memberPage.goto("/accueil");
+    const palette = await openPalette(memberPage);
+    await palette.getByPlaceholder(PALETTE_INPUT).fill("zzz");
+    await expect(palette.getByText("Aucun résultat.")).toBeVisible();
+    await expect(palette.getByRole("option")).toHaveCount(0);
+    await memberPage.keyboard.press("Enter");
+    await expect(memberPage).toHaveURL(/\/accueil$/);
+    await expect(palette).toBeVisible();
+  });
+});
