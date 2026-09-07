@@ -24,6 +24,10 @@ const SEARCH_DEBOUNCE_MS = 200;
 /** Les valeurs des résultats commencent par ce préfixe : c'est ainsi que le filtre les reconnaît. */
 const RESULT_VALUE_PREFIX = "resultat:";
 const SEARCH_FAILED = "La recherche n'a pas répondu.";
+/** Le composant shadcn pose `outline-hidden` sur la saisie : on rétablit le contour de focus des fondations (`--focus-outline`, jamais supprimé). */
+const INPUT_FOCUS = "rounded-sm focus-visible:[outline:var(--focus-outline)] focus-visible:[outline-offset:var(--focus-offset)]";
+/** Brique ⌘K des fondations : intitulé de groupe en micro-libellé, capitales espacées (comme « Objets » dans la barre latérale). */
+const GROUP_HEADING = "**:[[cmdk-group-heading]]:text-2xs **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:uppercase **:[[cmdk-group-heading]]:tracking-(--tracking-caps)";
 
 /** Ordre des sections (fondations : résultats puis actions). */
 const GROUPS: readonly { id: PaletteGroup; heading: string }[] = [
@@ -74,16 +78,17 @@ function PaletteCommand({ context }: { context: PaletteContext }) {
 
   return (
     <Command filter={paletteFilter} value={selected} onValueChange={setSelected}>
-      <CommandInput placeholder={PALETTE_PLACEHOLDER} value={query} onValueChange={setQuery} />
+      <CommandInput placeholder={PALETTE_PLACEHOLDER} value={query} onValueChange={setQuery} className={INPUT_FOCUS} />
+      {/* Hors du `listbox`, qui n'attend que des options et des groupes. */}
+      {failed && (
+        <p role="alert" className="px-3 py-2 text-xs text-danger">
+          {SEARCH_FAILED}
+        </p>
+      )}
       <CommandList>
         {!searching && !failed && <CommandEmpty>Aucun résultat.</CommandEmpty>}
-        {failed && (
-          <p role="alert" className="px-3 py-2 text-xs text-danger">
-            {SEARCH_FAILED}
-          </p>
-        )}
         {results.length > 0 && (
-          <CommandGroup heading={RESULTS_HEADING}>
+          <CommandGroup heading={RESULTS_HEADING} className={GROUP_HEADING}>
             {results.map((result) => (
               <CommandItem key={result.id} value={resultValue(result)} onSelect={() => context.navigate(result.href)}>
                 {result.icon && <result.icon />}
@@ -97,7 +102,7 @@ function PaletteCommand({ context }: { context: PaletteContext }) {
           const items = entries.filter((entry) => entry.group === group.id);
           if (items.length === 0) return null;
           return (
-            <CommandGroup key={group.id} heading={group.heading}>
+            <CommandGroup key={group.id} heading={group.heading} className={GROUP_HEADING}>
               {items.map((entry) => (
                 <CommandItem key={entry.id} value={entry.label} keywords={entry.keywords} onSelect={() => void entry.run(context)}>
                   {entry.icon && <entry.icon />}
