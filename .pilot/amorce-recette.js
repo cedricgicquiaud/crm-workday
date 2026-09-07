@@ -66,3 +66,41 @@ for (const { entreprise, ...personne } of personnes) {
     throw new Error(`amorce-recette : création de ${personne.firstName} ${personne.lastName} refusée (${creation.status}).`);
   }
 }
+
+// Livraison 2.3 — quelques activités pour la recette : des notes, un appel et une tâche échue de la
+// veille (elle déclenche la bannière de la fiche). Même règle que les blocs précédents : on lit le
+// fil de chaque fiche avant d'écrire et on ne crée que ce qui manque, pour qu'une relance n'émette
+// aucune requête refusée. Le responsable de la tâche est celui de la fiche, déjà connu de la liste.
+const fichesAvecFil = await fetch("/api/entreprises");
+if (!fichesAvecFil.ok) {
+  throw new Error(`amorce-recette : lecture des entreprises refusée (${fichesAvecFil.status}).`);
+}
+const entreprisesParNomComplet = new Map((await fichesAvecFil.json()).companies.map((entreprise) => [entreprise.name, entreprise]));
+const personnesAvecIds = await fetch("/api/personnes");
+if (!personnesAvecIds.ok) {
+  throw new Error(`amorce-recette : lecture des personnes refusée (${personnesAvecIds.status}).`);
+}
+const personnesParNomComplet = new Map((await personnesAvecIds.json()).persons.map((personne) => [personne.name, personne]));
+const veille = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() - 86_400_000));
+const activites = [
+  { objet: "company", fiche: "Banque Solveige", corps: { type: "note", body: "Renouvellement validé sur six mois, à confirmer par bon de commande." } },
+  { objet: "company", fiche: "Banque Solveige", corps: { type: "tache", title: "Envoyer la proposition de renouvellement", dueDate: veille } },
+  { objet: "company", fiche: "Assurances Vaubourg", corps: { type: "reunion", body: "Réunion de cadrage du projet SIRH, quatre participants." } },
+  { objet: "person", fiche: "Claire Morvan", corps: { type: "note", body: "Préfère être appelée le matin." } },
+  { objet: "person", fiche: "Julien Tessier", corps: { type: "appel", body: "Appel de suivi, 12 minutes : budget confirmé pour le quatrième trimestre." } },
+];
+for (const activite of activites) {
+  const fiche = activite.objet === "company" ? entreprisesParNomComplet.get(activite.fiche) : personnesParNomComplet.get(activite.fiche);
+  if (!fiche) continue;
+  const fil = await fetch(`/api/objets/${activite.objet}/${fiche.id}/activites`);
+  if (!fil.ok) {
+    throw new Error(`amorce-recette : lecture du fil de ${activite.fiche} refusée (${fil.status}).`);
+  }
+  const texte = activite.corps.title ?? activite.corps.body;
+  if ((await fil.json()).entries.some((entree) => entree.text === texte)) continue;
+  const corps = activite.corps.type === "tache" ? { ...activite.corps, assigneeId: fiche.ownerId } : activite.corps;
+  const creation = await fetch(`/api/objets/${activite.objet}/${fiche.id}/activites`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corps) });
+  if (!creation.ok) {
+    throw new Error(`amorce-recette : création d'une activité sur ${activite.fiche} refusée (${creation.status}).`);
+  }
+}
