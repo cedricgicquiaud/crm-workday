@@ -36,3 +36,29 @@ for (const entreprise of entreprises) {
     throw new Error(`amorce-recette : création de ${entreprise.name} refusée (${creation.status}).`);
   }
 }
+
+// Livraison 2.2 — quatre personnes rattachées aux entreprises ci-dessus. Même règle : on lit la liste
+// des personnes et celle des entreprises, on ne crée que les noms absents, avec l'entreprise, le poste
+// et le rôle dans le même appel (profil contact). Un 409 (adresse déjà portée par une fiche renommée)
+// est ignoré.
+const entreprisesParNom = new Map((await (await fetch("/api/entreprises")).json()).companies.map((entreprise) => [entreprise.name, entreprise.id]));
+const listePersonnes = await fetch("/api/personnes");
+if (!listePersonnes.ok) {
+  throw new Error(`amorce-recette : lecture des personnes refusée (${listePersonnes.status}).`);
+}
+const personnesExistantes = new Set((await listePersonnes.json()).persons.map((personne) => personne.name));
+const personnes = [
+  { firstName: "Claire", lastName: "Morvan", email: "claire.morvan@banque-solveige.fr", phone: "01 44 12 30 21", entreprise: "Banque Solveige", jobTitle: "DSI", decisionRole: "decideur" },
+  { firstName: "Julien", lastName: "Tessier", email: "julien.tessier@banque-solveige.fr", otherEmails: "j.tessier@gmail.com", entreprise: "Banque Solveige", jobTitle: "Responsable achats IT", decisionRole: "acheteur" },
+  { firstName: "Sofia", lastName: "Benali", email: "sofia.benali@vaubourg-assurances.fr", linkedin: "https://www.linkedin.com/in/sofia-benali", entreprise: "Assurances Vaubourg", jobTitle: "Chef de projet SIRH", decisionRole: "utilisateur" },
+  { firstName: "Marc", lastName: "Ferrandi", email: "marc.ferrandi@groupe-ferrandi.fr", entreprise: "Groupe Ferrandi", jobTitle: "Directeur général", decisionRole: "non_precise" },
+];
+for (const { entreprise, ...personne } of personnes) {
+  if (personnesExistantes.has(`${personne.firstName} ${personne.lastName}`)) continue;
+  const companyId = entreprisesParNom.get(entreprise);
+  if (!companyId) continue;
+  const creation = await fetch("/api/personnes", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...personne, companyId }) });
+  if (!creation.ok && creation.status !== 409) {
+    throw new Error(`amorce-recette : création de ${personne.firstName} ${personne.lastName} refusée (${creation.status}).`);
+  }
+}
