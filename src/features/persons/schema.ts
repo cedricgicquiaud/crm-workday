@@ -40,5 +40,8 @@ export const PERSON_FIELDS: readonly FieldDescriptor[] = [
   { key: "notes", label: "Notes", type: "text", maxLength: 2000, multiline: true, order: 200 },
 ];
 
-/** Champs calculés ou dérivés : leur saisie est refusée (400), en création comme en modification. */
-export const DERIVED_FIELDS: readonly string[] = ["name", "profiles"];
+/** Champs calculés ou dérivés : leur saisie est refusée (400), en création comme en modification, avec ce message. */
+export const DERIVED_FIELDS: Readonly<Record<string, string>> = {
+  name: "« Nom complet » se déduit du prénom et du nom et ne se saisit pas.",
+  profiles: "« Profils » se déduit des profils attachés et ne se saisit pas.",
+};

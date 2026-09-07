@@ -17,9 +17,8 @@ const asObject = (input: unknown): Record<string, unknown> => (input && typeof i
 
 /** Un champ calculé ou dérivé (nom complet, Profils) ne se saisit pas : 400 rattaché au champ. */
 function refuseDerived(input: Record<string, unknown>): void {
-  const derived = DERIVED_FIELDS.filter((key) => key in input);
-  if (derived.length === 0) return;
-  const errors = Object.fromEntries(derived.map((key) => [key, `« ${key} » se déduit et ne se saisit pas.`]));
+  const errors = Object.fromEntries(Object.entries(DERIVED_FIELDS).filter(([key]) => key in input));
+  if (Object.keys(errors).length === 0) return;
   throw new HttpError(400, "champ_derive", Object.values(errors)[0], { fields: errors });
 }
 
