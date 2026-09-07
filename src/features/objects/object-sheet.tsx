@@ -3,7 +3,6 @@ import "@/features/objects/manifest.server";
 import { Badge } from "@/components/ui/badge";
 import { ActivityFeed, SheetPanes } from "@/features/activities/activity-feed";
 import { listFeed } from "@/features/activities/feed";
-import { HistoryList } from "@/features/history/history-list";
 import { SheetBanners } from "@/features/objects/banners";
 import { fieldsOf } from "@/features/objects/fields";
 import { FieldsSection } from "@/features/objects/fields-section";
@@ -24,10 +23,10 @@ async function loadRecord(type: string, id: string): Promise<ObjectRecord> {
 
 /**
  * Fiche d'un objet (D5, fondations « Briques de fiche ») : bannière de signalement en haut du
- * contenu, puis trois colonnes — liens à gauche (260 px), champs éditables en place au centre,
- * historique à droite (380 px) — et le fil d'activité en dessous. Sous 1280 px la colonne de gauche
- * se replie ; sous 900 px tout passe en une colonne et le fil devient un onglet. En-tête : titre
- * `<h1>` et badge de type.
+ * contenu, puis trois colonnes — liens à gauche (260 px), champs éditables en place au centre, fil
+ * d'activité à droite (380 px), où les changements de champs entrent comme un type d'entrée parmi
+ * les autres. Sous 1280 px la colonne de gauche se replie ; sous 900 px tout passe en une colonne et
+ * le fil devient un onglet. En-tête : titre `<h1>` et badge de type.
  */
 export async function ObjectSheet({ type, id }: { type: string; id: string }) {
   const definition = getObject(type);
@@ -54,16 +53,8 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
       <SheetBanners type={type} id={id} />
       <SheetPanes
         feedCount={feed.length}
-        sheet={
-          <div className="grid gap-6 min-[900px]:grid-cols-[minmax(0,1fr)_var(--pane-right-w)] xl:grid-cols-[var(--pane-left-w)_minmax(0,1fr)_var(--pane-right-w)]">
-            <LinksColumn type={type} id={id} className="min-[900px]:hidden xl:block" />
-            <FieldsSection type={type} record={serializeRecord(record)} users={users} />
-            <section aria-label="Historique" className="grid content-start gap-3">
-              <h2 className="text-base font-medium">Historique</h2>
-              <HistoryList type={type} id={id} users={users} />
-            </section>
-          </div>
-        }
+        links={<LinksColumn type={type} id={id} />}
+        main={<FieldsSection type={type} record={serializeRecord(record)} users={users} />}
         feed={<ActivityFeed type={type} id={id} items={feed} users={users} currentUserId={session.user.id} />}
       />
     </div>

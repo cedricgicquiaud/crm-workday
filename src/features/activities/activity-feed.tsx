@@ -144,12 +144,14 @@ function FeedEntry({ item, error, onToggle }: { item: FeedItem; error?: string; 
 }
 
 /**
- * Deux volets de la fiche (D5) : au-dessus de 900 px la fiche et son fil s'affichent l'un après
- * l'autre ; en dessous, ils deviennent deux onglets (32 px, soulignement accent, compteur à droite)
- * et un seul volet s'affiche à la fois. Ce composant vit avec le fil parce que c'est lui qui devient
- * l'onglet ; la fiche générique le monte autour de ses colonnes.
+ * Les trois colonnes d'une fiche et leurs deux volets (D5, fondations « Briques de fiche ») : liens
+ * à gauche (260 px), contenu au centre, **fil d'activité à droite** (380 px). Sous 1280 px la colonne
+ * de gauche se replie ; sous 900 px tout passe en une colonne et la fiche et son fil deviennent deux
+ * onglets (32 px, soulignement accent, compteur à droite) dont un seul s'affiche à la fois. Ce
+ * composant vit avec le fil parce que c'est lui qui devient l'onglet ; les fiches le montent autour
+ * de leurs colonnes.
  */
-export function SheetPanes({ sheet, feed, feedCount }: { sheet: ReactNode; feed: ReactNode; feedCount: number }) {
+export function SheetPanes({ links, main, feed, feedCount }: { links: ReactNode; main: ReactNode; feed: ReactNode; feedCount: number }) {
   const [tab, setTab] = useState<"fiche" | "fil">("fiche");
   const tabs = [
     { key: "fiche" as const, label: "Fiche", count: null as number | null },
@@ -163,8 +165,6 @@ export function SheetPanes({ sheet, feed, feedCount }: { sheet: ReactNode; feed:
             key={entry.key}
             type="button"
             role="tab"
-            id={`onglet-${entry.key}`}
-            aria-controls={`volet-${entry.key}`}
             aria-selected={tab === entry.key}
             aria-current={tab === entry.key ? "page" : undefined}
             onClick={() => setTab(entry.key)}
@@ -178,11 +178,10 @@ export function SheetPanes({ sheet, feed, feedCount }: { sheet: ReactNode; feed:
           </button>
         ))}
       </div>
-      <div id="volet-fiche" role="tabpanel" aria-labelledby="onglet-fiche" className={cn(tab === "fil" && "max-[899px]:hidden")}>
-        {sheet}
-      </div>
-      <div id="volet-fil" role="tabpanel" aria-labelledby="onglet-fil" className={cn(tab === "fiche" && "max-[899px]:hidden")}>
-        {feed}
+      <div className="grid gap-6 min-[900px]:grid-cols-[minmax(0,1fr)_var(--pane-right-w)] xl:grid-cols-[var(--pane-left-w)_minmax(0,1fr)_var(--pane-right-w)]">
+        <div className={cn("min-w-0 min-[900px]:hidden xl:block", tab === "fil" && "max-[899px]:hidden")}>{links}</div>
+        <div className={cn("min-w-0", tab === "fil" && "max-[899px]:hidden")}>{main}</div>
+        <div className={cn("min-w-0", tab === "fiche" && "max-[899px]:hidden")}>{feed}</div>
       </div>
     </div>
   );

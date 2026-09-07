@@ -8,9 +8,10 @@
 import { and, desc, eq, getTableColumns, inArray, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { activity, user } from "@/db/schema";
-import { listHistory } from "@/features/history/history";
-import { historyLabel } from "@/features/history/history-list";
-import { getObject } from "@/features/objects/registry";
+import { listHistory, type HistoryEntry } from "@/features/history/history";
+import { historyFieldsOf } from "@/features/objects/fields";
+import { displayValue, type UserOption } from "@/features/objects/labels";
+import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
 import { listUserOptions } from "@/features/objects/service";
 import { db } from "@/lib/db";
@@ -110,7 +111,22 @@ async function activityItems(objectType: string, objectId: string): Promise<Feed
   }));
 }
 
-/** Changements de la fiche (D12), lus tels que l'historique les rend et libellés comme lui. */
+const ACTION_LABELS: Record<HistoryEntry["action"], string> = { creee: "Fiche créée", modifiee: "Champ modifié", archivee: "Fiche archivée", restauree: "Fiche restaurée", fusionnee: "Fiche fusionnée" };
+
+/** « Type : Prospect → Client » ; une valeur absente se lit « vide ». */
+function changeLabel(fields: readonly FieldDescriptor[], entry: HistoryEntry, users: readonly UserOption[]): string {
+  const field = fields.find((f) => f.key === entry.field);
+  const label = field?.label ?? entry.field ?? "";
+  const show = (value: string | null) => (field && value !== null ? displayValue(field, value, users) : value ?? "vide");
+  return `${label} : ${show(entry.oldValue)} → ${show(entry.newValue)}`;
+}
+
+/** Phrase d'une entrée d'historique — « Fiche créée », « Type : Prospect → Client » (D12). */
+function historyLabel(type: string, entry: HistoryEntry, users: readonly UserOption[]): string {
+  return entry.action === "modifiee" ? changeLabel(historyFieldsOf(type), entry, users) : ACTION_LABELS[entry.action];
+}
+
+/** Changements de la fiche (D12) : l'historique est un type d'entrée du fil, il n'a plus de colonne à lui. */
 async function changeItems(objectType: string, objectId: string): Promise<FeedItem[]> {
   const [entries, users] = await Promise.all([listHistory(objectType, objectId), listUserOptions()]);
   return entries.map((entry) => ({
