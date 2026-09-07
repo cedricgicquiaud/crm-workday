@@ -16,12 +16,27 @@ export type SearchResult = {
   href: string;
 };
 
+/**
+ * La saisie est interrogée normalisée (« acmé » trouve « ACME ») et, si elle en diffère, telle que
+ * tapée (« acmé » trouve aussi « Acmé ») : les colonnes ne sont pas normalisées en base, une saisie
+ * accentuée ne retrouverait sinon plus un nom accenté. Les doublons sont retirés par identifiant.
+ */
+function queryVariants(query: string): string[] {
+  const typed = query.trim().replace(/\s+/g, " ");
+  const normalized = normalizeQuery(query);
+  return typed === normalized ? [normalized] : [normalized, typed];
+}
+
 export async function search(query: string): Promise<SearchResult[]> {
-  const text = normalizeQuery(query);
+  const variants = queryVariants(query);
   const perObject = await Promise.all(
     listObjects().map(async (object) => {
-      const hits = await getServerObject(object.key).search(text);
-      return hits.map((hit) => ({ type: object.key, id: hit.id, title: hit.title, subtitle: hit.subtitle, href: object.href(hit.id) }));
+      const { search: searchObject } = getServerObject(object.key);
+      const hits = (await Promise.all(variants.map(searchObject))).flat();
+      const seen = new Set<string>();
+      return hits
+        .filter((hit) => !seen.has(hit.id) && seen.add(hit.id))
+        .map((hit) => ({ type: object.key, id: hit.id, title: hit.title, subtitle: hit.subtitle, href: object.href(hit.id) }));
     }),
   );
   return perObject.flat();
