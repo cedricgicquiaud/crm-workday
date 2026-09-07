@@ -112,3 +112,20 @@
 - Cadrage validé par Cédric (15:40, sept propositions acceptées) ; champ dérivé **Profils** ajouté sur la personne à sa demande (« aucun / contact / consultant », colonne + filtre, déduit des profils). Décisions et contrat gravés dans la fiche Linear (contenu du projet).
 - Découpage (découpeur → lead) validé (16:20) : 9 livraisons en série 2.1a → 2.1b → 2.2 → 2.3 → 2.5a → 2.5b → 2.4 → 2.6a → 2.6b, 2.5 avant 2.4, trois livraisons coupées en deux, pas de socle transverse (mécanismes génériques + garde-fou grep dès 2.1a, contrat 33 en 2.4), éditions en série des points de contact, manifeste d'objets. Frontières F1–F9 tranchées par le lead. 9 jalons (6 renommés + 3 créés), 31 tâches CRM-33..63, feature « Planifiée », label XL. Fichier : `.pilot/cadrage/feature-2-decoupage.md`.
 - Suite : `run` feature 2 (worktree `../crm-workday-6`, 2.1a en premier) sur un « oui » de Cédric.
+
+## Run feature 2 (2026-09-05, 17:35 →)
+- Plan : 9 livraisons en série, 1 producteur, arrêt = PR auditée sans bloquant ni défaut par livraison. Feature « En développement ».
+- Worktree `../crm-workday-6`, branche `feature/CRM-33-entreprises-fiche-historique` ; commit `docs:` du lead (fe34303) porte CLAUDE.md (idiomes rétro F1), calibration, notes, cadrage et découpage F2 — ces fichiers partiront avec la PR de 2.1a. MISSION.md (108 lignes) écrit avec les attentes du registre pour 2.2–2.6. Producteur `tdd-writer-21a` lancé.
+
+## Run 2.1a (2026-09-05, 17:38 → 23:45)
+- PR #8 ouverte à 19:37 (45 commits + docs du lead, 3 503 lignes, 26 tests). verifier : 0 bloquant, 5 importants (types non vérifiés → « [object Object] » enregistré ; id non UUID → 500 ; colonne des liens sans chargement ; date/number sans règle ; preuve TDD partielle sur 3 comportements), 6 à considérer, contrat 5/5, garde-fou D4 réel. testeur : 3 défauts (email de facturation tronqué à 1280 — champs sur 2 colonnes dans 288 px ; croix « Close » ; état vide nommant les contacts) + amorce bruyante (12 × 409 en console).
+- Décisions du lead : chargement des fiches liées → 2.2 ; fil en onglet < 900 px → 2.3 (découpage et jalons Linear mis à jour, commit docs 5663c79 sur la branche).
+- correcteur : 9/9 (5 avec test : parseValue par type, UUID → 404, règles date/number + serializeValue, échec d'édition en place montré, registerObject strict ; 4 visuels). testeur v2 : 3/3 corrigés, 0 nouveau. Rapport posté (Mergeable, 4 à relire, 5 décisions). Feature « En revue », PR attachée. CI verte (106 Vitest, 41 Playwright).
+- Coût anormal : 6 h d'agents pour une livraison L (F1 : 1–1.5 h). verifier 161 min pour 63 échanges (relance des suites + build, attentes longues), tdd-writer 120 min / 188, correcteur 72 min / 107. Causes probables : diff de 3 500 lignes (mécanismes génériques + objet + écrans dans une seule livraison), suites e2e à 1.6 min relancées par chaque agent, corrections nombreuses. À examiner à la rétro : couper 2.1a en « mécanismes » et « écrans », ou accepter le coût de la première livraison d'une feature.
+- Leçons : (1) un producteur qui construit tous les écrans dans un seul feat (16 fichiers) affaiblit la preuve TDD ; (2) la validation par descripteurs doit vérifier le type JSON, pas seulement le format ; (3) l'amorce de recette doit être silencieuse (GET avant POST).
+- Attente : merge humain de la PR #8, puis `sync`, puis 2.1b « Recherche dans la palette Cmd+K ».
+
+## Sync après merge de la PR #8 (2026-09-06 00:05)
+- PR #8 mergée à 00:03. Fichiers locaux (CLAUDE.md, calibration, notes, cadrage F2) réconciliés avec main : seuls calibration et notes gardent une avance locale (ligne 2.1a, run 2.1a). Worktree `crm-workday-6` supprimé, branche effacée, base migrée (`0003`). Jalon 2.1a daté 2026-09-06, CRM-33..36 « Terminée », feature « En développement » (1/9).
+- Suite : run 2.1b « Recherche dans la palette Cmd+K » (CRM-37..39), worktree `../crm-workday-7`.
+- Fin de session 2026-09-06 00:15 : 2.1b préparée (worktree `crm-workday-7`, MISSION.md), producteur NON lancé sur demande de Cédric. Résumé de reprise : `2026-09-06-reprise-feature-2.md`.
