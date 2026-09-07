@@ -7,7 +7,7 @@ import { FieldsSection } from "@/features/objects/fields-section";
 import { displayValue, formatDate } from "@/features/objects/labels";
 import { LinksColumn } from "@/features/objects/links-column";
 import { getObject } from "@/features/objects/registry";
-import { listObjectRecords, listUserOptions, serializeRecord } from "@/features/objects/service";
+import { listRecordOptions, listUserOptions, serializeRecord } from "@/features/objects/service";
 import { getContactProfile } from "@/features/persons/contact-profile";
 import { ContactProfileSection } from "@/features/persons/contact-profile-section";
 import { getPerson, type PersonRecord } from "@/features/persons/persons";
@@ -34,7 +34,7 @@ async function loadPerson(id: string): Promise<PersonRecord> {
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const definition = getObject(TYPE);
-  const [record, users, profile, companies] = await Promise.all([loadPerson(id), listUserOptions(), getContactProfile(id), listObjectRecords("company")]);
+  const [record, users, profile, companies] = await Promise.all([loadPerson(id), listUserOptions(), getContactProfile(id), listRecordOptions("company")]);
   const fields = fieldsOf(TYPE);
   const owner = fields.find((f) => f.key === "ownerId")!;
   const profiles = fields.find((f) => f.key === "profiles")!;
@@ -55,7 +55,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <LinksColumn type={TYPE} id={id} className="min-[900px]:hidden xl:block" />
         <div className="grid min-w-0 content-start gap-6">
           <FieldsSection type={TYPE} record={serializeRecord(record)} users={users} />
-          <ContactProfileSection personId={id} profile={profile} companies={companies.map((company) => ({ id: company.id, name: String(company.name) }))} />
+          <ContactProfileSection personId={id} profile={profile} companies={companies} />
         </div>
         <section aria-label="Historique" className="grid min-w-0 content-start gap-3">
           <h2 className="text-base font-medium">Historique</h2>
