@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { PATCH as patchActivity } from "@/app/api/activites/[id]/route";
 import { POST as postActivity } from "@/app/api/objets/[type]/[id]/activites/route";
 import { DELETE as deleteHistory, PATCH as patchHistory } from "@/app/api/objets/[type]/[id]/historique/route";
 import { POST as postCompany } from "@/app/api/entreprises/route";
@@ -15,6 +16,7 @@ let memberId: string;
 let memberCookie: string;
 
 const on = (type: string, id: string) => ({ params: Promise.resolve({ type, id }) });
+const byId = (id: string) => ({ params: Promise.resolve({ id }) });
 
 async function cleanup() {
   await db.delete(activity);
@@ -101,5 +103,37 @@ describe("l'historique ne se modifie ni ne se supprime (CRM-44, contrat 15)", ()
       expect(refused.headers.get("allow")).toBe("GET");
     }
     expect((await postActivity(jsonRequest("POST", `/api/objets/company/${companyId}/activites`, { type: "note", body: "Le fil, lui, accepte une écriture." }, memberCookie), context)).status).toBe(201);
+  });
+});
+
+describe("API des activités — cocher une tâche (CRM-45, contrat 12)", () => {
+  it("passe la tâche « faite » avec sa date puis la remet « à faire », et refuse une activité qui n'est pas une tâche (400), une activité inconnue (404), une fiche archivée (409) et l'absence de session (401)", async () => {
+    const companyId = await createCompany("Tâches et Cie");
+    const created = await postActivity(jsonRequest("POST", `/api/objets/company/${companyId}/activites`, { type: "tache", title: "Rappeler Claire", dueDate: "2026-09-06", assigneeId: memberId }, memberCookie), on("company", companyId));
+    expect(created.status).toBe(201);
+    const { id } = (await created.json()) as { id: string };
+
+    const done = await patchActivity(jsonRequest("PATCH", `/api/activites/${id}`, { done: true }, memberCookie), byId(id));
+    expect(done.status).toBe(200);
+    const faite = (await done.json()) as { id: string; doneAt: string | null };
+    expect(faite.id).toBe(id);
+    expect(Number.isNaN(Date.parse(faite.doneAt ?? ""))).toBe(false);
+
+    const undone = await patchActivity(jsonRequest("PATCH", `/api/activites/${id}`, { done: false }, memberCookie), byId(id));
+    expect(undone.status).toBe(200);
+    expect(await undone.json()).toMatchObject({ id, doneAt: null });
+
+    const note = await postActivity(jsonRequest("POST", `/api/objets/company/${companyId}/activites`, { type: "note", body: "Une note ne se coche pas." }, memberCookie), on("company", companyId));
+    const noteId = ((await note.json()) as { id: string }).id;
+    expect((await patchActivity(jsonRequest("PATCH", `/api/activites/${noteId}`, { done: true }, memberCookie), byId(noteId))).status).toBe(400);
+
+    const inconnue = "00000000-0000-4000-8000-000000000000";
+    expect((await patchActivity(jsonRequest("PATCH", `/api/activites/${inconnue}`, { done: true }, memberCookie), byId(inconnue))).status).toBe(404);
+    expect((await patchActivity(jsonRequest("PATCH", `/api/activites/${id}`, { done: true }), byId(id))).status).toBe(401);
+
+    await db.update(company).set({ archivedAt: new Date() }).where(eq(company.id, companyId));
+    const archivee = await patchActivity(jsonRequest("PATCH", `/api/activites/${id}`, { done: true }, memberCookie), byId(id));
+    expect(archivee.status).toBe(409);
+    expect(await archivee.json()).toMatchObject({ error: "fiche_archivee" });
   });
 });
