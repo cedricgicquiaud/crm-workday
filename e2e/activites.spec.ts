@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { resetActivities, seedJournalEmail } from "./fixtures/activites";
-import { expect, seedAccounts, test } from "./fixtures/auth";
+import { expect, MEMBER, seedAccounts, test } from "./fixtures/auth";
 import { resetObjects } from "./fixtures/objets";
 import { resetPersons } from "./fixtures/personnes";
 
@@ -10,8 +10,14 @@ const suffix = () => `${Date.now().toString(36)} (e2e)`;
 /** Jour à Paris, décalé de `shift` jours, au format des échéances (`AAAA-MM-JJ`). */
 const parisDay = (shift = 0) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + shift * 86_400_000));
 
-/** « 7 sept. 2026 » : le titre du groupe du jour dans le fil. */
+/** « 7 sept. 2026 » : le titre du groupe du jour dans le fil, et la date d'une tâche cochée aujourd'hui. */
 const dayLabel = () => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Paris" }).format(new Date());
+
+/** « Marc Leroy » : le membre connecté, auteur des activités écrites par ces cas. */
+const memberName = `${MEMBER.firstName} ${MEMBER.lastName}`;
+
+/** Nombre de fois qu'un texte se lit dans une entrée du fil. */
+const occurrences = (needle: string, haystack: string) => haystack.split(needle).length - 1;
 
 test.beforeAll(() => {
   resetActivities();
@@ -111,6 +117,10 @@ test.describe("tâche échue et bannière de la fiche (CRM-45, contrat 12)", () 
     await composer.getByRole("button", { name: "Enregistrer" }).click();
     await expect(banner).toHaveText("1 tâche échue.");
 
+    /* Le responsable est l'auteur : son nom ne se lit qu'une fois sur la ligne, pas deux. */
+    const overdue = feed.getByRole("listitem").filter({ hasText: "Relancer la proposition" });
+    expect(occurrences(memberName, await overdue.innerText())).toBe(1);
+
     /* Le signalement est en haut du contenu, au-dessus des champs (fondations « Signalement »). */
     const bannerBox = await banner.boundingBox();
     const fieldsBox = await memberPage.getByRole("region", { name: "Champs" }).boundingBox();
@@ -118,7 +128,8 @@ test.describe("tâche échue et bannière de la fiche (CRM-45, contrat 12)", () 
 
     await feed.getByRole("checkbox", { name: "Relancer la proposition" }).click();
     await expect(banner).toHaveCount(0);
-    await expect(feed.getByRole("listitem").filter({ hasText: "Relancer la proposition" })).toContainText("faite");
+    /* Contrat 12 : « faite » porte la date du cochage, celle du jour, pas celle de la création. */
+    await expect(feed.getByRole("listitem").filter({ hasText: "Relancer la proposition" })).toContainText(`faite le ${dayLabel()}`);
     await memberPage.reload();
     await expect(feed.getByRole("checkbox", { name: "Relancer la proposition" })).toBeChecked();
     await expect(banner).toHaveCount(0);
@@ -161,6 +172,8 @@ test.describe("le fil sous 900 px (CRM-44, D5)", () => {
     await tabs.getByRole("tab", { name: /^Fil d'activité/ }).click();
     await expect(feed).toBeVisible();
     await expect(fields).toBeHidden();
+    /* Le libellé « Fil d'activité » ne se lit qu'une fois : l'onglet le porte, le titre de section s'efface. */
+    await expect(feed.getByRole("heading", { level: 2, name: "Fil d'activité" })).toBeHidden();
     const overflow = await memberPage.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
 
@@ -168,6 +181,8 @@ test.describe("le fil sous 900 px (CRM-44, D5)", () => {
     await expect(tabs).toBeHidden();
     await expect(feed).toBeVisible();
     await expect(fields).toBeVisible();
+    /* Sans onglet, le titre de section redevient le seul nom visible du fil. */
+    await expect(feed.getByRole("heading", { level: 2, name: "Fil d'activité" })).toBeVisible();
   });
 });
 
