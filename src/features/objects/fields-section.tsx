@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { fieldsOf } from "@/features/objects/fields";
-import type { SerializedRecord, UserOption } from "@/features/objects/labels";
+import { displayValue, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 
 type Props = { type: string; record: SerializedRecord; users: readonly UserOption[] };
@@ -99,6 +99,23 @@ function EditableField({ type, field, value: saved, error, users, onSave }: Edit
   }
   const editable = field.editable !== false;
   const describedBy = error ? errorId : undefined;
+
+  /* Lecture seule (un nom calculé, un champ dérivé) : la valeur se lit comme du texte. Rendue par un
+     contrôle éteint, elle serait à demi transparente — le contraste tomberait sous le seuil lisible
+     alors que c'est une donnée de la fiche (défaut d'audit 2.2). */
+  if (!editable) {
+    const text = displayValue(field, saved, users);
+    return (
+      <div className="grid gap-1">
+        <span id={`${id}-label`} className="flex items-center gap-2 text-sm leading-none font-medium select-none">
+          {field.label}
+        </span>
+        <p id={id} aria-labelledby={`${id}-label`} className="min-w-0 truncate text-sm" title={text}>
+          {text}
+        </p>
+      </div>
+    );
+  }
 
   async function commit() {
     if (draft === saved) return;

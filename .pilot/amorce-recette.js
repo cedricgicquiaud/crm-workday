@@ -41,7 +41,11 @@ for (const entreprise of entreprises) {
 // des personnes et celle des entreprises, on ne crée que les noms absents, avec l'entreprise, le poste
 // et le rôle dans le même appel (profil contact). Un 409 (adresse déjà portée par une fiche renommée)
 // est ignoré.
-const entreprisesParNom = new Map((await (await fetch("/api/entreprises")).json()).companies.map((entreprise) => [entreprise.name, entreprise.id]));
+const listeAvecIds = await fetch("/api/entreprises");
+if (!listeAvecIds.ok) {
+  throw new Error(`amorce-recette : lecture des entreprises refusée (${listeAvecIds.status}).`);
+}
+const entreprisesParNom = new Map((await listeAvecIds.json()).companies.map((entreprise) => [entreprise.name, entreprise.id]));
 const listePersonnes = await fetch("/api/personnes");
 if (!listePersonnes.ok) {
   throw new Error(`amorce-recette : lecture des personnes refusée (${listePersonnes.status}).`);
