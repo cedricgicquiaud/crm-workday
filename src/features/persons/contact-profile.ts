@@ -13,18 +13,14 @@ import type { FieldDescriptor } from "@/features/objects/registry";
 import { assertWritable, getObjectRecord, type Actor } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { DECISION_ROLES, DEFAULT_DECISION_ROLE, JOB_TITLE_FIELD } from "./schema";
+import { COMPANY_FIELD, DECISION_ROLES, DECISION_ROLE_FIELD, DEFAULT_DECISION_ROLE, JOB_TITLE_FIELD } from "./schema";
 
 const TYPE = "person";
 
 export type ContactProfile = { personId: string; companyId: string; companyName: string; jobTitle: string | null; decisionRole: string };
 
 /** Descripteurs du profil : mêmes règles à l'API et à l'écran (libellés, liste fermée des rôles). */
-export const CONTACT_PROFILE_FIELDS: readonly FieldDescriptor[] = [
-  { key: "companyId", label: "Entreprise", type: "text", required: true, order: 10 },
-  JOB_TITLE_FIELD,
-  { key: "decisionRole", label: "Rôle dans la décision", type: "list", values: DECISION_ROLES, required: true, default: DEFAULT_DECISION_ROLE, order: 30 },
-];
+export const CONTACT_PROFILE_FIELDS: readonly FieldDescriptor[] = [COMPANY_FIELD, JOB_TITLE_FIELD, DECISION_ROLE_FIELD];
 
 export const CONTACT_PROFILE_KEYS: readonly string[] = CONTACT_PROFILE_FIELDS.map((field) => field.key);
 

@@ -1,5 +1,5 @@
 import { listHistory, type HistoryEntry } from "@/features/history/history";
-import { fieldsOf } from "@/features/objects/fields";
+import { historyFieldsOf } from "@/features/objects/fields";
 import { displayValue, formatDate, formatDateTime, type UserOption } from "@/features/objects/labels";
 import type { FieldDescriptor } from "@/features/objects/registry";
 
@@ -25,7 +25,7 @@ function changeLabel(fields: readonly FieldDescriptor[], entry: HistoryEntry, us
  */
 export async function HistoryList({ type, id, users }: Props) {
   const entries = await listHistory(type, id);
-  const fields = fieldsOf(type);
+  const fields = historyFieldsOf(type);
   if (entries.length === 0) return <p className="text-sm text-muted-foreground">Aucun changement pour l&apos;instant.</p>;
   const days = new Map<string, HistoryEntry[]>();
   for (const entry of entries) {

@@ -73,6 +73,11 @@ export type ObjectDefinition = {
   /** champ affiché comme titre de la fiche et première colonne de la liste */
   titleField: string;
   fields: readonly FieldDescriptor[];
+  /**
+   * Descripteurs de champs historisés mais édités hors de la section des champs de la fiche (une
+   * section propre à l'objet). L'historique y lit leur libellé ; sans eux il afficherait la clé brute.
+   */
+  historyFields?: readonly FieldDescriptor[];
   relations: readonly Relation[];
   /** objet parent dont le fil reprend les activités de celui-ci (2.3) */
   feedParent?: string;
