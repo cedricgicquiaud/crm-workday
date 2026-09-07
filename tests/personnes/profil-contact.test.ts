@@ -76,6 +76,22 @@ describe("profil contact — ajout sur une personne (CRM-40, CRM-41, D3, contrat
     ]);
   });
 
+  it("le poste se lit sur la personne (GET) et s'édite par le PATCH de la personne comme les autres clés du profil ; des valeurs vides du profil à la création sont ignorées (dialogue à cinq champs sans entreprise choisie)", async () => {
+    const id = await createPerson({ firstName: "Vide", lastName: "Profil", companyId: "", jobTitle: "" });
+    expect(await readPerson(id)).toMatchObject({ profiles: "aucun", companyId: null, jobTitle: null });
+
+    const attached = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { companyId: solveigeId, jobTitle: "DSI" }, memberCookie), byId(id));
+    expect(attached.status).toBe(200);
+    expect(await attached.json()).toMatchObject({ profiles: "contact", companyId: solveigeId, jobTitle: "DSI" });
+    const renamed = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { jobTitle: "DAF", phone: "01 02" }, memberCookie), byId(id));
+    expect(renamed.status).toBe(200);
+    expect(await renamed.json()).toMatchObject({ jobTitle: "DAF", phone: "01 02" });
+    const role = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { decisionRole: "decideur" }, memberCookie), byId(id));
+    expect(role.status).toBe(200);
+    expect(await getProfile(jsonRequest("GET", `/api/personnes/${id}/profil-contact`, undefined, memberCookie), byId(id)).then((r) => r.json())).toMatchObject({ jobTitle: "DAF", decisionRole: "decideur" });
+    expect(await changesOf(id)).toContainEqual(["jobTitle", "DSI", "DAF"]);
+  });
+
   it("la création d'une personne accepte l'entreprise, le poste et le rôle dans le même appel (contrat 6 par l'API) ; une même personne ne porte qu'un profil", async () => {
     const id = await createPerson({ firstName: "Nadia", lastName: "Kessler", email: "nadia.kessler@solveige.fr", companyId: solveigeId, jobTitle: "Acheteuse", decisionRole: "acheteur" });
     expect(await readPerson(id)).toMatchObject({ name: "Nadia Kessler", email: "nadia.kessler@solveige.fr", profiles: "contact", companyId: solveigeId });
@@ -126,11 +142,11 @@ describe("profil contact — refus (CRM-40, CRM-41, contrat 10, D21)", () => {
     expect(await readPerson(id)).toMatchObject({ profiles: "aucun", companyId: null });
     expect(await changesOf(id)).toEqual([]);
 
-    for (const patch of [{ companyId: solveigeId }, { jobTitle: "DSI" }, { decisionRole: "decideur" }]) {
-      const res = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, patch, memberCookie), byId(id));
-      expect(res.status, JSON.stringify(patch)).toBe(400);
-      expect(await res.json()).toMatchObject({ error: "profil_contact", message: "L'entreprise, le poste et le rôle se règlent par le profil contact (/profil-contact)." });
-    }
+    /* Les clés du profil sur le PATCH de la personne suivent la même règle : sans entreprise, rien n'est créé. */
+    const jobOnly = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { jobTitle: "DSI" }, memberCookie), byId(id));
+    expect(jobOnly.status).toBe(400);
+    expect(await jobOnly.json()).toMatchObject({ fields: { companyId: "« Entreprise » est obligatoire." } });
+    expect(await readPerson(id)).toMatchObject({ profiles: "aucun", jobTitle: null });
 
     const unknown = "00000000-0000-4000-8000-000000000000";
     expect((await getProfile(jsonRequest("GET", `/api/personnes/${unknown}/profil-contact`, undefined, memberCookie), byId(unknown))).status).toBe(404);
