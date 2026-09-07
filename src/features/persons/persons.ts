@@ -26,48 +26,45 @@ async function withEmails(record: ObjectRecord): Promise<PersonRecord> {
   return { ...record, otherEmails: (await otherEmailsOf(record.id)).join(", ") };
 }
 
-/** L'adresse principale saisie, si elle en est une, doit être libre dans tout le CRM avant toute écriture (une adresse mal formée est refusée ensuite, 400, par les descripteurs). */
-async function assertPrimaryEmailAvailable(input: Record<string, unknown>, exceptPersonId: string | null): Promise<void> {
-  if (typeof input.email !== "string" || input.email.trim() === "") return;
-  await assertEmailAvailable(normalizeEmail(input.email), exceptPersonId);
-}
-
-/** Les autres adresses saisies (`otherEmails`), vérifiées avant toute écriture ; `null` si le champ n'est pas envoyé. */
-async function otherEmailsToSet(input: Record<string, unknown>, primary: string | null, exceptPersonId: string | null): Promise<string[] | null> {
-  if (!("otherEmails" in input)) return null;
-  const addresses = parseOtherEmails(typeof input.otherEmails === "string" ? input.otherEmails : "", primary);
+/**
+ * Sépare l'entrée reçue : les champs de la fiche (pour le service générique) et les adresses, dont
+ * l'unicité dans tout le CRM est vérifiée ici, avant toute écriture. Une adresse mal formée est
+ * refusée par les descripteurs (principale) ou par `parseOtherEmails` (autres), en 400.
+ */
+async function prepareInput(input: unknown, exceptPersonId: string | null, currentEmail: unknown): Promise<{ fields: Record<string, unknown>; otherEmails: string[] | null }> {
+  const { otherEmails, ...fields } = asObject(input);
+  refuseDerived(fields);
+  const primary = primaryOf(fields, currentEmail);
+  if (primary) await assertEmailAvailable(primary, exceptPersonId);
+  if (otherEmails === undefined) return { fields, otherEmails: null };
+  const addresses = parseOtherEmails(typeof otherEmails === "string" ? otherEmails : "", primary);
   await assertOtherEmailsAvailable(addresses, exceptPersonId);
-  return addresses;
+  return { fields, otherEmails: addresses };
 }
 
-const primaryOf = (input: Record<string, unknown>, fallback: unknown): string | null => {
-  const value = "email" in input ? input.email : fallback;
+/** L'adresse principale normalisée après la modification : celle saisie, sinon celle enregistrée ; `null` si aucune. */
+function primaryOf(fields: Record<string, unknown>, currentEmail: unknown): string | null {
+  const value = "email" in fields ? fields.email : currentEmail;
   return typeof value === "string" && value.trim() !== "" ? normalizeEmail(value) : null;
-};
+}
 
 export async function createPerson(input: unknown, actor: Actor): Promise<PersonRecord> {
-  const { otherEmails: _ignored, ...raw } = asObject(input);
-  refuseDerived(raw);
-  await assertPrimaryEmailAvailable(raw, null);
-  const others = await otherEmailsToSet(asObject(input), primaryOf(raw, null), null);
-  const record = await createObject(TYPE, raw, actor);
-  if (others) await setOtherEmails(record.id, others, actor);
+  const { fields, otherEmails } = await prepareInput(input, null, null);
+  const record = await createObject(TYPE, fields, actor);
+  if (otherEmails) await setOtherEmails(record.id, otherEmails, actor);
   return withEmails(record);
 }
 
 export const getPerson = async (id: string): Promise<PersonRecord> => withEmails(await getObjectRecord(TYPE, id));
 
 export async function updatePerson(id: string, patch: unknown, actor: Actor): Promise<PersonRecord> {
-  const { otherEmails: _ignored, ...raw } = asObject(patch);
-  refuseDerived(raw);
   const current = await getObjectRecord(TYPE, id);
   assertWritable(TYPE, current);
-  await assertPrimaryEmailAvailable(raw, id);
-  const others = await otherEmailsToSet(asObject(patch), primaryOf(raw, current.email), id);
+  const { fields, otherEmails } = await prepareInput(patch, id, current.email);
   let record = current;
-  if (Object.keys(raw).length > 0) record = await updateObject(TYPE, id, raw, actor);
-  if (others) {
-    await setOtherEmails(id, others, actor);
+  if (Object.keys(fields).length > 0) record = await updateObject(TYPE, id, fields, actor);
+  if (otherEmails) {
+    await setOtherEmails(id, otherEmails, actor);
     record = await getObjectRecord(TYPE, id);
   }
   return withEmails(record);
