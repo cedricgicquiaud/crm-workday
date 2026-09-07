@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PATCH as patchCompany } from "@/app/api/entreprises/[id]/route";
+import { PATCH as patchContactProfile } from "@/app/api/personnes/[id]/profil-contact/route";
 import { POST as postCompany } from "@/app/api/entreprises/route";
 import { POST as postPerson } from "@/app/api/personnes/route";
 import { activity, auditLog, company, emailLog, person, user } from "@/db/schema";
@@ -91,5 +92,24 @@ describe("fil d'activité — changements et emails (CRM-44, contrats 13 et 14)"
     expect(changes.every((item) => item.author?.name === "Inès Roux")).toBe(true);
     /* Un seul fil, antéchronologique quelle que soit la provenance des entrées. */
     expect(feed.map((item) => item.at)).toEqual([...feed.map((item) => item.at)].sort().reverse());
+  });
+});
+
+describe("changement d'entreprise et fil (CRM-46, contrat 7)", () => {
+  it("laisse dans le fil de l'ancienne entreprise les activités écrites avant le changement, et met dans celui de la nouvelle celles écrites après", async () => {
+    const ancienne = await createCompany("Banque Solveige (ancienne)");
+    const nouvelle = await createCompany("Groupe Ferrandi (nouvelle)");
+    const personId = await createPerson("Julien", "Tessier", ancienne);
+    const actor = { id: memberId };
+    await createActivity("person", personId, { type: "note", body: "Écrite avant le changement." }, actor);
+
+    const changed = await patchContactProfile(jsonRequest("PATCH", `/api/personnes/${personId}/profil-contact`, { companyId: nouvelle }, memberCookie), { params: Promise.resolve({ id: personId }) });
+    expect(changed.status).toBe(200);
+    await createActivity("person", personId, { type: "note", body: "Écrite après le changement." }, actor);
+
+    expect(activities(await listFeed("company", ancienne)).map((item) => item.text)).toEqual(["Écrite avant le changement."]);
+    expect(activities(await listFeed("company", nouvelle)).map((item) => item.text)).toEqual(["Écrite après le changement."]);
+    /* Le fil de la personne, lui, garde les deux, la plus récente d'abord. */
+    expect(activities(await listFeed("person", personId)).map((item) => item.text)).toEqual(["Écrite après le changement.", "Écrite avant le changement."]);
   });
 });
