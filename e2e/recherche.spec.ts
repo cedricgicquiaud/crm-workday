@@ -91,3 +91,26 @@ test.describe("aucun résultat (CRM-39, refus)", () => {
     await expect(palette).toBeVisible();
   });
 });
+
+test.describe("téléphone, 375 px (contrat 25 de la feature 1)", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test("la palette avec des résultats tient dans l'écran, sans défilement horizontal ni cadre qui défile en largeur", async ({ memberPage }) => {
+    await memberPage.setViewportSize({ width: 375, height: 812 });
+    const { name } = await createAcme(memberPage);
+    await memberPage.goto("/accueil");
+    const palette = await openPalette(memberPage);
+    await palette.getByPlaceholder(PALETTE_INPUT).fill("acme");
+    await expect(palette.getByRole("option", { name: new RegExp(`^${name.replace(/[()]/g, "\\$&")}`) })).toBeVisible();
+
+    const { scrollWidth, clientWidth } = await memberPage.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+    const wider = await memberPage.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>("body *"))
+        .filter((el) => el.clientWidth > 1 && el.scrollWidth > el.clientWidth + 1)
+        .filter((el) => getComputedStyle(el).overflowX !== "visible" && getComputedStyle(el).textOverflow !== "ellipsis")
+        .map((el) => `${el.tagName.toLowerCase()} ${el.scrollWidth}>${el.clientWidth}`),
+    );
+    expect(wider).toEqual([]);
+  });
+});
