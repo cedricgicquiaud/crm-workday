@@ -114,3 +114,22 @@ test.describe("téléphone, 375 px (contrat 25 de la feature 1)", () => {
     expect(wider).toEqual([]);
   });
 });
+
+test.describe("échec de la recherche (idiome : aucun appel serveur avalé en silence)", () => {
+  test("quand l'API répond 500, la palette le dit dans un message d'alerte et repart quand l'API répond", async ({ memberPage }) => {
+    const { name } = await createAcme(memberPage);
+    await memberPage.route("**/api/recherche?*", (route) => route.fulfill({ status: 500, contentType: "application/json", body: "{}" }));
+    await memberPage.goto("/accueil");
+    const palette = await openPalette(memberPage);
+    const input = palette.getByPlaceholder(PALETTE_INPUT);
+    await input.fill("acme");
+    await expect(palette.getByRole("alert")).toHaveText("La recherche n'a pas répondu.");
+    await expect(palette.getByRole("group", { name: "Résultats" })).toBeHidden();
+    await expect(palette.getByText("Aucun résultat.")).toBeHidden();
+
+    await memberPage.unroute("**/api/recherche?*");
+    await input.fill("acme sas");
+    await expect(palette.getByRole("option", { name: new RegExp(`^${name.replace(/[()]/g, "\\$&")}`) })).toBeVisible();
+    await expect(palette.getByRole("alert")).toHaveCount(0);
+  });
+});
