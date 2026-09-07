@@ -78,3 +78,13 @@ describe("API de recherche — entreprise par raison sociale ou SIREN (CRM-38, c
     }
   });
 });
+
+describe("API de recherche — fiches archivées (CRM-38, D21)", () => {
+  it("ne rend jamais une entreprise archivée, ni par son nom ni par son SIREN", async () => {
+    const archived = await createCompany({ name: "ACME Archivée", type: "client", siren: "356000000" });
+    expect((await results("acme")).map((r) => r.id)).toContain(archived);
+    await db.update(company).set({ archivedAt: new Date() }).where(eq(company.id, archived));
+    expect((await results("acme")).map((r) => r.title)).toEqual(["ACME SAS"]);
+    expect(await results("356000000")).toEqual([]);
+  });
+});
