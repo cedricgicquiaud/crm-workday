@@ -88,3 +88,13 @@ describe("API de recherche — fiches archivées (CRM-38, D21)", () => {
     expect(await results("356000000")).toEqual([]);
   });
 });
+
+describe("API de recherche — accents dans la saisie (CRM-38, D8)", () => {
+  it("« acmé » et « ACMÉ » trouvent « ACME SAS » (saisie normalisée) et « Acmé Éditions » (saisie telle que tapée), chacune une seule fois", async () => {
+    await createCompany({ name: "Acmé Éditions", type: "partenaire" });
+    for (const q of ["acmé", "ACMÉ"]) {
+      const titles = (await results(q)).map((r) => r.title).sort();
+      expect(titles, q).toEqual(["ACME SAS", "Acmé Éditions"]);
+    }
+  });
+});
