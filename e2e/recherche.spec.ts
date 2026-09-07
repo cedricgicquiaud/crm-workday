@@ -54,7 +54,7 @@ test.describe("recherche dans la palette (CRM-39, contrat 3)", () => {
     await expect(acme.locator("svg.lucide-building-2")).toBeVisible();
     await expect(acme).toContainText("Client");
     /* Le groupe « Résultats » précède Navigation et Actions. */
-    await expect(palette.getByRole("group").first()).toHaveAccessibleName("Résultats");
+    await expect(palette.getByRole("listbox").getByRole("group").first()).toHaveAccessibleName("Résultats");
     expect(searches.every((q) => q.trim().length >= 3), searches.join(", ")).toBe(true);
     await memberPage.keyboard.press("Enter");
     await expect(memberPage).toHaveURL(`/entreprises/${id}`);
