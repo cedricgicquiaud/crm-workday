@@ -4,12 +4,13 @@
  * moment (`feedParent` du registre, lue par la relation déclarée vers elle) : le fil du parent la
  * reprend, et un changement de rattachement ne déplace jamais ce qui est déjà écrit (contrat 7).
  */
+import { eq } from "drizzle-orm";
 import { activity } from "@/db/schema";
 import { getObject } from "@/features/objects/registry";
 import { assertWritable, getObjectRecord, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { parseActivity, type ActivityErrors } from "./schema";
+import { parseActivity, TASK, type ActivityErrors } from "./schema";
 
 export type ActivityRecord = typeof activity.$inferSelect;
 
@@ -33,6 +34,36 @@ export async function createActivity(objectType: string, objectId: string, input
   const [row] = await db
     .insert(activity)
     .values({ objectType, objectId, ...feedParentOf(objectType, record), ...parsed.values, authorId: actor.id })
+    .returning();
+  return row;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const notFound = () => new HttpError(404, "activite_introuvable", "Activité introuvable.");
+
+/** Lit une activité ; un identifiant qui n'est pas un UUID est une ressource inexistante (404), Postgres n'est jamais interrogé avec. */
+async function getActivity(id: string): Promise<ActivityRecord> {
+  if (!UUID.test(id)) throw notFound();
+  const [row] = await db.select().from(activity).where(eq(activity.id, id)).limit(1);
+  if (!row) throw notFound();
+  return row;
+}
+
+/**
+ * Coche ou décoche une tâche (D13) : « faite » porte la date du clic, « à faire » l'efface. L'état de
+ * la fiche est vérifié avant l'écriture — 404 activité inconnue, 400 activité qui n'est pas une tâche,
+ * 409 fiche archivée (D21).
+ */
+export async function setTaskDone(id: string, done: boolean): Promise<ActivityRecord> {
+  const current = await getActivity(id);
+  if (current.type !== TASK) throw invalid({ done: "Seule une tâche se coche." });
+  const record = await getObjectRecord(current.objectType, current.objectId);
+  assertWritable(current.objectType, record);
+  const [row] = await db
+    .update(activity)
+    .set({ doneAt: done ? new Date() : null, updatedAt: new Date() })
+    .where(eq(activity.id, id))
     .returning();
   return row;
 }
