@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { POST as postCompany } from "@/app/api/entreprises/route";
 import { GET as searchApi } from "@/app/api/recherche/route";
-import { user } from "@/db/schema";
+import { auditLog, company, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
@@ -12,12 +13,35 @@ let memberCookie: string;
 
 const search = (q: string, cookie?: string) => searchApi(jsonRequest("GET", `/api/recherche?q=${encodeURIComponent(q)}`, undefined, cookie));
 
+type Result = { type: string; id: string; title: string; subtitle?: string; href: string };
+
+async function results(q: string): Promise<Result[]> {
+  const res = await search(q, memberCookie);
+  expect(res.status, q).toBe(200);
+  return ((await res.json()) as { results: Result[] }).results;
+}
+
+async function createCompany(body: Record<string, unknown>): Promise<string> {
+  const res = await postCompany(jsonRequest("POST", "/api/entreprises", body, memberCookie));
+  expect(res.status, JSON.stringify(body)).toBe(201);
+  return ((await res.json()) as { id: string }).id;
+}
+
+async function cleanup() {
+  await db.delete(auditLog);
+  await db.delete(company);
+}
+
 beforeAll(async () => {
+  await cleanup();
   await db.delete(user).where(eq(user.email, MEMBER.email));
   await createUserWithPassword(MEMBER);
   memberCookie = await sessionCookie(MEMBER.email, MEMBER.password);
 });
-afterAll(closeDb);
+afterAll(async () => {
+  await cleanup();
+  await closeDb();
+});
 
 describe("API de recherche — accès (CRM-38, D24)", () => {
   it("répond 401 sans session", async () => {
@@ -40,6 +64,17 @@ describe("API de recherche — longueur de la saisie (CRM-38, D24)", () => {
       const res = await search(q, memberCookie);
       expect(res.status, q.length.toString()).toBe(200);
       expect(await res.json()).toMatchObject({ results: [] });
+    }
+  });
+});
+
+describe("API de recherche — entreprise par raison sociale ou SIREN (CRM-38, contrat 3)", () => {
+  it("« acm », « me s » et « 732 829 320 » rendent « ACME SAS » avec son type d'objet, son sous-titre et l'adresse de sa fiche ; une autre entreprise n'est pas rendue", async () => {
+    const acme = await createCompany({ name: "ACME SAS", type: "client", siren: "732829320" });
+    await createCompany({ name: "Banque Solveige", type: "prospect" });
+    for (const q of ["acm", "me s", "732 829 320", "732829320"]) {
+      const found = await results(q);
+      expect(found, q).toEqual([{ type: "company", id: acme, title: "ACME SAS", subtitle: "Client", href: `/entreprises/${acme}` }]);
     }
   });
 });
