@@ -39,6 +39,8 @@ async function prepareInput(input: unknown, exceptPersonId: string | null, curre
   const profile = Object.fromEntries(Object.entries(rest).filter(([key]) => CONTACT_PROFILE_KEYS.includes(key)));
   const fields = Object.fromEntries(Object.entries(rest).filter(([key]) => !CONTACT_PROFILE_KEYS.includes(key)));
   refuseDerived(fields);
+  /* En modification, le profil a sa propre route : ses clés ici sont une erreur d'appel, pas une écriture silencieuse. */
+  if (exceptPersonId && Object.keys(profile).length > 0) throw new HttpError(400, "profil_contact", "L'entreprise, le poste et le rôle se règlent par le profil contact (/profil-contact).");
   const primary = primaryOf(fields, currentEmail);
   if (primary) await assertEmailAvailable(primary, exceptPersonId);
   const prepared: PreparedInput = { fields, otherEmails: null, profile: Object.keys(profile).length > 0 ? profile : null };
