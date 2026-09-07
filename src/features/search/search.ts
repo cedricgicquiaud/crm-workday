@@ -7,6 +7,9 @@ import { listObjects } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
 import { normalizeQuery } from "./normalize";
 
+/** Plafond de l'ensemble des résultats, tous objets confondus. */
+export const SEARCH_MAX_RESULTS = 20;
+
 export type SearchResult = {
   /** clé de l'objet (`getObject(type)` côté client donne l'icône et les libellés) */
   type: string;
@@ -39,5 +42,5 @@ export async function search(query: string): Promise<SearchResult[]> {
         .map((hit) => ({ type: object.key, id: hit.id, title: hit.title, subtitle: hit.subtitle, href: object.href(hit.id) }));
     }),
   );
-  return perObject.flat();
+  return perObject.flat().slice(0, SEARCH_MAX_RESULTS);
 }
