@@ -29,6 +29,19 @@ test.describe("barre latérale (CRM-27, contrat 21)", () => {
     await adminPage.getByRole("button", { name: SIDEBAR_TOGGLE }).click();
     await expect(sidebar).toHaveAttribute("data-state", "expanded");
   });
+
+  test("repliée, un clic sur le bas de l'icône « Mon profil » ouvre la page (CRM-64)", async ({ adminPage }) => {
+    await adminPage.goto("/accueil");
+    const sidebar = adminPage.locator('[data-slot="sidebar"]');
+    await adminPage.getByRole("button", { name: SIDEBAR_TOGGLE }).click();
+    await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+    /* Repliée, chaque entrée fait 32 × 32 px. Le libellé « Objets » du groupe suivant, transparent mais remonté sur
+       la moitié basse de ce bouton, avalait le clic : on vise le bas, là où la CI tombait. */
+    const link = adminPage.getByRole("navigation", { name: "Navigation principale" }).getByRole("link", { name: "Mon profil" });
+    await link.click({ position: { x: 16, y: 30 }, timeout: 5_000 });
+    await expect(adminPage).toHaveURL(/\/profil$/);
+    await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+  });
 });
 
 const PALETTE_INPUT = "Rechercher une page ou une action";
