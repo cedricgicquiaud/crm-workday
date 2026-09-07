@@ -1,6 +1,7 @@
 /**
  * Manifeste des objets, côté client : une ligne par objet, c'est le seul fichier des mécanismes
  * qui les nomme. La barre latérale, la fiche et la liste l'importent pour que le registre soit rempli.
- * 2.2 ajoute `person`.
+ * Objets déclarés : `company` (2.1a), `person` (2.2).
  */
 import "@/features/companies/register";
+import "@/features/persons/register";
