@@ -7,6 +7,7 @@ import { useState } from "react";
 import "@/features/objects/manifest";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DEFAULT_VIEW, listStateToParams, type ListState } from "@/features/lists/url-state";
@@ -42,6 +43,8 @@ async function callViews(path: string, init: { method: string; body?: unknown })
 export function ViewBar({ type, state, views, pinned }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const current = views.find((view) => view.id === state.view) ?? views[0];
   const pinnedIds = pinned.map((view) => view.id);
@@ -56,6 +59,18 @@ export function ViewBar({ type, state, views, pinned }: Props) {
 
   const togglePin = (view: ViewSummary) =>
     pinnedIds.includes(view.id) ? write(`/api/vues-epinglees/${encodeURIComponent(view.id)}`, { method: "DELETE" }) : write("/api/vues-epinglees", { method: "POST", body: { viewId: view.id } });
+
+  /** État affiché, tel qu'une vue le range : la vue courante n'y figure pas, une vue ne pointe pas une vue. */
+  const displayedQuery = () => listStateToParams(type, { ...state, view: null }).toString();
+
+  /** Suppression confirmée : la vue quitte la liste des vues et les barres latérales de chacun, l'écran revient à la vue par défaut. */
+  async function remove() {
+    setError(null);
+    const outcome = await callViews(`/api/vues/${encodeURIComponent(current.id)}`, { method: "DELETE" });
+    if (!outcome.ok) return setError(outcome.message);
+    setRemoving(false);
+    router.push(getObject(type).listHref);
+  }
 
   /** Monte ou descend une vue dans la barre latérale : l'ordre est choisi, donc enregistré. */
   function movePin(view: ViewSummary, step: number) {
@@ -108,9 +123,63 @@ export function ViewBar({ type, state, views, pinned }: Props) {
       <Popover open={saving} onOpenChange={setSaving}>
         <PopoverTrigger render={<Button variant="outline" size="sm" />}>Enregistrer la vue</PopoverTrigger>
         <PopoverContent align="start" className="w-64">
-          {saving && <SaveViewForm type={type} state={state} onSaved={(id) => { setSaving(false); router.push(`${getObject(type).listHref}?vue=${encodeURIComponent(id)}`); }} />}
+          {saving && (
+            <ViewForm
+              initialName=""
+              submitLabel="Enregistrer"
+              onSave={async (name) => {
+                const outcome = await callViews("/api/vues", { method: "POST", body: { objectType: type, name, query: displayedQuery() } });
+                if (!outcome.ok) return outcome;
+                setSaving(false);
+                router.push(`${getObject(type).listHref}?vue=${encodeURIComponent((outcome.body as { id: string }).id)}`);
+                return outcome;
+              }}
+            />
+          )}
         </PopoverContent>
       </Popover>
+
+      {/* La vue par défaut d'un objet ne se renomme ni ne se supprime (contrat 26) : ses boutons ne s'affichent pas. */}
+      {current.id !== DEFAULT_VIEW && (
+        <>
+          <Popover open={editing} onOpenChange={setEditing}>
+            <PopoverTrigger render={<Button variant="outline" size="sm" />}>Modifier la vue</PopoverTrigger>
+            <PopoverContent align="start" className="w-64">
+              {editing && (
+                <ViewForm
+                  initialName={current.name}
+                  submitLabel="Enregistrer les changements"
+                  onSave={async (name) => {
+                    const outcome = await callViews(`/api/vues/${encodeURIComponent(current.id)}`, { method: "PATCH", body: { name, query: displayedQuery() } });
+                    if (!outcome.ok) return outcome;
+                    setEditing(false);
+                    router.refresh();
+                    return outcome;
+                  }}
+                />
+              )}
+            </PopoverContent>
+          </Popover>
+
+          <Dialog open={removing} onOpenChange={setRemoving}>
+            <DialogTrigger render={<Button variant="outline" size="sm" />}>Supprimer la vue</DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>{`Supprimer la vue « ${current.name} » ?`}</DialogTitle>
+                <DialogDescription>{"Elle quitte la liste des vues et la barre latérale de chacun. Les fiches, elles, ne bougent pas."}</DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" size="sm" onClick={() => setRemoving(false)}>
+                  Annuler
+                </Button>
+                <Button variant="destructive" size="sm" onClick={() => void remove()}>
+                  Supprimer
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
 
       {error && (
         <p role="alert" className="text-xs text-danger">
@@ -122,27 +191,26 @@ export function ViewBar({ type, state, views, pinned }: Props) {
 }
 
 /**
- * Enregistrement de l'état affiché — filtres, tri, colonnes — sous un nom. L'écran ne suit la
- * nouvelle vue qu'après la réponse du serveur : un refus (nom déjà pris) reste sous le champ.
+ * Nom d'une vue : celui qu'on lui donne en l'enregistrant, celui qu'on lui rend en la modifiant.
+ * Dans les deux cas l'état affiché — filtres, tri, colonnes — part avec, et l'écran ne suit qu'après
+ * la réponse du serveur : un refus (nom déjà pris) reste sous le champ.
  */
-function SaveViewForm({ type, state, onSaved }: { type: string; state: ListState; onSaved: (id: string) => void }) {
-  const [name, setName] = useState("");
+function ViewForm({ initialName, submitLabel, onSave }: { initialName: string; submitLabel: string; onSave: (name: string) => Promise<{ ok: boolean; message?: string }> }) {
+  const [name, setName] = useState(initialName);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function save(event: React.FormEvent) {
+  async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
-    const query = listStateToParams(type, { ...state, view: null }).toString();
-    const outcome = await callViews("/api/vues", { method: "POST", body: { objectType: type, name, query } });
+    const outcome = await onSave(name);
     setBusy(false);
-    if (!outcome.ok) return setError(outcome.message);
-    onSaved((outcome.body as { id: string }).id);
+    if (!outcome.ok) setError(outcome.message ?? "L'action a échoué. Réessayez.");
   }
 
   return (
-    <form data-slot="view-form" className="grid gap-2" onSubmit={save}>
+    <form data-slot="view-form" className="grid gap-2" onSubmit={submit}>
       <label className="grid gap-1 text-xs font-medium">
         Nom de la vue
         <Input className="h-7" aria-label="Nom de la vue" value={name} onChange={(event) => setName(event.target.value)} />
@@ -155,7 +223,7 @@ function SaveViewForm({ type, state, onSaved }: { type: string; state: ListState
       )}
       {/* Le seul bouton plein de l'écran est la création (fondations) : l'enregistrement est secondaire. */}
       <Button type="submit" variant="secondary" size="sm" disabled={busy || name.trim() === ""}>
-        Enregistrer
+        {submitLabel}
       </Button>
     </form>
   );
