@@ -12,7 +12,7 @@ import { ActivityComposer } from "./activity-composer";
 import type { FeedItem } from "./feed";
 import { ALL, feedFilters, feedKinds } from "./schema";
 
-/** `readOnly` : la fiche n'accepte plus d'écriture (fiche archivée, D21) ; le fil se lit, il ne reçoit plus. */
+/** `readOnly` : la fiche n'accepte plus d'écriture (fiche archivée, D21) ; le fil se lit — composeur retiré, cases de tâche en lecture seule — il ne reçoit plus. */
 type Props = { type: string; id: string; items: readonly FeedItem[]; more: number; users: readonly UserOption[]; currentUserId: string; readOnly?: boolean };
 
 const FAILED = "La tâche n'a pas pu être enregistrée.";
@@ -94,7 +94,7 @@ export function ActivityFeed({ type, id, items, more, users, currentUserId, read
               <h3 className="tabular text-xs font-semibold uppercase tracking-(--tracking-caps) text-muted-foreground">{day}</h3>
               <ol className="grid gap-2">
                 {dayItems.map((item) => (
-                  <FeedEntry key={item.id} item={item} error={errors[item.id]} onToggle={() => void toggleTask(item)} />
+                  <FeedEntry key={item.id} item={item} error={errors[item.id]} readOnly={readOnly} onToggle={() => void toggleTask(item)} />
                 ))}
               </ol>
             </section>
@@ -129,11 +129,12 @@ function metaParts(item: FeedItem): ReactNode[] {
   return parts;
 }
 
-function FeedEntry({ item, error, onToggle }: { item: FeedItem; error?: string; onToggle: () => void }) {
+function FeedEntry({ item, error, readOnly, onToggle }: { item: FeedItem; error?: string; readOnly: boolean; onToggle: () => void }) {
   return (
     <li className={cn("grid gap-0.5 border-l-2 pl-3 text-sm", item.task?.overdue ? "border-warning" : "border-border")}>
       <div className="flex min-w-0 items-start gap-2">
-        {item.task && <Checkbox className="mt-0.5" checked={item.task.done} aria-label={item.text ?? "Tâche"} onCheckedChange={onToggle} />}
+        {/* Fiche archivée : la case garde sa couleur et dit son état, mais elle ne se coche plus — un clic finirait en 409. */}
+        {item.task && <Checkbox className="mt-0.5" checked={item.task.done} readOnly={readOnly} aria-label={item.text ?? "Tâche"} onCheckedChange={onToggle} />}
         <p className={cn("min-w-0 font-medium text-pretty", item.task?.done && "text-muted-foreground line-through")}>{item.text}</p>
       </div>
       <p className="tabular text-xs text-muted-foreground">
