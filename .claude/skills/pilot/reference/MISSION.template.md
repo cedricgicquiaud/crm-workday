@@ -17,6 +17,9 @@ _modes de lancement._
 
 ## Fichiers que tu modifies
 
+_Déduits du contrat, phrase par phrase : une phrase dont aucun fichier n'est ouvert ici ne_
+_pourra pas être livrée, et le producteur s'arrêtera pour le dire._
+
 - `<fichier ou dossier 1>`
 - `<fichier ou dossier 2>`
 - `tests/<fichier>.test.js`

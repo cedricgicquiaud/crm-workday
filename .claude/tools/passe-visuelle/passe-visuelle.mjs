@@ -16,11 +16,17 @@
 //   --attendre "sél."   attend que cet élément soit visible avant de photographier (5 s au plus)
 //   Ordre : clic, touche, saisie, action, attente. Chaque geste est rejoué à chaque largeur et
 //   chaque thème, sur une page neuve.
+// Le serveur de l'application, lancé et arrêté par l'outil, jamais par l'agent :
+//   --serveur "npm run dev"  commande de la ligne `Lancer l'app :` de la section Pilot.
+//                       L'outil la lance dans son propre groupe de processus, attend que l'URL
+//                       réponde (60 s au plus), fait la passe, puis arrête tout le groupe.
+//                       Si l'URL répond déjà avant le lancement, il ne lance rien et n'arrête rien.
 // Sortie : les captures et `mesures.json` dans --out, un résumé lisible sur la sortie standard.
 
 import { chromium } from 'playwright'
 import { mkdir, writeFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { spawn } from 'node:child_process'
 
 const arg = (n, d) => {
   const i = process.argv.indexOf('--' + n)
@@ -39,6 +45,40 @@ const touche = arg('touche')
 const saisie = arg('saisie')
 const actionFile = arg('action')
 const attendre = arg('attendre')
+const serveur = arg('serveur')
+
+// --- le serveur de l'application ----------------------------------------------------
+
+const repond = async () => {
+  try { const r = await fetch(url, { redirect: 'manual' }); return r.status < 500 } catch { return false }
+}
+let processusServeur = null
+if (serveur) {
+  if (await repond()) {
+    console.log(`Serveur déjà en place sur ${url} : l'outil ne lance rien et n'arrêtera rien.`)
+  } else {
+    processusServeur = spawn(serveur, { shell: true, detached: true, stdio: 'ignore' })
+    processusServeur.unref()
+    const debut = Date.now()
+    while (!(await repond())) {
+      if (Date.now() - debut > 60000) {
+        console.error(`Le serveur « ${serveur} » ne répond pas sur ${url} après 60 s.`)
+        try { process.kill(-processusServeur.pid, 'SIGTERM') } catch {}
+        process.exit(2)
+      }
+      await new Promise(r => setTimeout(r, 500))
+    }
+    console.log(`Serveur lancé par l'outil (« ${serveur} », groupe ${processusServeur.pid}), ${url} répond.`)
+  }
+}
+const arreterServeur = () => {
+  if (!processusServeur) return
+  // tout le groupe : npm et le processus qu'il a lancé, pas seulement le premier
+  try { process.kill(-processusServeur.pid, 'SIGTERM') } catch {}
+  processusServeur = null
+}
+process.on('exit', arreterServeur)
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { arreterServeur(); process.exit(130) })
 
 // --- mesures faites dans la page -------------------------------------------------
 
@@ -121,7 +161,7 @@ await mkdir(out, { recursive: true })
 // repli sur le Chromium fourni par Playwright s'il est présent.
 const navigateur = await chromium.launch({ channel: 'chrome' })
   .catch(() => chromium.launch())
-const mesures = { url, date: new Date().toISOString(), largeurs: {}, console: [], gestesRates: [] }
+const mesures = { url, date: new Date().toISOString(), largeurs: {}, console: [], gestesRates: [], ecransInattendus: [] }
 const captures = []
 
 for (const largeur of widths) {
@@ -150,8 +190,12 @@ for (const largeur of widths) {
       await page.evaluate(`(async () => { ${code}\n })()`)
     }
     if (amorces.length) {
-      // reload, pas goto : sur une URL à fragment (#agenda), goto ne recharge rien
-      await page.reload({ waitUntil: 'networkidle' }).catch(() => page.reload())
+      // Recharger l'URL demandée, pas la page courante : sur un écran protégé, le premier
+      // chargement a redirigé vers la connexion, et c'est là que l'amorce a ouvert la session.
+      // Passer par une page vide force un vrai chargement, y compris sur une URL à fragment
+      // (#agenda), que goto seul ne recharge pas.
+      await page.goto('about:blank')
+      await page.goto(url, { waitUntil: 'networkidle' }).catch(() => page.goto(url))
     }
     // les gestes avant capture : ce qui ne s'affiche qu'après un clic ou un raccourci
     const geste = async (nom, f) => {
@@ -166,6 +210,10 @@ for (const largeur of widths) {
     })
     if (attendre) await geste(`attendre ${attendre}`, () => page.locator(attendre).first().waitFor({ state: 'visible', timeout: 5000 }))
     await page.waitForTimeout(600)
+    // l'écran photographié est-il celui demandé ? (une redirection vers la connexion, par exemple)
+    const cheminDemande = new URL(url).pathname + new URL(url).hash
+    const cheminObtenu = new URL(page.url()).pathname + new URL(page.url()).hash
+    if (cheminObtenu !== cheminDemande) mesures.ecransInattendus.push(`${largeur}px/${theme} : ${cheminObtenu} au lieu de ${cheminDemande}`)
 
     const fichier = join(out, `${largeur}-${theme === 'dark' ? 'sombre' : 'clair'}.png`)
     await page.screenshot({ path: fichier, fullPage: true })
@@ -195,6 +243,7 @@ for (const largeur of widths) {
   }
 }
 await navigateur.close()
+arreterServeur()
 await writeFile(join(out, 'mesures.json'), JSON.stringify(mesures, null, 2))
 
 // --- résumé lisible ---------------------------------------------------------------
@@ -220,5 +269,9 @@ for (const [largeur, m] of Object.entries(mesures.largeurs)) {
 console.log(mesures.console.length ? `Console : ${mesures.console.length} erreur(s)\n  ${mesures.console.slice(0, 5).join('\n  ')}` : 'Console : aucune erreur')
 if (mesures.gestesRates.length) {
   console.log(`\nGESTES RATÉS (l'écran photographié n'est peut-être pas celui attendu) :\n  ${mesures.gestesRates.join('\n  ')}`)
+  process.exitCode = 1
+}
+if (mesures.ecransInattendus.length) {
+  console.log(`\nÉCRAN INATTENDU (l'image n'est pas celle de l'écran demandé ; session absente ou amorce sans effet ?) :\n  ${mesures.ecransInattendus.join('\n  ')}`)
   process.exitCode = 1
 }

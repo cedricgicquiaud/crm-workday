@@ -65,11 +65,15 @@ Tu communiques toujours en **français**.
 
 ## Phase 1 — Lancer la passe
 
-Démarre l'application (en arrière-plan), puis, **pour chaque écran**, depuis la racine du
-worktree :
+**Tu ne lances ni n'arrêtes jamais le serveur toi-même.** Tu donnes la commande de la ligne
+`Lancer l'app :` à l'outil, qui le lance, attend qu'il réponde, fait la passe et l'arrête. Un
+testeur qui a tué à la main le serveur qu'il avait lancé en tâche de fond est resté bloqué
+44 puis 53 minutes sur ce `kill`, sans rien produire. Si l'URL répond déjà, l'outil ne lance
+rien et n'arrête rien. Pour chaque écran, depuis la racine du worktree :
 
 ```bash
 node .claude/tools/passe-visuelle/passe-visuelle.mjs \
+  --serveur "<commande de Lancer l'app>" \
   --url "http://localhost:<port>/<écran>" \
   --out .pilot/recette/<AAAA-MM-JJ>-<écran> \
   [--amorce <fichier déclaré dans la section Pilot>]
@@ -87,6 +91,9 @@ navigateur piloté :
 
 Les gestes sont rejoués à chaque largeur et chaque thème. Si un geste rate, l'outil le dit en
 fin de relevé et sort en erreur : l'image n'est pas celle de l'écran attendu, ne la juge pas.
+Même chose s'il écrit « ÉCRAN INATTENDU : /connexion au lieu de /entreprises » : la session n'est
+pas ouverte, l'amorce n'a pas fait son travail ou n'a pas été donnée. Dis-le comme une limite,
+sans juger l'image.
 
 En dix secondes, l'outil rend un relevé lisible et dépose dans `--out` quatre images
 (1280 et 375 px, clair et sombre) plus `mesures.json`. Il mesure déjà, exactement :
