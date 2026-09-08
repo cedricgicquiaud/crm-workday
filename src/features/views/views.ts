@@ -9,7 +9,7 @@ import "@/features/objects/manifest.server";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { savedView } from "@/db/schema";
-import { DEFAULT_VIEW } from "@/features/lists/url-state";
+import { applyViewParams, DEFAULT_VIEW, parseListState, readViewId, type ListState } from "@/features/lists/url-state";
 import { getObject, listObjects } from "@/features/objects/registry";
 import type { Actor } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
@@ -139,4 +139,26 @@ export async function deleteView(id: string): Promise<void> {
   assertNotDefault(id);
   await getView(id);
   await db.delete(savedView).where(eq(savedView.id, id));
+}
+
+/** Vue d'un objet, ou rien : une vue supprimée par un collègue n'est jamais une erreur d'écran. */
+async function findView(type: string, id: string): Promise<SavedViewRow | null> {
+  if (!UUID.test(id)) return null;
+  const [row] = await db
+    .select()
+    .from(savedView)
+    .where(and(eq(savedView.id, id), eq(savedView.objectType, type)))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * État d'une liste ouverte à une adresse : la vue demandée (`vue=`) donne l'état de départ, ce que
+ * l'adresse porte elle-même l'emporte famille par famille. L'écran et l'API passent tous deux par
+ * ici : une adresse partagée et un appel rendent la même liste (D24).
+ */
+export async function listStateWithView(type: string, params: URLSearchParams): Promise<ListState> {
+  const id = readViewId(params);
+  const view = id === null ? null : await findView(type, id);
+  return parseListState(type, applyViewParams(view?.query ?? null, params));
 }
