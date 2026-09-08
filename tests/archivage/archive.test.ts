@@ -4,7 +4,8 @@ import { auditLog, company, user } from "@/db/schema";
 import { archiveRecord, restoreRecord } from "@/features/archive/archive";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { listHistory } from "@/features/history/history";
-import { createObject, getObjectRecord } from "@/features/objects/service";
+import { getServerObject } from "@/features/objects/registry.server";
+import { createObject, getObjectRecord, listObjectRecords, listRecordOptions } from "@/features/objects/service";
 import { closeDb, db } from "@/lib/db";
 
 const MEMBER = { email: "membre-archivage@exemple.fr", firstName: "Nadia", lastName: "Fabre", password: "MotDePasse-Archivage-1", role: "membre" as const };
@@ -63,5 +64,26 @@ describe("restauration d'une fiche (CRM-61, contrat 30, D21)", () => {
     const history = await listHistory("company", created.id);
     expect(history.map((entry) => entry.action)).toEqual(["restauree", "archivee", "creee"]);
     expect(history[0]).toMatchObject({ field: null, author: { id: memberId } });
+  });
+});
+
+describe("une fiche archivée sort des listes, des sélecteurs et de la palette (CRM-61, contrat 30)", () => {
+  it("la retire de la liste par défaut, des options d'un sélecteur et de la recherche, et le filtre « archivées » la ramène ; la restauration la rend partout", async () => {
+    const created = await newCompany("Verrerie Alazard");
+    const ids = () => listObjectRecords("company").then((records) => records.map((record) => record.id));
+    const options = () => listRecordOptions("company").then((records) => records.map((record) => record.id));
+    const hits = () => getServerObject("company").search("Alazard").then((found) => found.map((hit) => hit.id));
+    expect(await ids()).toContain(created.id);
+
+    await archiveRecord("company", created.id, { id: memberId });
+    expect(await ids()).not.toContain(created.id);
+    expect(await options()).not.toContain(created.id);
+    expect(await hits()).toEqual([]);
+    expect((await listObjectRecords("company", { includeArchived: true })).map((record) => record.id)).toContain(created.id);
+
+    await restoreRecord("company", created.id, { id: memberId });
+    expect(await ids()).toContain(created.id);
+    expect(await options()).toContain(created.id);
+    expect(await hits()).toEqual([created.id]);
   });
 });
