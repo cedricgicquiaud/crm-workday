@@ -7,8 +7,8 @@ import "@/features/objects/manifest";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
-import { findOperator, operatorsFor, type OperatorKey } from "@/features/lists/operators";
 import type { Filter } from "@/features/lists/filters";
+import { findOperator, operatorsFor, type OperatorKey } from "@/features/lists/operators";
 import { listUrl, type ListState } from "@/features/lists/url-state";
 import { fieldsOf } from "@/features/objects/fields";
 import { displayValue, type UserOption } from "@/features/objects/labels";
@@ -140,7 +140,8 @@ function AddFilterForm({ fields, users, onAdd }: FormProps) {
           )}
         </label>
       )}
-      <Button type="submit" size="sm" disabled={incomplete}>
+      {/* Le seul bouton plein de l'écran est la création (fondations) : la validation du filtre est secondaire. */}
+      <Button type="submit" variant="secondary" size="sm" disabled={incomplete}>
         Ajouter
       </Button>
     </form>
