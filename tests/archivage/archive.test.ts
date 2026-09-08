@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { auditLog, company, user } from "@/db/schema";
-import { archiveRecord } from "@/features/archive/archive";
+import { archiveRecord, restoreRecord } from "@/features/archive/archive";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { listHistory } from "@/features/history/history";
 import { createObject, getObjectRecord } from "@/features/objects/service";
@@ -46,5 +46,22 @@ describe("archivage d'une fiche (CRM-61, contrat 30, D21)", () => {
 
   it("refuse (404) d'archiver une fiche inconnue", async () => {
     await expect(archiveRecord("company", "11111111-1111-1111-1111-111111111111", { id: memberId })).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("restauration d'une fiche (CRM-61, contrat 30, D21)", () => {
+  it("ramène la fiche telle qu'elle était, écrit une entrée « restaurée » signée, et refuse (409) de restaurer une fiche qui n'est pas archivée", async () => {
+    const created = await newCompany("Ateliers Mireille");
+    await expect(restoreRecord("company", created.id, { id: memberId })).rejects.toMatchObject({ status: 409, code: "non_archivee" });
+
+    await archiveRecord("company", created.id, { id: memberId });
+    const restored = await restoreRecord("company", created.id, { id: memberId });
+    expect(restored.archivedAt).toBeNull();
+    expect(restored).toMatchObject({ name: "Ateliers Mireille", type: "client", ownerId: memberId });
+    expect((await getObjectRecord("company", created.id)).archivedAt).toBeNull();
+
+    const history = await listHistory("company", created.id);
+    expect(history.map((entry) => entry.action)).toEqual(["restauree", "archivee", "creee"]);
+    expect(history[0]).toMatchObject({ field: null, author: { id: memberId } });
   });
 });
