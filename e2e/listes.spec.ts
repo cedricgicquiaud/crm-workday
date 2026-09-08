@@ -141,3 +141,65 @@ test.describe("tri au clic et colonnes choisies (CRM-48, contrat 23)", () => {
     await other.close();
   });
 });
+
+test.describe("édition en place dans la liste (CRM-49, contrat 25)", () => {
+  /** Cellule éditable d'une fiche : le bouton porte l'identifiant de la fiche et la clé du champ. */
+  const cell = (page: Page, id: string, field: string) => page.locator(`[data-cell="${id}:${field}"]`);
+  const focusedCell = (page: Page) => page.evaluate(() => document.activeElement?.getAttribute("data-cell") ?? null);
+
+  test("un double-clic ouvre une cellule texte, Tab enregistre et porte le curseur sur la cellule suivante, et l'historique montre le changement", async ({ memberPage }) => {
+    const mark = tag();
+    const alpha = await createCompany(memberPage, named("Alpha", mark), { type: "client", city: "Nantes" });
+    const bravo = await createCompany(memberPage, named("Bravo", mark), { type: "prospect", city: "Lyon" });
+
+    await memberPage.goto(`/entreprises?f=name:contient:${mark}&tri=name:asc`);
+    await cell(memberPage, alpha, "city").dblclick();
+    const input = memberPage.getByRole("textbox", { name: "Ville" });
+    await expect(input).toBeFocused();
+    await expect(input).toHaveValue("Nantes");
+
+    await input.fill("Bordeaux");
+    await memberPage.keyboard.press("Tab");
+
+    await expect(cell(memberPage, alpha, "city")).toHaveText("Bordeaux");
+    /* Le curseur est passé à la cellule éditable suivante (contrat 25). */
+    expect(await focusedCell(memberPage)).toBe(`${bravo}:type`);
+
+    await memberPage.goto(`/entreprises/${alpha}`);
+    await expect(memberPage.getByRole("region", { name: "Fil d'activité" }).getByText("Ville : Nantes → Bordeaux")).toBeVisible();
+  });
+
+  test("une cellule de liste s'ouvre de la même façon et enregistre le choix", async ({ memberPage }) => {
+    const mark = tag();
+    const alpha = await createCompany(memberPage, named("Alpha", mark), { type: "client", city: "Nantes" });
+
+    await memberPage.goto(`/entreprises?f=name:contient:${mark}`);
+    await cell(memberPage, alpha, "type").dblclick();
+    await memberPage.getByRole("combobox", { name: "Type" }).selectOption({ label: "Partenaire" });
+
+    await expect(cell(memberPage, alpha, "type")).toHaveText("Partenaire");
+    await memberPage.reload();
+    await expect(cell(memberPage, alpha, "type")).toHaveText("Partenaire");
+  });
+
+  test("Échap annule la saisie et n'envoie aucune modification au serveur", async ({ memberPage }) => {
+    const mark = tag();
+    const alpha = await createCompany(memberPage, named("Alpha", mark), { type: "client", city: "Nantes" });
+
+    await memberPage.goto(`/entreprises?f=name:contient:${mark}`);
+    const patches: string[] = [];
+    memberPage.on("request", (request) => {
+      if (request.method() === "PATCH") patches.push(request.url());
+    });
+
+    await cell(memberPage, alpha, "city").dblclick();
+    await memberPage.getByRole("textbox", { name: "Ville" }).fill("Marseille");
+    await memberPage.keyboard.press("Escape");
+
+    await expect(cell(memberPage, alpha, "city")).toHaveText("Nantes");
+    /* Le refus se prouve en comptant les requêtes : une valeur inchangée pourrait venir d'un PATCH. */
+    expect(patches).toEqual([]);
+    await memberPage.reload();
+    await expect(cell(memberPage, alpha, "city")).toHaveText("Nantes");
+  });
+});
