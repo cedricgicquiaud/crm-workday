@@ -67,11 +67,12 @@ export function ListCell({ type, id, field, value: initial, users }: Props) {
 
   async function commit(value: string, advance: boolean) {
     const following = advance ? nextCell(key) : undefined;
-    if (!(await save(value))) return;
+    const accepted = await save(value);
     /* La sortie de champ qui suit la fermeture ne doit pas renvoyer la même valeur. */
     cancelled.current = true;
+    /* Refusée, la modification referme la cellule sur la valeur enregistrée, avec son message : rien n'est avalé. */
     setEditing(false);
-    following?.focus();
+    if (accepted) following?.focus();
   }
 
   if (!isInlineEditable(field)) {
@@ -88,7 +89,7 @@ export function ListCell({ type, id, field, value: initial, users }: Props) {
         <button
           type="button"
           data-cell={key}
-          className="w-full truncate rounded-sm px-1 text-left hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          className="w-full truncate rounded-sm px-1 text-left hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
           title={text}
           aria-label={`${field.label} : ${text}`}
           onDoubleClick={() => {
