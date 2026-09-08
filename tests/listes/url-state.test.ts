@@ -35,4 +35,15 @@ describe("état d'une liste dans son URL (CRM-47, CRM-48, D18)", () => {
     expect(bare.includeArchived).toBe(false);
     expect(listStateToParams(TEST_TYPE, bare).toString()).toBe("");
   });
+
+  it("ouvre une URL bricolée sans erreur : tri impossible ramené au défaut, colonne inconnue ignorée, première colonne jamais masquée, filtre signalé inactif", () => {
+    const state = parseListState(TEST_TYPE, new URLSearchParams("tri=amount:asc&colonnes=name,inconnue,city,city&f=inconnu:est:x&f=signedOn:avant:2026-01-01"));
+
+    /* « Montant » n'est pas déclaré triable : la liste retombe sur son tri par défaut. */
+    expect(state.sort).toEqual(DEFAULT_SORT);
+    /* La colonne titre ne se masque pas : elle n'est jamais dans la liste des colonnes suivantes ; une colonne inconnue ou répétée disparaît. */
+    expect(state.columns).toEqual(["city"]);
+    expect(state.filters).toEqual([{ field: "signedOn", operator: "avant", value: "2026-01-01" }]);
+    expect(state.inactive.map((entry) => entry.message)).toEqual(["Filtre inactif : « inconnu » n'est pas un champ de cette liste."]);
+  });
 });
