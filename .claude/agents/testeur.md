@@ -91,6 +91,9 @@ navigateur piloté :
 
 Les gestes sont rejoués à chaque largeur et chaque thème. Si un geste rate, l'outil le dit en
 fin de relevé et sort en erreur : l'image n'est pas celle de l'écran attendu, ne la juge pas.
+Même chose s'il écrit « ÉCRAN INATTENDU : /connexion au lieu de /entreprises » : la session n'est
+pas ouverte, l'amorce n'a pas fait son travail ou n'a pas été donnée. Dis-le comme une limite,
+sans juger l'image.
 
 En dix secondes, l'outil rend un relevé lisible et dépose dans `--out` quatre images
 (1280 et 375 px, clair et sombre) plus `mesures.json`. Il mesure déjà, exactement :

@@ -161,7 +161,7 @@ await mkdir(out, { recursive: true })
 // repli sur le Chromium fourni par Playwright s'il est présent.
 const navigateur = await chromium.launch({ channel: 'chrome' })
   .catch(() => chromium.launch())
-const mesures = { url, date: new Date().toISOString(), largeurs: {}, console: [], gestesRates: [] }
+const mesures = { url, date: new Date().toISOString(), largeurs: {}, console: [], gestesRates: [], ecransInattendus: [] }
 const captures = []
 
 for (const largeur of widths) {
@@ -190,8 +190,12 @@ for (const largeur of widths) {
       await page.evaluate(`(async () => { ${code}\n })()`)
     }
     if (amorces.length) {
-      // reload, pas goto : sur une URL à fragment (#agenda), goto ne recharge rien
-      await page.reload({ waitUntil: 'networkidle' }).catch(() => page.reload())
+      // Recharger l'URL demandée, pas la page courante : sur un écran protégé, le premier
+      // chargement a redirigé vers la connexion, et c'est là que l'amorce a ouvert la session.
+      // Passer par une page vide force un vrai chargement, y compris sur une URL à fragment
+      // (#agenda), que goto seul ne recharge pas.
+      await page.goto('about:blank')
+      await page.goto(url, { waitUntil: 'networkidle' }).catch(() => page.goto(url))
     }
     // les gestes avant capture : ce qui ne s'affiche qu'après un clic ou un raccourci
     const geste = async (nom, f) => {
@@ -206,6 +210,10 @@ for (const largeur of widths) {
     })
     if (attendre) await geste(`attendre ${attendre}`, () => page.locator(attendre).first().waitFor({ state: 'visible', timeout: 5000 }))
     await page.waitForTimeout(600)
+    // l'écran photographié est-il celui demandé ? (une redirection vers la connexion, par exemple)
+    const cheminDemande = new URL(url).pathname + new URL(url).hash
+    const cheminObtenu = new URL(page.url()).pathname + new URL(page.url()).hash
+    if (cheminObtenu !== cheminDemande) mesures.ecransInattendus.push(`${largeur}px/${theme} : ${cheminObtenu} au lieu de ${cheminDemande}`)
 
     const fichier = join(out, `${largeur}-${theme === 'dark' ? 'sombre' : 'clair'}.png`)
     await page.screenshot({ path: fichier, fullPage: true })
@@ -261,5 +269,9 @@ for (const [largeur, m] of Object.entries(mesures.largeurs)) {
 console.log(mesures.console.length ? `Console : ${mesures.console.length} erreur(s)\n  ${mesures.console.slice(0, 5).join('\n  ')}` : 'Console : aucune erreur')
 if (mesures.gestesRates.length) {
   console.log(`\nGESTES RATÉS (l'écran photographié n'est peut-être pas celui attendu) :\n  ${mesures.gestesRates.join('\n  ')}`)
+  process.exitCode = 1
+}
+if (mesures.ecransInattendus.length) {
+  console.log(`\nÉCRAN INATTENDU (l'image n'est pas celle de l'écran demandé ; session absente ou amorce sans effet ?) :\n  ${mesures.ecransInattendus.join('\n  ')}`)
   process.exitCode = 1
 }
