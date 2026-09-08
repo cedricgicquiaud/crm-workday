@@ -1,70 +1,134 @@
+import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import Link from "next/link";
 import "@/features/objects/manifest.server";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fieldsOf } from "@/features/objects/fields";
+import { listForState } from "@/features/lists/apply-filters";
+import { ColumnMenu } from "@/features/lists/column-menu";
+import { columnsOf } from "@/features/lists/columns";
+import { FilterChips } from "@/features/lists/filter-chips";
+import { ListCell } from "@/features/lists/inline-edit";
+import { ListCards } from "@/features/lists/list-cards";
+import { isSortable, UPDATED_AT, type Sort } from "@/features/lists/sort";
+import { listUrl, parseListState, searchParamsOf, type ListState } from "@/features/lists/url-state";
 import { displayValue, formatDate } from "@/features/objects/labels";
 import { getObject } from "@/features/objects/registry";
 import { listObjectRecords, listUserOptions } from "@/features/objects/service";
 import { QuickCreateDialog } from "@/features/objects/quick-create-dialog";
 import { requireSession } from "@/lib/auth/session";
 
+/** Paramètres d'URL tels que Next.js les passe à une page. */
+export type ListQuery = Record<string, string | string[] | undefined>;
+
+const ARIA_SORT = { asc: "ascending", desc: "descending" } as const;
+
+/** Valeur brute d'un champ, telle que la cellule la renverra au serveur. */
+const rawValue = (value: unknown) => (value === null || value === undefined ? "" : String(value));
+
+/** Le tri suivant au clic : le même champ change de sens, un autre champ commence croissant. */
+const nextSort = (sort: Sort, field: string): Sort => ({ field, direction: sort.field === field && sort.direction === "asc" ? "desc" : "asc" });
+
 /**
- * Liste dense d'un objet (D6, 2.1a : minimale) : titre `<h1>`, un seul bouton plein (la création),
- * tableau à largeur fixe trié par dernière modification, pied avec compteur. À 375 px les colonnes
- * secondaires disparaissent ; la mise en cartes complète est la livraison 2.5a.
+ * En-tête de colonne : un lien qui trie quand le champ le permet (D6), sinon le libellé seul.
+ * Le tri passe par l'URL, donc il fonctionne sans JavaScript et se partage avec l'adresse.
  */
-export async function ObjectList({ type }: { type: string }) {
-  const [{ user }, records, users] = await Promise.all([requireSession(), listObjectRecords(type), listUserOptions()]);
+function ColumnHeader({ type, state, field, label, className }: { type: string; state: ListState; field: string; label: string; className: string }) {
+  if (!isSortable(type, field)) return <TableHead className={className}>{label}</TableHead>;
+  const current = state.sort.field === field ? state.sort.direction : null;
+  return (
+    <TableHead className={className} aria-sort={current ? ARIA_SORT[current] : "none"}>
+      <Link href={listUrl(type, { ...state, sort: nextSort(state.sort, field) })} className="inline-flex max-w-full items-center gap-1 rounded-sm hover:underline">
+        <span className="truncate">{label}</span>
+        {current === "asc" && <ArrowUpIcon className="size-3 shrink-0" aria-hidden />}
+        {current === "desc" && <ArrowDownIcon className="size-3 shrink-0" aria-hidden />}
+      </Link>
+    </TableHead>
+  );
+}
+
+/**
+ * Liste dense d'un objet (D6) : titre `<h1>`, un seul bouton plein (la création), barre de filtres,
+ * tableau à largeur fixe, pied avec compteur. Tout l'état — filtres, tri, colonnes, archivées — vit
+ * dans l'URL (D18) : la page est rendue par le serveur à chaque adresse, et l'adresse se partage.
+ * Un filtre que la liste ne sait pas appliquer est signalé « filtre inactif », jamais une erreur.
+ */
+export async function ObjectList({ type, query }: { type: string; query?: ListQuery }) {
+  const state = parseListState(type, searchParamsOf(query));
+  const [{ user }, records, users] = await Promise.all([requireSession(), listObjectRecords(type, { includeArchived: state.includeArchived }), listUserOptions()]);
+  const shown = listForState(type, records, state, users);
   const definition = getObject(type);
-  const fields = fieldsOf(type);
-  const title = fields.find((f) => f.key === definition.titleField)!;
-  const columns = (definition.listColumns ?? []).map((key) => fields.find((f) => f.key === key)!);
-  const count = records.length;
+  const fields = columnsOf(type);
+  const title = fields.find((field) => field.key === definition.titleField)!;
+  const columns = state.columns.map((key) => fields.find((field) => field.key === key)!);
+  const count = shown.length;
   return (
     <div className="grid gap-4">
       <header className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">{definition.labels.plural}</h1>
         <QuickCreateDialog type={type} users={users} currentUserId={user.id} />
       </header>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <FilterChips type={type} state={state} users={users} />
+        {/* Choisir des colonnes n'a pas de sens en cartes : le menu suit le tableau (D9). */}
+        <div className="hidden md:block">
+          <ColumnMenu type={type} state={state} />
+        </div>
+      </div>
+      {state.inactive.length > 0 && (
+        <div data-slot="list-warnings" className="grid gap-1">
+          {state.inactive.map((entry) => (
+            <p key={entry.message} role="status" className="rounded-r-md border-l-3 border-l-warning bg-warning-subtle/40 px-2.5 py-1 text-sm">
+              {entry.message}
+            </p>
+          ))}
+        </div>
+      )}
       {count === 0 ? (
-        <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">{`Aucune fiche pour l'instant. Créez la première avec « ${definition.labels.singular} ».`}</p>
+        <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+          {state.filters.length > 0 ? "Aucune fiche ne répond à ces filtres." : `Aucune fiche pour l'instant. Créez la première avec « ${definition.labels.singular} ».`}
+        </p>
       ) : (
-        <Table aria-label={definition.labels.plural} className="table-fixed">
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="h-7">{title.label}</TableHead>
-              {columns.map((column) => (
-                <TableHead key={column.key} className="hidden h-7 w-[18%] md:table-cell">
-                  {column.label}
-                </TableHead>
-              ))}
-              <TableHead className="h-7 w-28 text-right">Modifiée le</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {records.map((record) => {
-              const label = displayValue(title, record[title.key], users);
-              return (
-                <TableRow key={record.id} className="h-8">
-                  <TableCell className="truncate py-1 font-medium" title={label}>
-                    <Link href={definition.href(record.id)} className="hover:underline focus-visible:rounded-sm">
-                      {label}
-                    </Link>
-                  </TableCell>
-                  {columns.map((column) => {
-                    const value = displayValue(column, record[column.key], users);
-                    return (
-                      <TableCell key={column.key} className="hidden truncate py-1 text-muted-foreground md:table-cell" title={value}>
-                        {value}
-                      </TableCell>
-                    );
-                  })}
-                  <TableCell className="py-1 text-right tabular-nums text-muted-foreground">{formatDate(record.updatedAt)}</TableCell>
+        <>
+          {/* Sous 768 px, les cartes remplacent le tableau : la page ne défile jamais en largeur (D9). */}
+          <ListCards type={type} records={shown} columns={columns.filter((column) => column.key !== UPDATED_AT)} users={users} />
+          <div className="hidden md:block">
+            <Table aria-label={definition.labels.plural} className="table-fixed">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <ColumnHeader type={type} state={state} field={title.key} label={title.label} className="h-7" />
+                  {columns.map((column) => (
+                    <ColumnHeader key={column.key} type={type} state={state} field={column.key} label={column.label} className={column.key === UPDATED_AT ? "h-7 w-28 text-right" : "h-7 w-[18%]"} />
+                  ))}
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+              </TableHeader>
+              <TableBody>
+                {shown.map((record) => {
+                  const label = displayValue(title, record[title.key], users);
+                  return (
+                    <TableRow key={record.id} className="h-8">
+                      <TableCell className="truncate py-1 font-medium" title={label}>
+                        <Link href={definition.href(record.id)} className="hover:underline focus-visible:rounded-sm">
+                          {label}
+                        </Link>
+                      </TableCell>
+                      {columns.map((column) =>
+                        /* La colonne de base ne se saisit pas : la liste la rend elle-même, en date courte alignée à droite. */
+                        column.key === UPDATED_AT ? (
+                          <TableCell key={column.key} className="py-1 text-right tabular-nums text-muted-foreground">
+                            {formatDate(record.updatedAt)}
+                          </TableCell>
+                        ) : (
+                          <TableCell key={column.key} className="truncate py-1 text-muted-foreground">
+                            <ListCell type={type} id={record.id} field={column} value={rawValue(record[column.key])} users={users} />
+                          </TableCell>
+                        ),
+                      )}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </>
       )}
       <p className="text-sm text-muted-foreground">{count === 1 ? `1 ${definition.labels.singular.toLowerCase()}` : `${count} ${definition.labels.plural.toLowerCase()}`}</p>
     </div>
