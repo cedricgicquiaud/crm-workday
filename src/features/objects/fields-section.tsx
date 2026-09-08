@@ -85,6 +85,25 @@ export function FieldsSection({ type, record: initial, users, readOnly = false }
   );
 }
 
+/**
+ * Valeur en lecture seule : un nom calculé, un champ dérivé, ou n'importe quel champ d'une fiche
+ * archivée (D21). Elle se lit comme du texte. Rendue par un contrôle éteint, elle serait à demi
+ * transparente — le contraste tomberait sous le seuil lisible alors que c'est une donnée de la
+ * fiche (défaut d'audit 2.2). Les sections propres à un objet s'en servent aussi.
+ */
+export function ReadOnlyValue({ id, label, value }: { id: string; label: string; value: string }) {
+  return (
+    <div className="grid gap-1">
+      <span id={`${id}-label`} className="flex items-center gap-2 text-sm leading-none font-medium select-none">
+        {label}
+      </span>
+      <p id={id} aria-labelledby={`${id}-label`} className="min-w-0 truncate text-sm" title={value}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
 type EditableProps = { type: string; field: FieldDescriptor; value: string; error?: string; users: readonly UserOption[]; readOnly: boolean; onSave: (value: string) => Promise<boolean> };
 
 /** Un champ éditable en place : le contrôle porte le libellé au-dessus (12 px / 500) et l'erreur en dessous (11 px). */
@@ -101,22 +120,7 @@ function EditableField({ type, field, value: saved, error, users, readOnly, onSa
   const editable = field.editable !== false && !readOnly;
   const describedBy = error ? errorId : undefined;
 
-  /* Lecture seule (un nom calculé, un champ dérivé, une fiche archivée) : la valeur se lit comme du
-     texte. Rendue par un contrôle éteint, elle serait à demi transparente — le contraste tomberait
-     sous le seuil lisible alors que c'est une donnée de la fiche (défaut d'audit 2.2). */
-  if (!editable) {
-    const text = displayValue(field, saved, users);
-    return (
-      <div className="grid gap-1">
-        <span id={`${id}-label`} className="flex items-center gap-2 text-sm leading-none font-medium select-none">
-          {field.label}
-        </span>
-        <p id={id} aria-labelledby={`${id}-label`} className="min-w-0 truncate text-sm" title={text}>
-          {text}
-        </p>
-      </div>
-    );
-  }
+  if (!editable) return <ReadOnlyValue id={id} label={field.label} value={displayValue(field, saved, users)} />;
 
   async function commit() {
     if (draft === saved) return;

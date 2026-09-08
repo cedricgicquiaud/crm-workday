@@ -30,13 +30,13 @@ async function relationBlockers(type: string, id: string): Promise<DeleteBlocker
   const pointing = listObjects()
     .filter((object) => object.key !== type)
     .flatMap((object) => object.relations.filter((relation) => relation.to === type).map((relation) => ({ object, relation })));
-  const found = await Promise.all(
+  return Promise.all(
     pointing.map(async ({ object, relation }) => {
-      const columns = getTableColumns(getServerObject(object.key).table);
-      return { key: `${object.key}-${relation.fkColumn}`, label: relation.inverseLabel, count: await countWhere(getServerObject(object.key).table, eq(columns[relation.fkColumn], id)) };
+      const { table } = getServerObject(object.key);
+      const columns = getTableColumns(table);
+      return { key: `${object.key}-${relation.fkColumn}`, label: relation.inverseLabel, count: await countWhere(table, eq(columns[relation.fkColumn], id)) };
     }),
   );
-  return found;
 }
 
 /** Le fil de la fiche hors historique : ses activités (les siennes et celles qu'elle a reçues comme parente) et les emails du journal qui la citent. */
