@@ -22,7 +22,9 @@ Livraison 2/3 « Numérotation » — producteur lancé
 ```
 
 Une ligne par événement, jamais un paragraphe. Un run muet pendant vingt minutes est un run
-qu'on ne peut pas interrompre au bon moment.
+qu'on ne peut pas interrompre au bon moment. **L'accusé d'arrêt d'un agent qui a déjà rendu
+son rapport ne vaut pas une ligne** : cinq « accusé d'arrêt, déjà pris en compte » par
+livraison, c'est du bruit qui cache les vraies transitions.
 
 1. Pré-requis : feature « Planifiée », `.claude/settings.json` (allowlist) et
    `.pilot/MISSION.template.md` présents, branche principale à jour. Lire `Agents en
@@ -72,6 +74,13 @@ qu'on ne peut pas interrompre au bon moment.
    - `testeur` sur l'application lancée (`Lancer l'app`), dans le worktree de la livraison :
      il lance `.claude/tools/passe-visuelle/passe-visuelle.mjs` sur chaque écran livré
      (avec l'`Amorce de recette` déclarée, sans quoi il ne verrait que des écrans vides).
+     Sa consigne porte trois choses : **les écrans, trois au plus** (au-delà, une seconde
+     passe ou un second testeur : sur quatre ou cinq écrans il double son budget à chaque
+     fois) ; **le geste qui ouvre l'écran** quand il ne s'affiche qu'après une action (« ⌘K
+     puis "acm" », « clic sur Nouveau ») ; **ce qui est déjà connu** — les tâches isolées
+     ouvertes de la team et les écarts « à relire » des livraisons précédentes de la feature,
+     pour qu'il ne les rapporte pas une troisième fois et que le correcteur ne soit pas lancé
+     sur du connu.
      L'outil mesure en dix secondes le débordement horizontal et l'élément fautif, les
      recouvrements, le parcours clavier et la console, et dépose images et `mesures.json`
      dans `.pilot/recette/<date>-<écran>/`. L'agent ne refait pas ces mesures : il regarde
