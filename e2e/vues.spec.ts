@@ -113,3 +113,57 @@ test.describe("vues épinglées dans la barre latérale (CRM-52, contrat 24)", (
     await expect(pinnedNav(memberPage)).toHaveText([named("Clients", mark)]);
   });
 });
+
+test.describe("modifier et supprimer une vue (CRM-53, contrat 26)", () => {
+  test("un membre renomme une vue pour toute l'équipe et la supprime après confirmation ; la vue par défaut, elle, ne se touche pas", async ({ memberPage, adminPage }) => {
+    const mark = tag();
+    await createCompany(memberPage, named("Alpha", mark), { type: "client", city: "Paris" });
+    await createCompany(memberPage, named("Bravo", mark), { type: "prospect", city: "Lyon" });
+    const save = async (name: string) => {
+      const res = await memberPage.request.post("/api/vues", { data: { objectType: "company", name, query: `f=name:contient:${mark}&f=type:est:client` } });
+      expect(res.status()).toBe(201);
+      return ((await res.json()) as { id: string }).id;
+    };
+    const clients = await save(named("Clients", mark));
+    await save(named("Prospects", mark));
+
+    /* Sur la vue par défaut, rien à modifier ni à supprimer (contrat 26). */
+    await memberPage.goto("/entreprises");
+    const bar = memberPage.locator(VIEW_BAR);
+    await expect(bar.getByRole("button", { name: "Modifier la vue" })).toHaveCount(0);
+    await expect(bar.getByRole("button", { name: "Supprimer la vue" })).toHaveCount(0);
+
+    await memberPage.goto(`/entreprises?vue=${clients}`);
+    expect(await names(memberPage)).toEqual([named("Alpha", mark)]);
+
+    /* Un nom déjà porté par une autre vue de la liste est refusé, sous le champ (contrat 26). */
+    await bar.getByRole("button", { name: "Modifier la vue" }).click();
+    const form = memberPage.locator(VIEW_FORM);
+    await form.getByLabel("Nom de la vue").fill(named("Prospects", mark));
+    await form.getByRole("button", { name: "Enregistrer les changements" }).click();
+    await expect(form.getByRole("alert")).toHaveText(`« ${named("Prospects", mark)} » est déjà le nom d'une vue de cette liste.`);
+
+    await form.getByLabel("Nom de la vue").fill(named("Clients de l'Ouest", mark));
+    await form.getByRole("button", { name: "Enregistrer les changements" }).click();
+    await expect(bar.getByRole("button", { name: `Vue : ${named("Clients de l'Ouest", mark)}` })).toBeVisible();
+
+    /* La modification est celle de toute l'équipe : le collègue lit le nouveau nom (contrat 24). */
+    await adminPage.goto(`/entreprises?vue=${clients}`);
+    await expect(adminPage.locator(VIEW_BAR).getByRole("button", { name: `Vue : ${named("Clients de l'Ouest", mark)}` })).toBeVisible();
+
+    /* Aucune suppression sans confirmation (CRM-53). */
+    await bar.getByRole("button", { name: "Supprimer la vue" }).click();
+    await memberPage.getByRole("dialog").getByRole("button", { name: "Annuler" }).click();
+    await expect(bar.getByRole("button", { name: `Vue : ${named("Clients de l'Ouest", mark)}` })).toBeVisible();
+
+    await bar.getByRole("button", { name: "Supprimer la vue" }).click();
+    const dialog = memberPage.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: `Supprimer la vue « ${named("Clients de l'Ouest", mark)} » ?` })).toBeVisible();
+    await dialog.getByRole("button", { name: "Supprimer", exact: true }).click();
+
+    /* La liste revient à sa vue par défaut, et la vue a quitté le menu de tout le monde. */
+    await expect(bar.getByRole("button", { name: "Vue : Toutes les entreprises" })).toBeVisible();
+    await bar.getByRole("button", { name: "Vue : Toutes les entreprises" }).click();
+    await expect(memberPage.locator(VIEW_MENU).getByRole("link", { name: named("Clients de l'Ouest", mark) })).toHaveCount(0);
+  });
+});
