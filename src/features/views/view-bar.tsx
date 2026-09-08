@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, CheckIcon, ChevronDownIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -23,15 +23,24 @@ function viewUrl(type: string, view: ViewSummary): string {
   return view.id === DEFAULT_VIEW ? listHref : `${listHref}?vue=${encodeURIComponent(view.id)}`;
 }
 
-/** Appel d'une API des vues : une réponse en erreur devient le message que la barre affiche. */
+const ACTION_FAILED = "L'action a échoué. Réessayez.";
+
+/**
+ * Appel d'une API des vues : une réponse en erreur devient le message que la barre affiche, et
+ * une coupure du réseau aussi — un appel qui n'aboutit pas se dit, jamais ne s'avale.
+ */
 async function callViews(path: string, init: { method: string; body?: unknown }): Promise<{ ok: true; body: unknown } | { ok: false; message: string }> {
-  const res = await fetch(path, {
-    method: init.method,
-    headers: init.body === undefined ? undefined : { "content-type": "application/json" },
-    body: init.body === undefined ? undefined : JSON.stringify(init.body),
-  });
-  const body = (await res.json().catch(() => null)) as { message?: string } | null;
-  return res.ok ? { ok: true, body } : { ok: false, message: body?.message ?? "L'action a échoué. Réessayez." };
+  try {
+    const res = await fetch(path, {
+      method: init.method,
+      headers: init.body === undefined ? undefined : { "content-type": "application/json" },
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    });
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    return res.ok ? { ok: true, body } : { ok: false, message: body?.message ?? ACTION_FAILED };
+  } catch {
+    return { ok: false, message: ACTION_FAILED };
+  }
 }
 
 /**
@@ -83,32 +92,36 @@ export function ViewBar({ type, state, views, pinned }: Props) {
   return (
     <div data-slot="view-bar" className="flex flex-wrap items-center gap-2">
       <Popover>
-        <PopoverTrigger render={<Button variant="outline" size="sm" />}>
-          {`Vue : ${current.name}`}
+        {/* Un nom de vue est libre et long : le déclencheur le borne et le tronque, comme la barre latérale. */}
+        <PopoverTrigger render={<Button variant="outline" size="sm" className="max-w-64" title={`Vue : ${current.name}`} />}>
+          <span data-slot="view-name" className="min-w-0 truncate">{`Vue : ${current.name}`}</span>
           <ChevronDownIcon aria-hidden />
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-64">
+        <PopoverContent align="start" className="w-64 max-w-[calc(100vw-1.5rem)]">
           <ul data-slot="view-menu" className="grid gap-1">
             {views.map((view) => {
               const position = pinnedIds.indexOf(view.id);
+              const isCurrent = view.id === current.id;
               return (
-                <li key={view.id} className="flex h-7 items-center gap-1">
+                <li key={view.id} className="flex h-7 min-w-0 items-center gap-1">
+                  {/* La vue courante se voit : sans cette marque, la case d'épinglage est la seule du menu et se lit pour elle. */}
+                  {isCurrent ? <CheckIcon data-slot="view-current" className="size-3.5 shrink-0 text-primary" aria-hidden /> : <span className="size-3.5 shrink-0" aria-hidden />}
                   <Link
                     href={viewUrl(type, view)}
-                    aria-current={view.id === current.id ? "true" : undefined}
+                    aria-current={isCurrent ? "page" : undefined}
                     className="min-w-0 flex-1 truncate rounded-sm px-1 text-sm hover:underline aria-[current]:font-medium"
                     title={view.name}
                   >
                     {view.name}
                   </Link>
                   {/* La vue par défaut est déjà dans la barre latérale, sous son objet : elle ne s'épingle pas. */}
-                  {view.id !== DEFAULT_VIEW && <Checkbox aria-label={`Épingler ${view.name}`} checked={position >= 0} onCheckedChange={() => void togglePin(view)} />}
+                  {view.id !== DEFAULT_VIEW && <Checkbox aria-label={`Épingler ${view.name}`} title={`Épingler ${view.name}`} checked={position >= 0} onCheckedChange={() => void togglePin(view)} />}
                   {position >= 0 && (
                     <>
-                      <Button variant="ghost" size="icon-xs" aria-label={`Monter la vue ${view.name}`} disabled={position === 0} onClick={() => void movePin(view, -1)}>
+                      <Button variant="ghost" size="icon-xs" aria-label={`Monter la vue ${view.name}`} title={`Monter la vue ${view.name}`} disabled={position === 0} onClick={() => void movePin(view, -1)}>
                         <ArrowUpIcon aria-hidden />
                       </Button>
-                      <Button variant="ghost" size="icon-xs" aria-label={`Descendre la vue ${view.name}`} disabled={position === pinnedIds.length - 1} onClick={() => void movePin(view, 1)}>
+                      <Button variant="ghost" size="icon-xs" aria-label={`Descendre la vue ${view.name}`} title={`Descendre la vue ${view.name}`} disabled={position === pinnedIds.length - 1} onClick={() => void movePin(view, 1)}>
                         <ArrowDownIcon aria-hidden />
                       </Button>
                     </>
