@@ -44,3 +44,18 @@ describe("filtrage d'une liste sur les champs texte (CRM-47, D16)", () => {
     expect(names(applyFilters(TEST_TYPE, RECORDS, []))).toEqual(["Alpha", "Bravo", "Charlie", "Delta"]);
   });
 });
+
+describe("filtrage d'une liste sur les autres types de champ (CRM-47, D16)", () => {
+  it("applique les opérateurs de liste, de date et de nombre", () => {
+    expect(names(applyFilters(TEST_TYPE, RECORDS, [{ field: "kind", operator: "est", value: "client" }]))).toEqual(["Alpha", "Charlie", "Delta"]);
+    expect(names(applyFilters(TEST_TYPE, RECORDS, [{ field: "kind", operator: "n_est_pas", value: "client" }]))).toEqual(["Bravo"]);
+
+    expect(names(applyFilters(TEST_TYPE, RECORDS, [{ field: "signedOn", operator: "avant", value: "2026-03-02" }]))).toEqual(["Alpha"]);
+    expect(names(applyFilters(TEST_TYPE, RECORDS, [{ field: "signedOn", operator: "apres", value: "2026-03-02" }]))).toEqual(["Bravo"]);
+    expect(names(applyFilters(TEST_TYPE, RECORDS, [{ field: "signedOn", operator: "est_vide", value: "" }]))).toEqual(["Charlie"]);
+
+    expect(names(applyFilters(TEST_TYPE, RECORDS, [{ field: "amount", operator: "egal", value: "250" }]))).toEqual(["Bravo", "Delta"]);
+    expect(names(applyFilters(TEST_TYPE, RECORDS, [{ field: "amount", operator: "plus_grand", value: "100" }]))).toEqual(["Bravo", "Delta"]);
+    expect(names(applyFilters(TEST_TYPE, RECORDS, [{ field: "amount", operator: "plus_petit", value: "250" }]))).toEqual(["Alpha"]);
+  });
+});
