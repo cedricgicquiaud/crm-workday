@@ -1,10 +1,10 @@
 /**
  * Filtres d'une liste : lecture des puces telles qu'elles arrivent de l'URL, contre les champs
  * déclarés par l'objet (D16, D18). Un filtre qu'on ne saurait pas appliquer — champ inconnu ou
- * archivé, opérateur qui ne s'applique pas au type, valeur manquante — n'est jamais une erreur
+ * archivé, opérateur qui ne s'applique pas au type, valeur manquante ou illisible — n'est jamais une erreur
  * d'écran : il est écarté et rendu avec son avertissement « filtre inactif ».
  */
-import { fieldsOf } from "@/features/objects/fields";
+import { fieldsOf, validateValues } from "@/features/objects/fields";
 import type { FieldDescriptor } from "@/features/objects/registry";
 import { findOperator, isOperatorAllowed, type OperatorKey } from "@/features/lists/operators";
 
@@ -23,6 +23,17 @@ function reject(raw: RawFilter, reason: string): InactiveFilter {
   return { ...raw, message: `Filtre inactif : ${reason}` };
 }
 
+/**
+ * Ce que le filtrage reproche à la valeur, ou rien. Une date et un nombre se comparent comme tels :
+ * « abc » deviendrait `NaN` et « hier » se comparerait comme du texte, donc zéro fiche sans un mot.
+ * La règle du champ est la seule source (`validateValues`) : le filtre refuse ce que la fiche refuse.
+ */
+function valueProblem(field: FieldDescriptor, value: string): string | undefined {
+  if (field.type !== "date" && field.type !== "number") return undefined;
+  const { errors } = validateValues([field], { [field.key]: field.type === "number" ? Number(value.trim()) : value.trim() }, { partial: true });
+  return errors[field.key];
+}
+
 /** Écarte un filtre inapplicable, ou rend le filtre prêt à être appliqué. */
 function read(fields: readonly FieldDescriptor[], raw: RawFilter): { filter: Filter } | { inactive: InactiveFilter } {
   const field = fields.find((candidate) => candidate.key === raw.field);
@@ -33,6 +44,8 @@ function read(fields: readonly FieldDescriptor[], raw: RawFilter): { filter: Fil
   }
   const operator = findOperator(raw.operator)!;
   if (operator.needsValue && blank(raw.value)) return { inactive: reject(raw, `« ${field.label} ${operator.label} » attend une valeur.`) };
+  const problem = operator.needsValue ? valueProblem(field, raw.value) : undefined;
+  if (problem) return { inactive: reject(raw, problem) };
   return { filter: { field: field.key, operator: operator.key, value: raw.value } };
 }
 
