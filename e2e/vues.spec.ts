@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, seedAccounts, test } from "./fixtures/auth";
+import { expect, MEMBER, seedAccounts, signInAs, test } from "./fixtures/auth";
 import { resetObjects } from "./fixtures/objets";
 import { resetPersons } from "./fixtures/personnes";
 import { resetViews } from "./fixtures/vues";
@@ -8,6 +8,7 @@ import { resetViews } from "./fixtures/vues";
 const VIEW_BAR = '[data-slot="view-bar"]';
 const VIEW_FORM = '[data-slot="view-form"]';
 const VIEW_MENU = '[data-slot="view-menu"]';
+const SIDEBAR = '[data-slot="sidebar"]';
 const tag = () => Date.now().toString(36);
 const named = (prefix: string, mark: string) => `${prefix} ${mark} (e2e)`;
 
@@ -65,5 +66,50 @@ test.describe("barre des vues d'une liste (CRM-53, contrat 24)", () => {
     expect(await names(memberPage)).toEqual([named("Alpha", mark)]);
     /* L'état de la vue est appliqué : la puce du filtre enregistré est de retour. */
     await expect(memberPage.getByRole("button", { name: "Retirer le filtre Type est Client" })).toBeVisible();
+  });
+});
+
+/** Vues épinglées de la barre latérale d'une page, dans l'ordre affiché. */
+const pinnedNav = (page: Page) => page.locator(SIDEBAR).getByRole("navigation", { name: "Vues épinglées" }).getByRole("link");
+
+test.describe("vues épinglées dans la barre latérale (CRM-52, contrat 24)", () => {
+  test("un membre épingle deux vues, les range, et sa barre latérale les garde après reconnexion sans les imposer au collègue", async ({ memberPage, adminPage, browser }) => {
+    const mark = tag();
+    for (const [name, query] of [[named("Clients", mark), "f=type:est:client"], [named("Lyon", mark), "f=city:contient:Lyon"]]) {
+      const res = await memberPage.request.post("/api/vues", { data: { objectType: "company", name, query } });
+      expect(res.status()).toBe(201);
+    }
+
+    await memberPage.goto("/entreprises");
+    await memberPage.locator(VIEW_BAR).getByRole("button", { name: /^Vue : / }).click();
+    const menu = memberPage.locator(VIEW_MENU);
+    await menu.getByRole("checkbox", { name: `Épingler ${named("Clients", mark)}` }).click();
+    await menu.getByRole("checkbox", { name: `Épingler ${named("Lyon", mark)}` }).click();
+    await expect(pinnedNav(memberPage)).toHaveText([named("Clients", mark), named("Lyon", mark)]);
+
+    /* L'ordre de la barre latérale est choisi, donc enregistré. */
+    await menu.getByRole("button", { name: `Monter la vue ${named("Lyon", mark)}` }).click();
+    await expect(pinnedNav(memberPage)).toHaveText([named("Lyon", mark), named("Clients", mark)]);
+
+    /* Le collègue voit ces vues dans le menu des vues, mais sa barre latérale reste la sienne. */
+    await adminPage.goto("/entreprises");
+    await expect(adminPage.locator(SIDEBAR).getByRole("navigation", { name: "Vues épinglées" })).toHaveCount(0);
+    await adminPage.locator(VIEW_BAR).getByRole("button", { name: /^Vue : / }).click();
+    await expect(adminPage.locator(VIEW_MENU).getByRole("link", { name: named("Lyon", mark) })).toBeVisible();
+
+    /* Reconnexion : la barre latérale les garde, dans l'ordre choisi (contrat 24). */
+    const context = await browser.newContext();
+    await signInAs(context.request, MEMBER);
+    const again = await context.newPage();
+    await again.goto("/accueil");
+    await expect(pinnedNav(again)).toHaveText([named("Lyon", mark), named("Clients", mark)]);
+    await context.close();
+
+    /* Une vue épinglée ouvre la liste dans son état, et se retire de la barre depuis le même menu. */
+    await pinnedNav(memberPage).first().click();
+    await expect(memberPage).toHaveURL(/vue=/);
+    await memberPage.locator(VIEW_BAR).getByRole("button", { name: /^Vue : / }).click();
+    await menu.getByRole("checkbox", { name: `Épingler ${named("Lyon", mark)}` }).click();
+    await expect(pinnedNav(memberPage)).toHaveText([named("Clients", mark)]);
   });
 });
