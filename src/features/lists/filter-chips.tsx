@@ -47,11 +47,12 @@ export function FilterChips({ type, state, users }: Props) {
         if (!field) return null;
         const label = chipLabel(field, filter, users);
         return (
-          <span key={`${filter.field}-${filter.operator}-${index}`} className="inline-flex h-6 max-w-[18rem] items-center gap-1 rounded-full border bg-muted/40 pr-1 pl-2.5 text-xs">
+          <span key={`${filter.field}-${filter.operator}-${index}`} className="inline-flex h-6 max-w-[18rem] items-center gap-1 rounded-full border bg-muted/40 pr-0.5 pl-2.5 text-xs">
             <span className="truncate" title={label}>
               {label}
             </span>
-            <Button variant="ghost" size="icon-xs" className="rounded-full" aria-label={`Retirer le filtre ${label}`} onClick={() => go({ ...state, filters: state.filters.filter((_, position) => position !== index) })}>
+            {/* 20 px : la croix tient entre les bordures de la puce de 24 px des fondations ; son icône garde ses 12 px. */}
+            <Button variant="ghost" size="icon-xs" className="size-5 rounded-full" aria-label={`Retirer le filtre ${label}`} onClick={() => go({ ...state, filters: state.filters.filter((_, position) => position !== index) })}>
               <XIcon aria-hidden />
             </Button>
           </span>
