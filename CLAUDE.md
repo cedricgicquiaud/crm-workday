@@ -30,8 +30,12 @@ _(`.claude/skills/pilot/`) ; ici, seulement ce qui est propre à ce dépôt._
 - Poste par worktree : un `.env.local` copié du dépôt principal, avec les trois lignes du poste.
   Poste A : `APP_URL=http://localhost:3001`, `DATABASE_URL=postgres://crm:crm@localhost:5433/crm_a`,
   `TEST_DATABASE_URL=postgres://crm:crm@localhost:5433/crm_test_a`. Poste B : `3002`, `crm_b`,
-  `crm_test_b`. Les quatre bases existent dans le conteneur Postgres (créées le 2026-09-08) ;
-  elles se migrent seules au premier `npm run dev` ou `npm test`. Un poste se libère au merge.
+  `crm_test_b`. Les quatre bases existent dans le conteneur Postgres (créées le 2026-09-08).
+  À la création du worktree : `npm ci` (un lien symbolique vers les `node_modules` du dépôt
+  principal est refusé par Next), puis `npm run db:migrate` pour la base du poste ; la base de
+  test se migre seule au premier `npm test`. Vérifié le 2026-09-08 : 171 tests unitaires et
+  70 tests d'écran sur le poste A, le port 3000 et la base `crm` intacts. Un poste se libère
+  au merge.
 - Amorce de recette : `.pilot/amorce-recette.js` — ouvre une session et pose des données ;
   sans elle, le `testeur` photographie des écrans vides (à écrire avec la livraison 1)
 - Testeur : `passe visuelle automatisée`
