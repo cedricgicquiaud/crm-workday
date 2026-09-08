@@ -16,10 +16,16 @@ const CONTROL = "h-6 w-full min-w-0 rounded-sm border border-input bg-background
 /** Seuls le texte et les listes s'éditent dans la liste (D6) ; les dates et les nombres se modifient sur la fiche. */
 const isInlineEditable = (field: FieldDescriptor): boolean => field.editable !== false && (field.type === "text" || field.type === "list");
 
-/** Cellules éditables de la page, dans l'ordre du tableau : Tab passe de l'une à la suivante. */
+/**
+ * Cellules éditables du tableau de la cellule courante, dans son ordre : Tab passe de l'une à la
+ * suivante. La recherche s'arrête au tableau parent — cherchée dans toute la page, elle ferait
+ * sauter le curseur d'une liste à une autre si un écran en portait deux.
+ */
 function nextCell(current: string): HTMLElement | undefined {
-  const cells = Array.from(document.querySelectorAll<HTMLElement>("[data-cell]"));
-  return cells[cells.findIndex((cell) => cell.dataset.cell === current) + 1];
+  const cell = document.querySelector<HTMLElement>(`[data-cell="${CSS.escape(current)}"]`);
+  const table: ParentNode = cell?.closest("table") ?? document;
+  const cells = Array.from(table.querySelectorAll<HTMLElement>("[data-cell]"));
+  return cells[cells.findIndex((entry) => entry.dataset.cell === current) + 1];
 }
 
 /**
