@@ -209,6 +209,23 @@ test.describe("édition en place dans la liste (CRM-49, contrat 25)", () => {
     await memberPage.reload();
     await expect(cell(memberPage, alpha, "city")).toHaveText("Nantes");
   });
+
+  test("quand le serveur refuse la modification, un message s'affiche sous la cellule et la valeur enregistrée revient", async ({ memberPage }) => {
+    const mark = tag();
+    const name = named("Panne", mark);
+    const alpha = await createCompany(memberPage, name, { type: "client", city: "Lyon" });
+
+    await memberPage.goto(`/entreprises?f=name:contient:${mark}`);
+    await memberPage.route("**/api/entreprises/*", (route) => (route.request().method() === "PATCH" ? route.fulfill({ status: 500 }) : route.continue()));
+    await cell(memberPage, alpha, "city").dblclick();
+    await memberPage.getByRole("textbox", { name: "Ville" }).fill("Paris");
+    await memberPage.keyboard.press("Enter");
+
+    /* Next.js pose un annonceur de route au même rôle dans le corps de page : l'alerte se cible par sa ligne. */
+    const row = memberPage.getByRole("row").filter({ hasText: name });
+    await expect(row.getByRole("alert")).toHaveText("La modification n'a pas pu être enregistrée.");
+    await expect(cell(memberPage, alpha, "city")).toHaveText("Lyon");
+  });
 });
 
 test.describe("téléphone, 375 px : la liste passe en cartes (CRM-50, contrat 27)", () => {
