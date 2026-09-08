@@ -5,8 +5,8 @@ import { useState } from "react";
 import "@/features/objects/manifest";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import type { DeleteBlocker } from "@/features/archive/delete";
 import { getObject } from "@/features/objects/registry";
-import type { DeleteBlocker } from "./delete";
 
 type Props = { type: string; id: string; open: boolean; onOpenChange: (open: boolean) => void };
 
@@ -59,7 +59,7 @@ export function DeleteDialog({ type, id, open, onOpenChange }: Props) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Supprimer définitivement ?</DialogTitle>
-          <DialogDescription>{`Cette fiche et son historique disparaissent. ${labels.singular} supprimée ne se retrouve pas : pour la ranger sans la perdre, archivez-la.`}</DialogDescription>
+          <DialogDescription>{`Cette ${labels.singular.toLowerCase()} et son historique disparaissent : le geste est irréversible. Pour la ranger sans la perdre, archivez-la.`}</DialogDescription>
         </DialogHeader>
         {failure && (
           <div role="alert" className="grid gap-1 rounded-md border-l-[3px] border-l-danger bg-danger-subtle/40 p-2">

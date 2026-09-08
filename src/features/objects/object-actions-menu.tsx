@@ -44,8 +44,9 @@ export function ObjectActionsMenu({ type, id, archived, canDelete }: Props) {
     router.refresh();
   }
 
+  /* Les actions ferment la ligne de titre, à droite : le titre et le type se lisent d'abord. */
   return (
-    <div className="grid justify-items-end gap-1">
+    <div className="ml-auto grid justify-items-end gap-1">
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
           Actions
@@ -57,11 +58,13 @@ export function ObjectActionsMenu({ type, id, archived, canDelete }: Props) {
           ) : (
             <DropdownMenuItem onClick={() => void run("archiver")}>Archiver</DropdownMenuItem>
           )}
-          {canDelete && <DropdownMenuSeparator />}
           {canDelete && (
-            <DropdownMenuItem variant="destructive" onClick={() => setDeleting(true)}>
-              Supprimer définitivement
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={() => setDeleting(true)}>
+                Supprimer définitivement
+              </DropdownMenuItem>
+            </>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
