@@ -311,6 +311,34 @@ test.describe("téléphone, 375 px : la liste passe en cartes (CRM-50, contrat 2
     await expect(memberPage.getByRole("button", { name: "Nouvelle personne" })).toBeInViewport();
     await fitsTheScreen(memberPage, "liste des personnes");
   });
+
+  test("la croix de retrait d'une puce reste une cible de 24 px, plus large que sa boîte peinte", async ({ memberPage }) => {
+    const mark = tag();
+    await createCompany(memberPage, named("Foxtrot", mark), { type: "client", city: "Paris" });
+
+    await memberPage.goto(`/entreprises?f=name:contient:${mark}`);
+
+    const croix = memberPage.locator('[data-slot="list-filters"] > span').getByRole("button");
+    /* La boîte peinte reste entre les bordures de la puce de 24 px ; la cible, elle, se mesure au clic. */
+    expect((await croix.boundingBox())?.height).toBeLessThanOrEqual(22);
+    /* Ce que le doigt atteint : depuis le centre, jusqu'où un clic revient encore au bouton. */
+    const cible = await croix.evaluate((button) => {
+      const box = button.getBoundingClientRect();
+      const [cx, cy] = [box.x + box.width / 2, box.y + box.height / 2];
+      const atteinte = (dx: number, dy: number) => {
+        let last = 0;
+        for (let step = 1; step <= 24; step += 1) {
+          const found = document.elementFromPoint(cx + dx * step, cy + dy * step);
+          if (found !== button && !button.contains(found)) break;
+          last = step;
+        }
+        return last;
+      };
+      return { largeur: atteinte(-1, 0) + atteinte(1, 0) + 1, hauteur: atteinte(0, -1) + atteinte(0, 1) + 1 };
+    });
+    expect(cible.hauteur).toBeGreaterThanOrEqual(24);
+    expect(cible.largeur).toBeGreaterThanOrEqual(24);
+  });
 });
 
 test.describe("bascule « archivées » (CRM-47, D21)", () => {
