@@ -59,7 +59,7 @@ test.describe("barre des vues d'une liste (CRM-53, contrat 24)", () => {
     await expect(bar.getByRole("button", { name: "Vue : Toutes les entreprises" })).toBeVisible();
     await bar.getByRole("button", { name: "Vue : Toutes les entreprises" }).click();
     const menu = memberPage.locator(VIEW_MENU);
-    await expect(menu.getByRole("link", { name: "Toutes les entreprises" })).toHaveAttribute("aria-current", "true");
+    await expect(menu.getByRole("link", { name: "Toutes les entreprises" })).toHaveAttribute("aria-current", "page");
 
     await menu.getByRole("link", { name: named("Clients", mark) }).click();
     await expect(memberPage).toHaveURL(/vue=/);
@@ -165,5 +165,109 @@ test.describe("modifier et supprimer une vue (CRM-53, contrat 26)", () => {
     await expect(bar.getByRole("button", { name: "Vue : Toutes les entreprises" })).toBeVisible();
     await bar.getByRole("button", { name: "Vue : Toutes les entreprises" }).click();
     await expect(memberPage.locator(VIEW_MENU).getByRole("link", { name: named("Clients de l'Ouest", mark) })).toHaveCount(0);
+  });
+});
+
+/** Nom long, tel qu'une équipe en écrit : il doit se borner partout où il s'affiche. */
+const LONG_NAME = "Comptes stratégiques grands groupes Île-de-France 2026";
+
+test.describe("un nom de vue long reste borné, et la vue courante se voit (CRM-53)", () => {
+  test("à 1280 px le déclencheur borne le nom et le tronque, le nom entier restant lisible au survol", async ({ memberPage }) => {
+    const mark = tag();
+    const long = named(LONG_NAME, mark);
+    const res = await memberPage.request.post("/api/vues", { data: { objectType: "company", name: long, query: "f=type:est:client" } });
+    expect(res.status()).toBe(201);
+    const { id } = (await res.json()) as { id: string };
+
+    await memberPage.goto(`/entreprises?vue=${id}`);
+    const trigger = memberPage.locator(VIEW_BAR).getByRole("button", { name: `Vue : ${long}` });
+    /* Le nom entier reste le nom accessible et le survol le rend, mais le bouton, lui, ne s'étire pas. */
+    await expect(trigger).toHaveAttribute("title", `Vue : ${long}`);
+    const width = (await trigger.boundingBox())?.width ?? 0;
+    expect(width, "largeur du déclencheur de la barre des vues").toBeLessThanOrEqual(280);
+    /* Tronqué par points de suspension, comme la barre latérale tronque le même nom. */
+    const clipped = await trigger.locator('[data-slot="view-name"]').evaluate((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).textOverflow === "ellipsis");
+    expect(clipped, "nom tronqué par points de suspension").toBe(true);
+  });
+
+  test("la vue courante porte aria-current=page et une marque visible que l'épingle ne porte pas", async ({ memberPage }) => {
+    const mark = tag();
+    const pinned = named("Clients à épingler", mark);
+    const res = await memberPage.request.post("/api/vues", { data: { objectType: "company", name: pinned, query: "f=type:est:client" } });
+    expect(res.status()).toBe(201);
+    /* Une vue épinglée qui n'est pas la vue courante : la case cochée ne doit pas se lire « vue active ». */
+    const pin = await memberPage.request.post("/api/vues-epinglees", { data: { viewId: ((await res.json()) as { id: string }).id } });
+    expect(pin.status()).toBe(201);
+
+    await memberPage.goto("/entreprises");
+    const bar = memberPage.locator(VIEW_BAR);
+    await bar.getByRole("button", { name: /^Vue : / }).click();
+    const menu = memberPage.locator(VIEW_MENU);
+    await expect(menu.getByRole("checkbox", { name: `Épingler ${pinned}` })).toBeChecked();
+
+    const line = (name: string) => menu.getByRole("listitem").filter({ has: memberPage.getByRole("link", { name, exact: true }) });
+    /* La vue courante est la vue par défaut : c'est elle qui porte la marque, pas l'épinglée. */
+    await expect(menu.getByRole("link", { name: "Toutes les entreprises" })).toHaveAttribute("aria-current", "page");
+    await expect(menu.getByRole("link", { name: pinned })).not.toHaveAttribute("aria-current", "page");
+    await expect(line("Toutes les entreprises").locator('[data-slot="view-current"]')).toBeVisible();
+    await expect(line(pinned).locator('[data-slot="view-current"]')).toHaveCount(0);
+
+    /* Ce que la case et les flèches commandent se lit aussi au survol, là où le dessin ne parle pas. */
+    await expect(menu.getByRole("checkbox", { name: `Épingler ${pinned}` })).toHaveAttribute("title", `Épingler ${pinned}`);
+    await expect(menu.getByRole("button", { name: `Monter la vue ${pinned}` })).toHaveAttribute("title", `Monter la vue ${pinned}`);
+  });
+
+  test("une coupure du réseau pendant un épinglage laisse un message sous la barre, jamais un silence", async ({ memberPage }) => {
+    const mark = tag();
+    const name = named("Vue hors ligne", mark);
+    const res = await memberPage.request.post("/api/vues", { data: { objectType: "company", name, query: "f=type:est:client" } });
+    expect(res.status()).toBe(201);
+
+    await memberPage.goto("/entreprises");
+    await memberPage.route("**/api/vues-epinglees", (route) => route.abort("connectionfailed"));
+    const bar = memberPage.locator(VIEW_BAR);
+    await bar.getByRole("button", { name: /^Vue : / }).click();
+    await memberPage.locator(VIEW_MENU).getByRole("checkbox", { name: `Épingler ${name}` }).click();
+
+    await expect(bar.getByRole("alert")).toHaveText("L'action a échoué. Réessayez.");
+    /* L'écran reste dans l'état enregistré : rien n'est épinglé. */
+    await expect(memberPage.locator(SIDEBAR).getByRole("navigation", { name: "Vues épinglées" })).toHaveCount(0);
+  });
+});
+
+test.describe("téléphone, 375 px (contrat 25 de la feature 1)", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test("le menu des vues tient dans l'écran sur un nom long, l'épingle et les flèches restant atteignables", async ({ memberPage }) => {
+    const mark = tag();
+    const long = named(LONG_NAME, mark);
+    const res = await memberPage.request.post("/api/vues", { data: { objectType: "company", name: long, query: "f=type:est:client" } });
+    expect(res.status()).toBe(201);
+
+    await memberPage.goto("/entreprises");
+    const bar = memberPage.locator(VIEW_BAR);
+    await bar.getByRole("button", { name: /^Vue : / }).click();
+    const menu = memberPage.locator(VIEW_MENU);
+    await expect(menu.getByRole("link", { name: long })).toBeVisible();
+    await menu.getByRole("checkbox", { name: `Épingler ${long}` }).click();
+    await expect(menu.getByRole("checkbox", { name: `Épingler ${long}` })).toBeChecked();
+
+    /* Aucun défilement horizontal de la page, menu ouvert compris (il est porté hors du flux). */
+    const { scrollWidth, clientWidth } = await memberPage.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+    expect(scrollWidth, "largeur de la page, menu des vues ouvert").toBeLessThanOrEqual(clientWidth);
+    const wider = await memberPage.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>("body *"))
+        .filter((el) => el.clientWidth > 1 && el.scrollWidth > el.clientWidth + 1)
+        .filter((el) => getComputedStyle(el).overflowX !== "visible" && getComputedStyle(el).textOverflow !== "ellipsis")
+        .map((el) => `${el.tagName.toLowerCase()} ${el.scrollWidth}>${el.clientWidth}`),
+    );
+    expect(wider, "éléments plus larges que leur cadre").toEqual([]);
+
+    /* Chaque ligne du menu, et donc l'épingle et les flèches, reste dans la fenêtre. */
+    const boxes = await menu.getByRole("listitem").evaluateAll((items) => items.map((el) => el.getBoundingClientRect().right));
+    expect(Math.max(...boxes), "bord droit des lignes du menu").toBeLessThanOrEqual(375);
+    await expect(menu.getByRole("checkbox", { name: `Épingler ${long}` })).toBeInViewport();
+    await expect(menu.getByRole("button", { name: `Monter la vue ${long}` })).toBeInViewport();
+    await expect(menu.getByRole("button", { name: `Descendre la vue ${long}` })).toBeInViewport();
   });
 });
