@@ -241,14 +241,14 @@ test.describe("téléphone, 375 px : la liste passe en cartes (CRM-50, contrat 2
     await expect(cards.getByRole("listitem").filter({ hasText: name })).toContainText("Client");
     await expect(memberPage.getByRole("table", { name: "Entreprises" })).toBeHidden();
     /* L'édition en place est réservée à l'ordinateur (D9) : aucune cellule ouvrable ici. */
-    await expect(memberPage.locator("[data-cell]")).toHaveCount(0);
+    await expect(memberPage.locator("[data-cell]:visible")).toHaveCount(0);
     await expect(memberPage.getByRole("button", { name: "Nouvelle entreprise" })).toBeInViewport();
     await fitsTheScreen(memberPage, "liste des entreprises");
 
     await memberPage.goto("/personnes");
     await expect(memberPage.getByRole("list", { name: "Personnes" }).getByRole("link", { name: /Anne-Sophie/ })).toBeVisible();
     await expect(memberPage.getByRole("table", { name: "Personnes" })).toBeHidden();
-    await expect(memberPage.locator("[data-cell]")).toHaveCount(0);
+    await expect(memberPage.locator("[data-cell]:visible")).toHaveCount(0);
     await expect(memberPage.getByRole("button", { name: "Nouvelle personne" })).toBeInViewport();
     await fitsTheScreen(memberPage, "liste des personnes");
   });

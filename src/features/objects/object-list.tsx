@@ -6,6 +6,7 @@ import { listForState } from "@/features/lists/apply-filters";
 import { ColumnMenu } from "@/features/lists/column-menu";
 import { FilterChips } from "@/features/lists/filter-chips";
 import { ListCell } from "@/features/lists/inline-edit";
+import { ListCards } from "@/features/lists/list-cards";
 import { isSortable, UPDATED_AT, type Sort } from "@/features/lists/sort";
 import { listUrl, parseListState, searchParamsOf, type ListState } from "@/features/lists/url-state";
 import { fieldsOf } from "@/features/objects/fields";
@@ -67,7 +68,10 @@ export async function ObjectList({ type, query }: { type: string; query?: ListQu
       </header>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <FilterChips type={type} state={state} users={users} />
-        <ColumnMenu type={type} state={state} />
+        {/* Choisir des colonnes n'a pas de sens en cartes : le menu suit le tableau (D9). */}
+        <div className="hidden md:block">
+          <ColumnMenu type={type} state={state} />
+        </div>
       </div>
       {state.inactive.length > 0 && (
         <div data-slot="list-warnings" className="grid gap-1">
@@ -83,37 +87,43 @@ export async function ObjectList({ type, query }: { type: string; query?: ListQu
           {state.filters.length > 0 ? "Aucune fiche ne répond à ces filtres." : `Aucune fiche pour l'instant. Créez la première avec « ${definition.labels.singular} ».`}
         </p>
       ) : (
-        <Table aria-label={definition.labels.plural} className="table-fixed">
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <ColumnHeader type={type} state={state} field={title.key} label={title.label} className="h-7" />
-              {columns.map((column) => (
-                <ColumnHeader key={column.key} type={type} state={state} field={column.key} label={column.label} className="hidden h-7 w-[18%] md:table-cell" />
-              ))}
-              <ColumnHeader type={type} state={state} field={UPDATED_AT} label="Modifiée le" className="h-7 w-28 text-right" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {shown.map((record) => {
-              const label = displayValue(title, record[title.key], users);
-              return (
-                <TableRow key={record.id} className="h-8">
-                  <TableCell className="truncate py-1 font-medium" title={label}>
-                    <Link href={definition.href(record.id)} className="hover:underline focus-visible:rounded-sm">
-                      {label}
-                    </Link>
-                  </TableCell>
+        <>
+          {/* Sous 768 px, les cartes remplacent le tableau : la page ne défile jamais en largeur (D9). */}
+          <ListCards type={type} records={shown} columns={columns} users={users} />
+          <div className="hidden md:block">
+            <Table aria-label={definition.labels.plural} className="table-fixed">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <ColumnHeader type={type} state={state} field={title.key} label={title.label} className="h-7" />
                   {columns.map((column) => (
-                    <TableCell key={column.key} className="hidden truncate py-1 text-muted-foreground md:table-cell">
-                      <ListCell type={type} id={record.id} field={column} value={rawValue(record[column.key])} users={users} />
-                    </TableCell>
+                    <ColumnHeader key={column.key} type={type} state={state} field={column.key} label={column.label} className="h-7 w-[18%]" />
                   ))}
-                  <TableCell className="py-1 text-right tabular-nums text-muted-foreground">{formatDate(record.updatedAt)}</TableCell>
+                  <ColumnHeader type={type} state={state} field={UPDATED_AT} label="Modifiée le" className="h-7 w-28 text-right" />
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+              </TableHeader>
+              <TableBody>
+                {shown.map((record) => {
+                  const label = displayValue(title, record[title.key], users);
+                  return (
+                    <TableRow key={record.id} className="h-8">
+                      <TableCell className="truncate py-1 font-medium" title={label}>
+                        <Link href={definition.href(record.id)} className="hover:underline focus-visible:rounded-sm">
+                          {label}
+                        </Link>
+                      </TableCell>
+                      {columns.map((column) => (
+                        <TableCell key={column.key} className="truncate py-1 text-muted-foreground">
+                          <ListCell type={type} id={record.id} field={column} value={rawValue(record[column.key])} users={users} />
+                        </TableCell>
+                      ))}
+                      <TableCell className="py-1 text-right tabular-nums text-muted-foreground">{formatDate(record.updatedAt)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </>
       )}
       <p className="text-sm text-muted-foreground">{count === 1 ? `1 ${definition.labels.singular.toLowerCase()}` : `${count} ${definition.labels.plural.toLowerCase()}`}</p>
     </div>
