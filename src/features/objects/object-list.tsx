@@ -14,6 +14,7 @@ import { displayValue, formatDate } from "@/features/objects/labels";
 import { getObject } from "@/features/objects/registry";
 import { listObjectRecords, listUserOptions } from "@/features/objects/service";
 import { QuickCreateDialog } from "@/features/objects/quick-create-dialog";
+import { listPinnedViews } from "@/features/views/pinned";
 import { ViewBar } from "@/features/views/view-bar";
 import { listStateWithView, listViews } from "@/features/views/views";
 import { requireSession } from "@/lib/auth/session";
@@ -57,6 +58,7 @@ function ColumnHeader({ type, state, field, label, className }: { type: string; 
 export async function ObjectList({ type, query }: { type: string; query?: ListQuery }) {
   const state = await listStateWithView(type, searchParamsOf(query));
   const [{ user }, records, users, views] = await Promise.all([requireSession(), listObjectRecords(type, { includeArchived: state.includeArchived }), listUserOptions(), listViews(type)]);
+  const pinned = await listPinnedViews(user.id);
   const shown = listForState(type, records, state, users);
   const definition = getObject(type);
   const fields = columnsOf(type);
@@ -69,7 +71,7 @@ export async function ObjectList({ type, query }: { type: string; query?: ListQu
         <h1 className="text-2xl font-semibold tracking-tight">{definition.labels.plural}</h1>
         <QuickCreateDialog type={type} users={users} currentUserId={user.id} />
       </header>
-      <ViewBar type={type} state={state} views={views} />
+      <ViewBar type={type} state={state} views={views} pinned={pinned} />
       <div className="flex flex-wrap items-start justify-between gap-2">
         <FilterChips type={type} state={state} users={users} />
         {/* Choisir des colonnes n'a pas de sens en cartes : le menu suit le tableau (D9). */}

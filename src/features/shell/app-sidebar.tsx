@@ -20,6 +20,8 @@ import { ROLE_LABELS } from "@/features/accounts/labels";
 import type { Role } from "@/features/auth/accounts";
 import { ObjectsNav } from "@/features/objects/objects-nav";
 import { isCurrentPage, SHELL_NAV } from "@/features/shell/nav-entries";
+import type { PinnedViewEntry } from "@/features/views/pinned";
+import { PinnedViewsNav } from "@/features/views/pinned-views-nav";
 import { SignOutButton } from "@/features/shell/sign-out";
 import { ThemeToggle } from "@/features/theme/theme-toggle";
 
@@ -27,8 +29,11 @@ export type ShellUser = { firstName: string; lastName: string; role: Role };
 
 const initials = (user: ShellUser) => `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase();
 
-/** Barre latérale (D15) : navigation, groupe « Objets » alimenté par le registre, pied avec le compte. 224 px, 48 px repliée. */
-export function AppSidebar({ user }: { user: ShellUser }) {
+/**
+ * Barre latérale (D15) : navigation, groupe « Objets » alimenté par le registre, groupe « Vues
+ * épinglées » quand cet utilisateur en a (2.5b), pied avec le compte. 224 px, 48 px repliée.
+ */
+export function AppSidebar({ user, pinnedViews = [] }: { user: ShellUser; pinnedViews?: readonly PinnedViewEntry[] }) {
   const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
   const fullName = `${user.firstName} ${user.lastName}`.trim();
@@ -72,6 +77,15 @@ export function AppSidebar({ user }: { user: ShellUser }) {
             <ObjectsNav />
           </SidebarGroupContent>
         </SidebarGroup>
+        {/* Le groupe n'apparaît qu'une fois une vue épinglée : une barre latérale ne montre pas un groupe vide. */}
+        {pinnedViews.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="h-6 text-2xs font-semibold uppercase tracking-(--tracking-caps)">Vues épinglées</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <PinnedViewsNav views={pinnedViews} />
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="border-t">
         <SidebarMenu>

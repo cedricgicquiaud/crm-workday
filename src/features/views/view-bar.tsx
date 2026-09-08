@@ -1,18 +1,20 @@
 "use client";
 
-import { ChevronDownIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import "@/features/objects/manifest";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DEFAULT_VIEW, listStateToParams, type ListState } from "@/features/lists/url-state";
 import { getObject } from "@/features/objects/registry";
+import type { PinnedViewEntry } from "@/features/views/pinned";
 import type { ViewSummary } from "@/features/views/views";
 
-type Props = { type: string; state: ListState; views: readonly ViewSummary[] };
+type Props = { type: string; state: ListState; views: readonly ViewSummary[]; pinned: readonly PinnedViewEntry[] };
 
 /** Adresse d'une vue : la liste ouverte sur elle, et rien d'autre — c'est ce qu'on partage. */
 function viewUrl(type: string, view: ViewSummary): string {
@@ -33,13 +35,35 @@ async function callViews(path: string, init: { method: string; body?: unknown })
 
 /**
  * Barre des vues d'une liste (contrat 24) : la vue courante et son menu — la vue par défaut de
- * l'objet, puis les vues de l'équipe —, et l'enregistrement de l'état affiché sous un nom. Une vue
- * choisie s'ouvre par son adresse (`?vue=…`), donc elle se partage et se rouvre au même état (D18).
+ * l'objet, puis les vues de l'équipe —, l'épingle de chacune dans sa propre barre latérale, et
+ * l'enregistrement de l'état affiché sous un nom. Une vue choisie s'ouvre par son adresse
+ * (`?vue=…`), donc elle se partage et se rouvre au même état (D18).
  */
-export function ViewBar({ type, state, views }: Props) {
+export function ViewBar({ type, state, views, pinned }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const current = views.find((view) => view.id === state.view) ?? views[0];
+  const pinnedIds = pinned.map((view) => view.id);
+
+  /** L'écran ne suit l'épingle qu'après la réponse du serveur : un échec laisse la barre latérale telle qu'enregistrée. */
+  async function write(path: string, init: { method: string; body?: unknown }) {
+    setError(null);
+    const outcome = await callViews(path, init);
+    if (!outcome.ok) return setError(outcome.message);
+    router.refresh();
+  }
+
+  const togglePin = (view: ViewSummary) =>
+    pinnedIds.includes(view.id) ? write(`/api/vues-epinglees/${encodeURIComponent(view.id)}`, { method: "DELETE" }) : write("/api/vues-epinglees", { method: "POST", body: { viewId: view.id } });
+
+  /** Monte ou descend une vue dans la barre latérale : l'ordre est choisi, donc enregistré. */
+  function movePin(view: ViewSummary, step: number) {
+    const from = pinnedIds.indexOf(view.id);
+    const viewIds = pinnedIds.filter((id) => id !== view.id);
+    viewIds.splice(from + step, 0, view.id);
+    return write("/api/vues-epinglees", { method: "PATCH", body: { viewIds } });
+  }
 
   return (
     <div data-slot="view-bar" className="flex flex-wrap items-center gap-2">
@@ -50,18 +74,33 @@ export function ViewBar({ type, state, views }: Props) {
         </PopoverTrigger>
         <PopoverContent align="start" className="w-64">
           <ul data-slot="view-menu" className="grid gap-1">
-            {views.map((view) => (
-              <li key={view.id} className="flex h-7 items-center gap-1">
-                <Link
-                  href={viewUrl(type, view)}
-                  aria-current={view.id === current.id ? "true" : undefined}
-                  className="min-w-0 flex-1 truncate rounded-sm px-1 text-sm hover:underline aria-[current]:font-medium"
-                  title={view.name}
-                >
-                  {view.name}
-                </Link>
-              </li>
-            ))}
+            {views.map((view) => {
+              const position = pinnedIds.indexOf(view.id);
+              return (
+                <li key={view.id} className="flex h-7 items-center gap-1">
+                  <Link
+                    href={viewUrl(type, view)}
+                    aria-current={view.id === current.id ? "true" : undefined}
+                    className="min-w-0 flex-1 truncate rounded-sm px-1 text-sm hover:underline aria-[current]:font-medium"
+                    title={view.name}
+                  >
+                    {view.name}
+                  </Link>
+                  {/* La vue par défaut est déjà dans la barre latérale, sous son objet : elle ne s'épingle pas. */}
+                  {view.id !== DEFAULT_VIEW && <Checkbox aria-label={`Épingler ${view.name}`} checked={position >= 0} onCheckedChange={() => void togglePin(view)} />}
+                  {position >= 0 && (
+                    <>
+                      <Button variant="ghost" size="icon-xs" aria-label={`Monter la vue ${view.name}`} disabled={position === 0} onClick={() => void movePin(view, -1)}>
+                        <ArrowUpIcon aria-hidden />
+                      </Button>
+                      <Button variant="ghost" size="icon-xs" aria-label={`Descendre la vue ${view.name}`} disabled={position === pinnedIds.length - 1} onClick={() => void movePin(view, 1)}>
+                        <ArrowDownIcon aria-hidden />
+                      </Button>
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </PopoverContent>
       </Popover>
@@ -72,6 +111,12 @@ export function ViewBar({ type, state, views }: Props) {
           {saving && <SaveViewForm type={type} state={state} onSaved={(id) => { setSaving(false); router.push(`${getObject(type).listHref}?vue=${encodeURIComponent(id)}`); }} />}
         </PopoverContent>
       </Popover>
+
+      {error && (
+        <p role="alert" className="text-xs text-danger">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
