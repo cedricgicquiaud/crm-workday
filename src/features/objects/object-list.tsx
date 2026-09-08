@@ -9,11 +9,13 @@ import { FilterChips } from "@/features/lists/filter-chips";
 import { ListCell } from "@/features/lists/inline-edit";
 import { ListCards } from "@/features/lists/list-cards";
 import { isSortable, UPDATED_AT, type Sort } from "@/features/lists/sort";
-import { listUrl, parseListState, searchParamsOf, type ListState } from "@/features/lists/url-state";
+import { listUrl, searchParamsOf, type ListState } from "@/features/lists/url-state";
 import { displayValue, formatDate } from "@/features/objects/labels";
 import { getObject } from "@/features/objects/registry";
 import { listObjectRecords, listUserOptions } from "@/features/objects/service";
 import { QuickCreateDialog } from "@/features/objects/quick-create-dialog";
+import { ViewBar } from "@/features/views/view-bar";
+import { listStateWithView, listViews } from "@/features/views/views";
 import { requireSession } from "@/lib/auth/session";
 
 /** Paramètres d'URL tels que Next.js les passe à une page. */
@@ -46,14 +48,15 @@ function ColumnHeader({ type, state, field, label, className }: { type: string; 
 }
 
 /**
- * Liste dense d'un objet (D6) : titre `<h1>`, un seul bouton plein (la création), barre de filtres,
- * tableau à largeur fixe, pied avec compteur. Tout l'état — filtres, tri, colonnes, archivées — vit
- * dans l'URL (D18) : la page est rendue par le serveur à chaque adresse, et l'adresse se partage.
+ * Liste dense d'un objet (D6) : titre `<h1>`, un seul bouton plein (la création), barre des vues,
+ * barre de filtres, tableau à largeur fixe, pied avec compteur. Tout l'état — vue, filtres, tri,
+ * colonnes, archivées — vit dans l'URL (D18) : la page est rendue par le serveur à chaque adresse,
+ * et l'adresse se partage.
  * Un filtre que la liste ne sait pas appliquer est signalé « filtre inactif », jamais une erreur.
  */
 export async function ObjectList({ type, query }: { type: string; query?: ListQuery }) {
-  const state = parseListState(type, searchParamsOf(query));
-  const [{ user }, records, users] = await Promise.all([requireSession(), listObjectRecords(type, { includeArchived: state.includeArchived }), listUserOptions()]);
+  const state = await listStateWithView(type, searchParamsOf(query));
+  const [{ user }, records, users, views] = await Promise.all([requireSession(), listObjectRecords(type, { includeArchived: state.includeArchived }), listUserOptions(), listViews(type)]);
   const shown = listForState(type, records, state, users);
   const definition = getObject(type);
   const fields = columnsOf(type);
@@ -66,6 +69,7 @@ export async function ObjectList({ type, query }: { type: string; query?: ListQu
         <h1 className="text-2xl font-semibold tracking-tight">{definition.labels.plural}</h1>
         <QuickCreateDialog type={type} users={users} currentUserId={user.id} />
       </header>
+      <ViewBar type={type} state={state} views={views} />
       <div className="flex flex-wrap items-start justify-between gap-2">
         <FilterChips type={type} state={state} users={users} />
         {/* Choisir des colonnes n'a pas de sens en cartes : le menu suit le tableau (D9). */}
