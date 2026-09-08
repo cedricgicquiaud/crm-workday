@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, seedAccounts, test } from "./fixtures/auth";
 import { resetObjects } from "./fixtures/objets";
+import { resetPersons } from "./fixtures/personnes";
 
 /* Les fiches finissent par « (e2e) » : la fixture des objets les efface, et rien d'autre. */
 /* Next.js pose un annonceur de route au même rôle dans le corps de page : les avertissements se ciblent par leur conteneur. */
@@ -10,11 +11,17 @@ const COLUMN_MENU = '[data-slot="column-menu"]';
 const tag = () => Date.now().toString(36);
 const named = (prefix: string, mark: string) => `${prefix} ${mark} (e2e)`;
 
-test.beforeAll(() => {
+/* Les personnes d'abord : une personne rattachée retient son entreprise. */
+function resetAll() {
+  resetPersons();
   resetObjects();
+}
+
+test.beforeAll(() => {
+  resetAll();
   seedAccounts();
 });
-test.afterAll(() => resetObjects());
+test.afterAll(resetAll);
 
 async function createCompany(page: Page, name: string, values: Record<string, string>) {
   const res = await page.request.post("/api/entreprises", { data: { name, ...values } });
@@ -201,5 +208,48 @@ test.describe("édition en place dans la liste (CRM-49, contrat 25)", () => {
     expect(patches).toEqual([]);
     await memberPage.reload();
     await expect(cell(memberPage, alpha, "city")).toHaveText("Nantes");
+  });
+});
+
+test.describe("téléphone, 375 px : la liste passe en cartes (CRM-50, contrat 27)", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  /** Aucun défilement horizontal de la page, un seul h1, et aucun cadre qui défile en largeur. */
+  async function fitsTheScreen(page: Page, label: string) {
+    await expect(page.getByRole("heading", { level: 1 }), label).toHaveCount(1);
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+    expect(scrollWidth, label).toBeLessThanOrEqual(clientWidth);
+    const wider = await page.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>("body *"))
+        .filter((el) => el.clientWidth > 1 && el.scrollWidth > el.clientWidth + 1)
+        .filter((el) => getComputedStyle(el).overflowX !== "visible" && getComputedStyle(el).textOverflow !== "ellipsis")
+        .map((el) => `${el.tagName.toLowerCase()} ${el.scrollWidth}>${el.clientWidth}`),
+    );
+    expect(wider, label).toEqual([]);
+  }
+
+  test("les entreprises et les personnes s'affichent en cartes, sans tableau ni édition en place, avec le bouton de création atteignable", async ({ memberPage }) => {
+    const mark = tag();
+    const name = named("Groupe Ferrandi et Associés du Sud-Ouest", mark);
+    await createCompany(memberPage, name, { type: "client", city: "Bayonne" });
+    const person = await memberPage.request.post("/api/personnes", { data: { firstName: "Anne-Sophie", lastName: named("de La Rochefoucauld-Montbazon", mark) } });
+    expect(person.status()).toBe(201);
+
+    await memberPage.goto("/entreprises");
+    const cards = memberPage.getByRole("list", { name: "Entreprises" });
+    await expect(cards.getByRole("link", { name })).toBeVisible();
+    await expect(cards.getByRole("listitem").filter({ hasText: name })).toContainText("Client");
+    await expect(memberPage.getByRole("table", { name: "Entreprises" })).toBeHidden();
+    /* L'édition en place est réservée à l'ordinateur (D9) : aucune cellule ouvrable ici. */
+    await expect(memberPage.locator("[data-cell]")).toHaveCount(0);
+    await expect(memberPage.getByRole("button", { name: "Nouvelle entreprise" })).toBeInViewport();
+    await fitsTheScreen(memberPage, "liste des entreprises");
+
+    await memberPage.goto("/personnes");
+    await expect(memberPage.getByRole("list", { name: "Personnes" }).getByRole("link", { name: /Anne-Sophie/ })).toBeVisible();
+    await expect(memberPage.getByRole("table", { name: "Personnes" })).toBeHidden();
+    await expect(memberPage.locator("[data-cell]")).toHaveCount(0);
+    await expect(memberPage.getByRole("button", { name: "Nouvelle personne" })).toBeInViewport();
+    await fitsTheScreen(memberPage, "liste des personnes");
   });
 });
