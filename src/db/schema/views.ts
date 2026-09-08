@@ -4,8 +4,11 @@
  * liste sait relire. `object_type` est la clé d'objet du registre (`company`, `person`…).
  * Une vue est partagée par toute l'équipe (D11) : son nom est unique par objet, et elle survit à la
  * disparition du compte qui l'a créée (`created_by` remis à nul, jamais la vue effacée).
+ * L'épingle, elle, est personnelle : `pinned_view` range dans la barre latérale d'un utilisateur les
+ * vues qu'il a choisies, au rang qu'il a choisi (`position`). Supprimer la vue ou le compte vide
+ * l'épingle (`cascade`) : une barre latérale ne montre jamais une vue qui n'existe plus.
  */
-import { pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 
 export const savedView = pgTable(
@@ -23,4 +26,21 @@ export const savedView = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique("saved_view_object_name_uq").on(t.objectType, t.name)],
+);
+
+export const pinnedView = pgTable(
+  "pinned_view",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    viewId: uuid("view_id")
+      .notNull()
+      .references(() => savedView.id, { onDelete: "cascade" }),
+    /** rang dans la barre latérale, choisi par l'utilisateur : l'ordre s'enregistre, il ne se déduit pas */
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("pinned_view_user_view_uq").on(t.userId, t.viewId)],
 );
