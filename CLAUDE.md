@@ -17,15 +17,21 @@ _(`.claude/skills/pilot/`) ; ici, seulement ce qui est propre à ce dépôt._
 
 - Workspace Linear : `gm5` (connexion MCP `linear` ; clé `~/.config/pilot/linear-gm5.env`)
 - Team : `CRM Workday` — clé `CRM` — id `395e04f1-06f4-4c2b-b88d-e17d440bc6eb`
-- Agents en parallèle : `1` (livraisons produites en même temps par `run` ; monter à 2 ou 3
-  quand la boucle a fait ses preuves sur ce projet)
+- Agents en parallèle : `2` (livraisons produites en même temps par `run` ; passé de 1 à 2
+  le 2026-09-08 pour l'épreuve des deux heures, sur une paire déclarée disjointe par le découpeur)
 - Barème et capacité : `.pilot/calibration.md`
 - Cahier de recette : `UAT.md` à la racine, lié depuis chaque feature
 - Direction visuelle : `.pilot/design.md`, système de design : `.pilot/design/` (déposé le 2026-09-04 ; lire `.pilot/design/README.md` avant tout écran)
 
 **Selon le projet** — une ligne absente vaut « non », et ce qu'on perd est dit à côté
 
-- Lancer l'app : `npm run dev` — Next.js sur `http://localhost:3000/`
+- Lancer l'app : `npm run dev` — Next.js sur l'adresse `APP_URL` de `.env.local`
+  (`http://localhost:3000/` dans le dépôt principal)
+- Poste par worktree : un `.env.local` copié du dépôt principal, avec les trois lignes du poste.
+  Poste A : `APP_URL=http://localhost:3001`, `DATABASE_URL=postgres://crm:crm@localhost:5433/crm_a`,
+  `TEST_DATABASE_URL=postgres://crm:crm@localhost:5433/crm_test_a`. Poste B : `3002`, `crm_b`,
+  `crm_test_b`. Les quatre bases existent dans le conteneur Postgres (créées le 2026-09-08) ;
+  elles se migrent seules au premier `npm run dev` ou `npm test`. Un poste se libère au merge.
 - Amorce de recette : `.pilot/amorce-recette.js` — ouvre une session et pose des données ;
   sans elle, le `testeur` photographie des écrans vides (à écrire avec la livraison 1)
 - Testeur : `passe visuelle automatisée`
