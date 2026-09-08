@@ -196,7 +196,8 @@ test.describe("un nom de vue long reste borné, et la vue courante se voit (CRM-
     const res = await memberPage.request.post("/api/vues", { data: { objectType: "company", name: pinned, query: "f=type:est:client" } });
     expect(res.status()).toBe(201);
     /* Une vue épinglée qui n'est pas la vue courante : la case cochée ne doit pas se lire « vue active ». */
-    const pin = await memberPage.request.post("/api/vues-epinglees", { data: { viewId: ((await res.json()) as { id: string }).id } });
+    const { id } = (await res.json()) as { id: string };
+    const pin = await memberPage.request.post("/api/vues-epinglees", { data: { viewId: id } });
     expect(pin.status()).toBe(201);
 
     await memberPage.goto("/entreprises");
@@ -215,6 +216,9 @@ test.describe("un nom de vue long reste borné, et la vue courante se voit (CRM-
     /* Ce que la case et les flèches commandent se lit aussi au survol, là où le dessin ne parle pas. */
     await expect(menu.getByRole("checkbox", { name: `Épingler ${pinned}` })).toHaveAttribute("title", `Épingler ${pinned}`);
     await expect(menu.getByRole("button", { name: `Monter la vue ${pinned}` })).toHaveAttribute("title", `Monter la vue ${pinned}`);
+
+    /* L'épingle est personnelle et survit à la fin du test : ce test la retire, les suivants retrouvent une barre latérale nue. */
+    expect((await memberPage.request.delete(`/api/vues-epinglees/${id}`)).status()).toBe(200);
   });
 
   test("une coupure du réseau pendant un épinglage laisse un message sous la barre, jamais un silence", async ({ memberPage }) => {
@@ -230,8 +234,8 @@ test.describe("un nom de vue long reste borné, et la vue courante se voit (CRM-
     await memberPage.locator(VIEW_MENU).getByRole("checkbox", { name: `Épingler ${name}` }).click();
 
     await expect(bar.getByRole("alert")).toHaveText("L'action a échoué. Réessayez.");
-    /* L'écran reste dans l'état enregistré : rien n'est épinglé. */
-    await expect(memberPage.locator(SIDEBAR).getByRole("navigation", { name: "Vues épinglées" })).toHaveCount(0);
+    /* L'écran reste dans l'état enregistré : la vue n'a pas rejoint la barre latérale. */
+    await expect(memberPage.locator(SIDEBAR).getByRole("link", { name })).toHaveCount(0);
   });
 });
 
