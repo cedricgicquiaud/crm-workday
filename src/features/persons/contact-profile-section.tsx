@@ -9,7 +9,8 @@ import type { ContactProfile } from "@/features/persons/contact-profile";
 import { CompanyPicker, type CompanyOption } from "@/features/persons/company-picker";
 import { DECISION_ROLES } from "@/features/persons/schema";
 
-type Props = { personId: string; profile: ContactProfile | null; companies: readonly CompanyOption[] };
+/** `readOnly` : la personne ne s'écrit plus (fiche archivée, D21) ; le profil se lit, il ne se pose ni ne se change. */
+type Props = { personId: string; profile: ContactProfile | null; companies: readonly CompanyOption[]; readOnly?: boolean };
 
 type Failure = { message?: string; fields?: Record<string, string> };
 
@@ -22,7 +23,7 @@ const FAILED = "La modification n'a pas pu être enregistrée.";
  * affichée ne change qu'après la réponse 2xx ; un refus s'affiche sous le champ (`role="alert"`) et
  * la valeur enregistrée revient. Le sélecteur ne propose que des entreprises actives.
  */
-export function ContactProfileSection({ personId, profile: initial, companies }: Props) {
+export function ContactProfileSection({ personId, profile: initial, companies, readOnly = false }: Props) {
   const router = useRouter();
   const [profile, setProfile] = useState(initial);
   const [adding, setAdding] = useState(false);
@@ -62,9 +63,12 @@ export function ContactProfileSection({ personId, profile: initial, companies }:
       {!profile && !adding && (
         <div className="grid justify-items-start gap-2">
           <p className="text-sm text-muted-foreground">Cette personne n&apos;a pas de profil contact.</p>
-          <Button type="button" variant="outline" size="sm" onClick={() => setAdding(true)}>
-            Ajouter un profil contact
-          </Button>
+          {/* Fiche archivée : le bouton disparaît plutôt que de s'éteindre — le rattachement finirait en 409. */}
+          {!readOnly && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setAdding(true)}>
+              Ajouter un profil contact
+            </Button>
+          )}
         </div>
       )}
       {!profile && adding && (

@@ -7,6 +7,7 @@ import { fieldsOf } from "@/features/objects/fields";
 import { FieldsSection } from "@/features/objects/fields-section";
 import { displayValue, formatDate } from "@/features/objects/labels";
 import { LinksColumn } from "@/features/objects/links-column";
+import { ObjectActionsMenu } from "@/features/objects/object-actions-menu";
 import { SheetBanners } from "@/features/objects/banners";
 import { getObject } from "@/features/objects/registry";
 import { listRecordOptions, listUserOptions, serializeRecord } from "@/features/objects/service";
@@ -43,6 +44,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const fields = fieldsOf(TYPE);
   const owner = fields.find((f) => f.key === "ownerId")!;
   const profiles = fields.find((f) => f.key === "profiles")!;
+  /* Fiche archivée : elle se lit, elle ne s'écrit plus (D21) — champs en texte, composeur, créations rapides et profil contact retirés. */
+  const archived = record.archivedAt != null;
   return (
     <div className="grid gap-6">
       <header className="grid gap-1">
@@ -53,20 +56,21 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             {definition.labels.singular}
           </Badge>
           <Badge variant="outline" className="border-border">{`Profils : ${displayValue(profiles, record.profiles, users)}`}</Badge>
+          <ObjectActionsMenu type={TYPE} id={id} archived={archived} />
         </div>
         <p className="tabular text-sm text-muted-foreground">{`Créée le ${formatDate(record.createdAt)} · modifiée le ${formatDate(record.updatedAt)} · responsable : ${displayValue(owner, record.ownerId, users)}`}</p>
       </header>
       <SheetBanners type={TYPE} id={id} />
       <SheetPanes
         feedCount={feed.items.length}
-        links={<LinksColumn type={TYPE} id={id} />}
+        links={<LinksColumn type={TYPE} id={id} readOnly={archived} />}
         main={
           <div className="grid min-w-0 content-start gap-6">
-            <FieldsSection type={TYPE} record={serializeRecord(record)} users={users} />
-            <ContactProfileSection personId={id} profile={profile} companies={companies} />
+            <FieldsSection type={TYPE} record={serializeRecord(record)} users={users} readOnly={archived} />
+            <ContactProfileSection personId={id} profile={profile} companies={companies} readOnly={archived} />
           </div>
         }
-        feed={<ActivityFeed type={TYPE} id={id} items={feed.items} more={feed.more} users={users} currentUserId={session.user.id} />}
+        feed={<ActivityFeed type={TYPE} id={id} items={feed.items} more={feed.more} users={users} currentUserId={session.user.id} readOnly={archived} />}
       />
     </div>
   );

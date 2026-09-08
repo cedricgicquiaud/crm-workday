@@ -8,6 +8,7 @@ import { fieldsOf } from "@/features/objects/fields";
 import { FieldsSection } from "@/features/objects/fields-section";
 import { displayValue, formatDate } from "@/features/objects/labels";
 import { LinksColumn } from "@/features/objects/links-column";
+import { ObjectActionsMenu } from "@/features/objects/object-actions-menu";
 import { getObject } from "@/features/objects/registry";
 import { getObjectRecord, listUserOptions, serializeRecord, type ObjectRecord } from "@/features/objects/service";
 import { HttpError, requireSession } from "@/lib/auth/session";
@@ -37,6 +38,8 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
   const fields = fieldsOf(type);
   const title = displayValue(fields.find((f) => f.key === definition.titleField)!, record[definition.titleField], users);
   const owner = fields.find((f) => f.type === "user" && f.key === "ownerId");
+  /* Fiche archivée : elle se lit, elle ne s'écrit plus (D21) — champs en texte, composeur et créations rapides retirés. */
+  const archived = record.archivedAt != null;
   return (
     <div className="grid gap-6">
       <header className="grid gap-1">
@@ -46,6 +49,7 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
             <definition.icon aria-hidden />
             {definition.labels.singular}
           </Badge>
+          <ObjectActionsMenu type={type} id={id} archived={archived} />
         </div>
         <p className="tabular text-sm text-muted-foreground">
           {`Créée le ${formatDate(record.createdAt)} · modifiée le ${formatDate(record.updatedAt)}`}
@@ -55,9 +59,9 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
       <SheetBanners type={type} id={id} />
       <SheetPanes
         feedCount={feed.items.length}
-        links={<LinksColumn type={type} id={id} />}
-        main={<FieldsSection type={type} record={serializeRecord(record)} users={users} />}
-        feed={<ActivityFeed type={type} id={id} items={feed.items} more={feed.more} users={users} currentUserId={session.user.id} />}
+        links={<LinksColumn type={type} id={id} readOnly={archived} />}
+        main={<FieldsSection type={type} record={serializeRecord(record)} users={users} readOnly={archived} />}
+        feed={<ActivityFeed type={type} id={id} items={feed.items} more={feed.more} users={users} currentUserId={session.user.id} readOnly={archived} />}
       />
     </div>
   );

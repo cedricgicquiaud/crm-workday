@@ -12,7 +12,8 @@ import { ActivityComposer } from "./activity-composer";
 import type { FeedItem } from "./feed";
 import { ALL, feedFilters, feedKinds } from "./schema";
 
-type Props = { type: string; id: string; items: readonly FeedItem[]; more: number; users: readonly UserOption[]; currentUserId: string };
+/** `readOnly` : la fiche n'accepte plus d'écriture (fiche archivée, D21) ; le fil se lit, il ne reçoit plus. */
+type Props = { type: string; id: string; items: readonly FeedItem[]; more: number; users: readonly UserOption[]; currentUserId: string; readOnly?: boolean };
 
 const FAILED = "La tâche n'a pas pu être enregistrée.";
 
@@ -36,7 +37,7 @@ function byDay(items: readonly FeedItem[]): { day: string; items: FeedItem[] }[]
  * la réponse 2xx du serveur, et un refus s'affiche sous l'entrée. Le fil est borné : quand des
  * entrées plus anciennes n'ont pas été chargées, une ligne dit combien.
  */
-export function ActivityFeed({ type, id, items, more, users, currentUserId }: Props) {
+export function ActivityFeed({ type, id, items, more, users, currentUserId, readOnly = false }: Props) {
   const router = useRouter();
   const [filter, setFilter] = useState(ALL);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -65,7 +66,8 @@ export function ActivityFeed({ type, id, items, more, users, currentUserId }: Pr
     <section aria-label="Fil d'activité" className="grid min-w-0 content-start gap-3">
       {/* Sous 900 px, l'onglet porte déjà le nom du fil : le titre de section le répéterait vingt pixels plus bas. */}
       <h2 className="text-base font-medium max-[899px]:hidden">Fil d&apos;activité</h2>
-      <ActivityComposer type={type} id={id} users={users} currentUserId={currentUserId} />
+      {/* Fiche archivée : le composeur s'efface plutôt que de s'éteindre — chaque saisie finirait en 409. */}
+      {!readOnly && <ActivityComposer type={type} id={id} users={users} currentUserId={currentUserId} />}
       <div role="group" aria-label="Filtrer le fil" className="flex flex-wrap gap-1">
         {feedFilters(items).map((chip) => (
           <button
