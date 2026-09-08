@@ -71,4 +71,17 @@ describe("API générique d'une liste (CRM-47, CRM-48, D18, D24)", () => {
     const archived = await list("?archivees=1&tri=name:asc");
     expect(archived.records.map((record) => record.name)).toEqual(["Alpha Liste", "Bravo Liste", "Charlie Liste"]);
   });
+
+  it("signale un filtre inapplicable sans jamais échouer, répond 404 sur un type inconnu et 401 sans session", async () => {
+    const ignored = await list("?f=inconnu:est:x&f=type:contient:cli");
+    expect(ignored.inactive.map((entry) => entry.message)).toEqual([
+      "Filtre inactif : « inconnu » n'est pas un champ de cette liste.",
+      "Filtre inactif : « contient » ne s'applique pas au champ « Type ».",
+    ]);
+    /* Aucun filtre n'a été appliqué : la liste s'affiche entière. */
+    expect(ignored.count).toBe(2);
+
+    expect((await getList(jsonRequest("GET", "/api/objets/inconnu", undefined, memberCookie), byType("inconnu"))).status).toBe(404);
+    expect((await getList(jsonRequest("GET", "/api/objets/company"), byType("company"))).status).toBe(401);
+  });
 });
