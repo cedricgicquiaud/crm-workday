@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { resetActivities } from "./fixtures/activites";
 import { expect, seedAccounts, test } from "./fixtures/auth";
 import { resetObjects } from "./fixtures/objets";
 import { resetPersons } from "./fixtures/personnes";
@@ -6,8 +7,9 @@ import { resetPersons } from "./fixtures/personnes";
 /* Les fiches finissent par « (e2e) » : les fixtures les effacent, et rien d'autre. */
 const suffix = () => `${Date.now().toString(36)} (e2e)`;
 
-/* Les personnes d'abord : une personne rattachée retient son entreprise. */
+/* Les activités d'abord (elles retiennent leur auteur), puis les personnes : une personne rattachée retient son entreprise. */
 function resetAll() {
+  resetActivities();
   resetPersons();
   resetObjects();
 }
@@ -69,6 +71,41 @@ test.describe("archiver et restaurer une entreprise depuis sa fiche (CRM-61, con
     await expect(memberPage.getByText(ARCHIVED_BANNER)).toHaveCount(0);
     await expect(fields.getByRole("textbox", { name: "Raison sociale" })).toHaveValue(name);
     await expect(memberPage.getByRole("group", { name: "Nouvelle activité" })).toBeVisible();
+  });
+
+  test("la case d'une tâche du fil se lit sur une fiche archivée mais ne se coche plus : l'état déjà coché reste visible, et un clic n'écrit rien", async ({ memberPage }) => {
+    const id = await createCompany(memberPage, `Ateliers Ronsard ${suffix()}`);
+    await memberPage.goto(`/entreprises/${id}`);
+    const feed = memberPage.getByRole("region", { name: "Fil d'activité" });
+    const composer = feed.getByRole("group", { name: "Nouvelle activité" });
+
+    async function writeTask(title: string) {
+      await composer.getByRole("button", { name: "Tâche", exact: true }).click();
+      await composer.getByLabel("Titre").fill(title);
+      await composer.getByRole("button", { name: "Enregistrer" }).click();
+      await expect(feed.getByText(title)).toBeVisible();
+    }
+    await writeTask("Relancer le devis");
+    await writeTask("Envoyer le contrat");
+
+    const ticked = feed.getByRole("checkbox", { name: "Envoyer le contrat" });
+    await ticked.click();
+    await expect(ticked).toHaveAttribute("aria-checked", "true");
+
+    await runAction(memberPage, "Archiver");
+    await expect(memberPage.getByText(ARCHIVED_BANNER)).toBeVisible();
+
+    /* La fiche est en lecture seule : la case reste là et dit son état, mais elle n'est plus un contrôle. */
+    await expect(ticked).toBeVisible();
+    await expect(ticked).toHaveAttribute("aria-checked", "true");
+    await expect(ticked).toHaveAttribute("aria-readonly", "true");
+
+    /* Un clic ne part plus en PATCH : la tâche reste à faire, et aucune erreur ne s'affiche. */
+    const todo = feed.getByRole("checkbox", { name: "Relancer le devis" });
+    await expect(todo).toHaveAttribute("aria-readonly", "true");
+    await todo.click();
+    await expect(todo).toHaveAttribute("aria-checked", "false");
+    await expect(feed.getByRole("alert")).toHaveCount(0);
   });
 });
 

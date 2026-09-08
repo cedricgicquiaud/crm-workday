@@ -60,6 +60,8 @@ describe("API générique de l'historique (CRM-36, contrat 15, D24)", () => {
       const refused = await handler(jsonRequest("PATCH", `/api/objets/company/${id}/historique`, { oldValue: "x" }, cookie), context);
       expect(refused.status).toBe(405);
       expect(refused.headers.get("allow")).toBe("GET");
+      /* Amendement de la décision 12 (8 septembre 2026) : le refus dit la seule exception, la suppression définitive de la fiche. */
+      expect(((await refused.json()) as { message: string }).message).toBe("L'historique ne se modifie pas et ne se supprime pas, sauf avec la fiche elle-même lors d'une suppression définitive.");
     }
     expect((await getHistory(jsonRequest("GET", `/api/objets/inconnu/${id}/historique`, undefined, cookie), { params: Promise.resolve({ type: "inconnu", id }) })).status).toBe(404);
     const notUuid = await getHistory(jsonRequest("GET", "/api/objets/company/abc/historique", undefined, cookie), { params: Promise.resolve({ type: "company", id: "abc" }) });
