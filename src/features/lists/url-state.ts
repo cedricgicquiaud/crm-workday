@@ -5,7 +5,8 @@
  * est écarté — jamais une erreur d'écran.
  *
  * Paramètres : `f=champ:opérateur:valeur` (répétable), `tri=champ:asc|desc`,
- * `colonnes=champ,champ` (les colonnes après la première, qui ne se masque pas), `archivees=1`.
+ * `colonnes=champ,champ` (les colonnes après la première, qui ne se masque pas), `archivees=1`,
+ * `vue=<identifiant>` (2.5b : la vue sauvegardée ouverte ; `default` est la liste nue).
  */
 import { columnsOf, defaultColumnKeys } from "@/features/lists/columns";
 import { readFilters, type Filter, type InactiveFilter, type RawFilter } from "@/features/lists/filters";
@@ -20,12 +21,40 @@ export type ListState = {
   /** colonnes visibles après la colonne titre, dans l'ordre choisi */
   columns: string[];
   includeArchived: boolean;
+  /** vue sauvegardée ouverte, nulle pour la vue par défaut de l'objet (2.5b) */
+  view: string | null;
 };
 
 const FILTER = "f";
 const SORT = "tri";
 const COLUMNS = "colonnes";
 const ARCHIVED = "archivees";
+const VIEW = "vue";
+
+/** Identifiant synthétique de la vue par défaut d'un objet : la liste nue, sans ligne en base (2.5b). */
+export const DEFAULT_VIEW = "default";
+
+/** Vue demandée par l'adresse, ou rien : la vue par défaut ne s'écrit jamais dans l'URL. */
+export function readViewId(params: URLSearchParams): string | null {
+  const raw = (params.get(VIEW) ?? "").trim();
+  return raw === "" || raw === DEFAULT_VIEW ? null : raw;
+}
+
+/**
+ * Paramètres effectifs d'une liste ouverte sur une vue : ceux de la vue, chaque famille présente
+ * dans l'adresse remplaçant la sienne — on affine une vue sans la modifier. Une vue introuvable
+ * (`null`, supprimée par un collègue) est simplement ignorée, comme un filtre inconnu.
+ */
+export function applyViewParams(viewQuery: string | null, params: URLSearchParams): URLSearchParams {
+  const merged = new URLSearchParams(viewQuery ?? "");
+  merged.delete(VIEW);
+  for (const key of new Set(params.keys())) {
+    if (key === VIEW && viewQuery === null) continue;
+    merged.delete(key);
+    for (const value of params.getAll(key)) merged.append(key, value);
+  }
+  return merged;
+}
 
 /** `champ:opérateur:valeur` ; la valeur garde ses deux-points (« avant 12:00 »). */
 function parseFilter(raw: string): RawFilter {
@@ -62,12 +91,15 @@ export function parseListState(type: string, params: URLSearchParams): ListState
     sort: parseSort(type, params.get(SORT)),
     columns: parseColumns(type, params.get(COLUMNS)),
     includeArchived: params.get(ARCHIVED) === "1",
+    view: readViewId(params),
   };
 }
 
 /** Réécrit l'état en paramètres d'URL ; ce qui vaut le défaut ne s'écrit pas, l'adresse reste lisible. */
 export function listStateToParams(type: string, state: ListState): URLSearchParams {
   const params = new URLSearchParams();
+  /* La vue en tête : l'adresse dit d'abord d'où l'on part, puis ce qu'on y a changé. */
+  if (state.view) params.set(VIEW, state.view);
   for (const filter of state.filters) params.append(FILTER, serializeFilter(filter));
   if (!isDefaultSort(state.sort)) params.set(SORT, `${state.sort.field}:${state.sort.direction}`);
   if (state.columns.join(",") !== defaultColumns(type).join(",")) params.set(COLUMNS, state.columns.join(","));

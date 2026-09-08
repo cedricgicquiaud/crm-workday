@@ -9,6 +9,7 @@ import "@/features/objects/manifest.server";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { savedView } from "@/db/schema";
+import { DEFAULT_VIEW } from "@/features/lists/url-state";
 import { getObject, listObjects } from "@/features/objects/registry";
 import type { Actor } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
@@ -19,8 +20,8 @@ export type SavedViewRow = typeof savedView.$inferSelect;
 /** Une vue telle que la barre des vues la lit : la vue par défaut et les vues enregistrées ont la même forme. */
 export type ViewSummary = { id: string; objectType: string; name: string; query: string };
 
-/** Identifiant synthétique de la vue par défaut d'un objet : elle n'a pas de ligne en base. */
-export const DEFAULT_VIEW = "default";
+/** L'identifiant de la vue par défaut vit avec le paramètre `vue=` de l'URL, seul endroit qui le nomme. */
+export { DEFAULT_VIEW };
 
 export const VIEW_NAME_MAX = 120;
 
