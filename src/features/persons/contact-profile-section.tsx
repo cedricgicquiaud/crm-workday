@@ -77,7 +77,13 @@ export function ContactProfileSection({ personId, profile: initial, companies, r
           <p className="text-xs text-muted-foreground">Choisir l&apos;entreprise crée le profil ; le rôle se règle ensuite, le poste dans « Champs ».</p>
         </div>
       )}
-      {profile && (
+      {profile && readOnly && (
+        <div className="grid gap-3">
+          <ReadOnlyField id="profil-contact-companyId" label="Entreprise" value={profile.companyName} />
+          <ReadOnlyField id="profil-contact-decisionRole" label="Rôle dans la décision" value={DECISION_ROLES.find((role) => role.value === profile.decisionRole)?.label ?? profile.decisionRole} />
+        </div>
+      )}
+      {profile && !readOnly && (
         <div className="grid gap-3">
           {companyField}
           <Field id="profil-contact-decisionRole" label="Rôle dans la décision" error={errors.decisionRole}>
@@ -97,6 +103,23 @@ export function ContactProfileSection({ personId, profile: initial, companies, r
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Champ du profil sur une fiche archivée : la valeur se lit comme du texte, jamais par un contrôle
+ * éteint — celui-ci serait à demi transparent alors que c'est une donnée de la fiche (D21).
+ */
+function ReadOnlyField({ id, label, value }: { id: string; label: string; value: string }) {
+  return (
+    <div className="grid gap-1">
+      <span id={`${id}-label`} className="flex items-center gap-2 text-sm leading-none font-medium select-none">
+        {label}
+      </span>
+      <p id={id} aria-labelledby={`${id}-label`} className="min-w-0 truncate text-sm" title={value}>
+        {value}
+      </p>
+    </div>
   );
 }
 
