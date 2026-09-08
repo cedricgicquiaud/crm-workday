@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { listForState } from "@/features/lists/apply-filters";
 import { ColumnMenu } from "@/features/lists/column-menu";
 import { FilterChips } from "@/features/lists/filter-chips";
+import { ListCell } from "@/features/lists/inline-edit";
 import { isSortable, UPDATED_AT, type Sort } from "@/features/lists/sort";
 import { listUrl, parseListState, searchParamsOf, type ListState } from "@/features/lists/url-state";
 import { fieldsOf } from "@/features/objects/fields";
@@ -18,6 +19,9 @@ import { requireSession } from "@/lib/auth/session";
 export type ListQuery = Record<string, string | string[] | undefined>;
 
 const ARIA_SORT = { asc: "ascending", desc: "descending" } as const;
+
+/** Valeur brute d'un champ, telle que la cellule la renverra au serveur. */
+const rawValue = (value: unknown) => (value === null || value === undefined ? "" : String(value));
 
 /** Le tri suivant au clic : le même champ change de sens, un autre champ commence croissant. */
 const nextSort = (sort: Sort, field: string): Sort => ({ field, direction: sort.field === field && sort.direction === "asc" ? "desc" : "asc" });
@@ -99,14 +103,11 @@ export async function ObjectList({ type, query }: { type: string; query?: ListQu
                       {label}
                     </Link>
                   </TableCell>
-                  {columns.map((column) => {
-                    const value = displayValue(column, record[column.key], users);
-                    return (
-                      <TableCell key={column.key} className="hidden truncate py-1 text-muted-foreground md:table-cell" title={value}>
-                        {value}
-                      </TableCell>
-                    );
-                  })}
+                  {columns.map((column) => (
+                    <TableCell key={column.key} className="hidden truncate py-1 text-muted-foreground md:table-cell">
+                      <ListCell type={type} id={record.id} field={column} value={rawValue(record[column.key])} users={users} />
+                    </TableCell>
+                  ))}
                   <TableCell className="py-1 text-right tabular-nums text-muted-foreground">{formatDate(record.updatedAt)}</TableCell>
                 </TableRow>
               );
