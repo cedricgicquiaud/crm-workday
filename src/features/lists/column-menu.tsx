@@ -6,19 +6,20 @@ import "@/features/objects/manifest";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { columnsOf } from "@/features/lists/columns";
 import { listUrl, type ListState } from "@/features/lists/url-state";
-import { fieldsOf } from "@/features/objects/fields";
 import { getObject } from "@/features/objects/registry";
 
 /**
- * Choix des colonnes d'une liste (D6) : celles qu'on voit et leur ordre. La première colonne — le
- * champ titre — n'est pas proposée : elle porte le lien vers la fiche et ne se masque pas. Chaque
+ * Choix des colonnes d'une liste (D6) : celles qu'on voit et leur ordre, « Modifiée le » comprise.
+ * La première colonne — le champ titre — n'est pas proposée : elle porte le lien vers la fiche et
+ * ne se masque pas ; toute autre colonne affichée se retrouve ici, sans exception muette. Chaque
  * changement pousse une nouvelle URL, comme les filtres : l'état de la liste vit dans l'adresse.
  */
 export function ColumnMenu({ type, state }: { type: string; state: ListState }) {
   const router = useRouter();
   const definition = getObject(type);
-  const fields = fieldsOf(type).filter((field) => field.key !== definition.titleField);
+  const fields = columnsOf(type).filter((field) => field.key !== definition.titleField);
   const visible = state.columns;
   /* Les colonnes visibles dans l'ordre choisi, puis les autres dans l'ordre des descripteurs. */
   const ordered = [...visible.map((key) => fields.find((field) => field.key === key)).filter((field) => field !== undefined), ...fields.filter((field) => !visible.includes(field.key))];

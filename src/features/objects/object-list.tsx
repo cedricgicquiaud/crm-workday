@@ -4,12 +4,12 @@ import "@/features/objects/manifest.server";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { listForState } from "@/features/lists/apply-filters";
 import { ColumnMenu } from "@/features/lists/column-menu";
+import { columnsOf } from "@/features/lists/columns";
 import { FilterChips } from "@/features/lists/filter-chips";
 import { ListCell } from "@/features/lists/inline-edit";
 import { ListCards } from "@/features/lists/list-cards";
 import { isSortable, UPDATED_AT, type Sort } from "@/features/lists/sort";
 import { listUrl, parseListState, searchParamsOf, type ListState } from "@/features/lists/url-state";
-import { fieldsOf } from "@/features/objects/fields";
 import { displayValue, formatDate } from "@/features/objects/labels";
 import { getObject } from "@/features/objects/registry";
 import { listObjectRecords, listUserOptions } from "@/features/objects/service";
@@ -56,7 +56,7 @@ export async function ObjectList({ type, query }: { type: string; query?: ListQu
   const [{ user }, records, users] = await Promise.all([requireSession(), listObjectRecords(type, { includeArchived: state.includeArchived }), listUserOptions()]);
   const shown = listForState(type, records, state, users);
   const definition = getObject(type);
-  const fields = fieldsOf(type);
+  const fields = columnsOf(type);
   const title = fields.find((field) => field.key === definition.titleField)!;
   const columns = state.columns.map((key) => fields.find((field) => field.key === key)!);
   const count = shown.length;
@@ -89,16 +89,15 @@ export async function ObjectList({ type, query }: { type: string; query?: ListQu
       ) : (
         <>
           {/* Sous 768 px, les cartes remplacent le tableau : la page ne défile jamais en largeur (D9). */}
-          <ListCards type={type} records={shown} columns={columns} users={users} />
+          <ListCards type={type} records={shown} columns={columns.filter((column) => column.key !== UPDATED_AT)} users={users} />
           <div className="hidden md:block">
             <Table aria-label={definition.labels.plural} className="table-fixed">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <ColumnHeader type={type} state={state} field={title.key} label={title.label} className="h-7" />
                   {columns.map((column) => (
-                    <ColumnHeader key={column.key} type={type} state={state} field={column.key} label={column.label} className="h-7 w-[18%]" />
+                    <ColumnHeader key={column.key} type={type} state={state} field={column.key} label={column.label} className={column.key === UPDATED_AT ? "h-7 w-28 text-right" : "h-7 w-[18%]"} />
                   ))}
-                  <ColumnHeader type={type} state={state} field={UPDATED_AT} label="Modifiée le" className="h-7 w-28 text-right" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -111,12 +110,18 @@ export async function ObjectList({ type, query }: { type: string; query?: ListQu
                           {label}
                         </Link>
                       </TableCell>
-                      {columns.map((column) => (
-                        <TableCell key={column.key} className="truncate py-1 text-muted-foreground">
-                          <ListCell type={type} id={record.id} field={column} value={rawValue(record[column.key])} users={users} />
-                        </TableCell>
-                      ))}
-                      <TableCell className="py-1 text-right tabular-nums text-muted-foreground">{formatDate(record.updatedAt)}</TableCell>
+                      {columns.map((column) =>
+                        /* La colonne de base ne se saisit pas : la liste la rend elle-même, en date courte alignée à droite. */
+                        column.key === UPDATED_AT ? (
+                          <TableCell key={column.key} className="py-1 text-right tabular-nums text-muted-foreground">
+                            {formatDate(record.updatedAt)}
+                          </TableCell>
+                        ) : (
+                          <TableCell key={column.key} className="truncate py-1 text-muted-foreground">
+                            <ListCell type={type} id={record.id} field={column} value={rawValue(record[column.key])} users={users} />
+                          </TableCell>
+                        ),
+                      )}
                     </TableRow>
                   );
                 })}

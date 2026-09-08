@@ -7,6 +7,7 @@
  * Paramètres : `f=champ:opérateur:valeur` (répétable), `tri=champ:asc|desc`,
  * `colonnes=champ,champ` (les colonnes après la première, qui ne se masque pas), `archivees=1`.
  */
+import { columnsOf, defaultColumnKeys } from "@/features/lists/columns";
 import { readFilters, type Filter, type InactiveFilter, type RawFilter } from "@/features/lists/filters";
 import { DEFAULT_SORT, isSortable, type Sort, type SortDirection } from "@/features/lists/sort";
 import { getObject } from "@/features/objects/registry";
@@ -45,8 +46,8 @@ const isDefaultSort = (sort: Sort) => sort.field === DEFAULT_SORT.field && sort.
 /** Colonnes visibles après la colonne titre ; celle-ci ne se masque pas, elle n'est donc jamais dans l'URL. */
 function parseColumns(type: string, raw: string | null): string[] {
   const definition = getObject(type);
-  const declared = new Set(definition.fields.map((field) => field.key));
-  const keys = raw === null ? [...(definition.listColumns ?? [])] : raw.split(",");
+  const declared = new Set(columnsOf(type).map((column) => column.key));
+  const keys = raw === null ? defaultColumnKeys(type) : raw.split(",");
   return keys.map((key) => key.trim()).filter((key, index, all) => key !== definition.titleField && declared.has(key) && all.indexOf(key) === index);
 }
 
