@@ -25,6 +25,9 @@ export { DEFAULT_VIEW };
 
 export const VIEW_NAME_MAX = 120;
 
+/** Vrai si l'objet est déclaré au registre : une vue survit au retrait de son objet, mais aucune liste ne s'ouvre alors. */
+const isDeclared = (type: string) => listObjects().some((object) => object.key === type);
+
 /** Vue par défaut d'un objet : aucun paramètre, donc la liste nue, sous « Toutes les … ». */
 export function defaultView(type: string): ViewSummary {
   const { labels } = getObject(type);
@@ -33,8 +36,9 @@ export function defaultView(type: string): ViewSummary {
 
 const summarize = (row: SavedViewRow): ViewSummary => ({ id: row.id, objectType: row.objectType, name: row.name, query: row.query });
 
-/** Vues d'un objet : la vue par défaut, puis les vues enregistrées par ordre alphabétique. */
+/** Vues d'un objet : la vue par défaut, puis les vues enregistrées par ordre alphabétique ; 404 sur une liste qui n'existe pas (D24). */
 export async function listViews(type: string): Promise<ViewSummary[]> {
+  if (!isDeclared(type)) throw new HttpError(404, "objet_inconnu", `Aucun objet « ${type} ».`);
   const rows = await db.select().from(savedView).where(eq(savedView.objectType, type)).orderBy(asc(savedView.name));
   return [defaultView(type), ...rows.map(summarize)];
 }
@@ -68,8 +72,6 @@ function parseQuery(value: unknown): string {
   const parsed = querySchema.safeParse(value ?? "");
   return parsed.success ? parsed.data : invalid("query", "L'état de cette vue est illisible.");
 }
-
-const isDeclared = (type: string) => listObjects().some((object) => object.key === type);
 
 /**
  * Deux vues du même nom sur le même objet seraient indiscernables dans la barre (contrat 26) ; le
