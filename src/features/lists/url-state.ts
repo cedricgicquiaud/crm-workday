@@ -73,3 +73,18 @@ export function listStateToParams(type: string, state: ListState): URLSearchPara
   if (state.includeArchived) params.set(ARCHIVED, "1");
   return params;
 }
+
+/** Adresse de la liste dans cet état : ce que partage un membre, et ce que poussent les puces et le menu des colonnes. */
+export function listUrl(type: string, state: ListState): string {
+  const query = listStateToParams(type, state).toString();
+  return query === "" ? getObject(type).listHref : `${getObject(type).listHref}?${query}`;
+}
+
+/** Paramètres tels que Next.js les passe à une page, ramenés à des paramètres d'URL. */
+export function searchParamsOf(query: Record<string, string | string[] | undefined> = {}): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    for (const entry of Array.isArray(value) ? value : value === undefined ? [] : [value]) params.append(key, entry);
+  }
+  return params;
+}
