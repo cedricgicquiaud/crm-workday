@@ -102,6 +102,22 @@ test.describe("filtres en puces et état dans l'URL (CRM-47, contrat 23)", () =>
     /* La liste s'affiche quand même, sans les filtres ignorés. */
     expect(await names(memberPage)).toEqual([named("Delta", mark)]);
   });
+
+  test("la puce d'un filtre fait les 24 px des fondations, croix de retrait comprise", async ({ memberPage }) => {
+    const mark = tag();
+    await createCompany(memberPage, named("Echo", mark), { type: "client", city: "Paris" });
+
+    await memberPage.goto(`/entreprises?f=name:contient:${mark}`);
+
+    /* Les puces sont les seuls enfants directs de la barre de filtres à être des `span`. */
+    const chip = memberPage.locator('[data-slot="list-filters"] > span');
+    await expect(chip).toHaveCount(1);
+    const puce = await chip.boundingBox();
+    expect(puce?.height).toBe(24);
+    /* La croix tient entre les bordures de la puce (1 px de chaque côté) : plus haute, elle l'épaissit. */
+    const croix = await chip.getByRole("button").boundingBox();
+    expect(croix?.height).toBeLessThanOrEqual(22);
+  });
 });
 
 test.describe("tri au clic et colonnes choisies (CRM-48, contrat 23)", () => {
