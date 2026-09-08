@@ -49,7 +49,7 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
             <definition.icon aria-hidden />
             {definition.labels.singular}
           </Badge>
-          <ObjectActionsMenu type={type} id={id} archived={archived} />
+          <ObjectActionsMenu type={type} id={id} archived={archived} canDelete={session.user.role === "administrateur"} />
         </div>
         <p className="tabular text-sm text-muted-foreground">
           {`Créée le ${formatDate(record.createdAt)} · modifiée le ${formatDate(record.updatedAt)}`}

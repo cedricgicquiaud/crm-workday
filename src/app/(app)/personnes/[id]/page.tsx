@@ -56,7 +56,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             {definition.labels.singular}
           </Badge>
           <Badge variant="outline" className="border-border">{`Profils : ${displayValue(profiles, record.profiles, users)}`}</Badge>
-          <ObjectActionsMenu type={TYPE} id={id} archived={archived} />
+          <ObjectActionsMenu type={TYPE} id={id} archived={archived} canDelete={session.user.role === "administrateur"} />
         </div>
         <p className="tabular text-sm text-muted-foreground">{`Créée le ${formatDate(record.createdAt)} · modifiée le ${formatDate(record.updatedAt)} · responsable : ${displayValue(owner, record.ownerId, users)}`}</p>
       </header>
