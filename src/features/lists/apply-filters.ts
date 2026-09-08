@@ -4,7 +4,9 @@
  * testable sans base. Les filtres se combinent en « et » seulement (D16).
  */
 import type { Filter } from "@/features/lists/filters";
+import { sortRecords, type Sort } from "@/features/lists/sort";
 import { fieldsOf } from "@/features/objects/fields";
+import type { UserOption } from "@/features/objects/labels";
 import type { ObjectRecord } from "@/features/objects/service";
 import { normalizeQuery } from "@/features/search/normalize";
 
@@ -49,4 +51,12 @@ export function applyFilters(type: string, records: readonly ObjectRecord[], fil
   const known = new Set(fieldsOf(type).map((field) => field.key));
   const applicable = filters.filter((filter) => known.has(filter.field));
   return records.filter((record) => applicable.every((filter) => matches(record, filter)));
+}
+
+/**
+ * Fiches d'une liste dans l'état lu de l'URL : filtrées puis triées. La route générique et l'écran
+ * passent par ici, pour qu'une adresse partagée et un appel d'API rendent exactement la même liste.
+ */
+export function listForState(type: string, records: readonly ObjectRecord[], state: { filters: readonly Filter[]; sort: Sort }, users: readonly UserOption[] = []): ObjectRecord[] {
+  return sortRecords(type, applyFilters(type, records, state.filters), state.sort, users);
 }
