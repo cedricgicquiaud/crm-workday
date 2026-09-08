@@ -4,9 +4,18 @@
 //   --widths 1280,375   largeurs à jouer (défaut 1280,375)
 //   --tabs 25           nombre de tabulations du parcours clavier (défaut 25)
 //   --init fichier.js   script évalué dans la page avant chargement
-//   --amorce fichier.js code évalué dans la page APRÈS chargement puis rechargement :
-//                       c'est là qu'on crée un compte et des données pour voir un écran rempli
+//   --amorce a.js,b.js  code évalué dans la page APRÈS chargement puis rechargement :
+//                       c'est là qu'on crée un compte et des données pour voir un écran rempli ;
+//                       plusieurs fichiers séparés par des virgules, joués dans l'ordre
 //   --storage état.json état de session Playwright (cookies, localStorage)
+// Agir AVANT la capture, pour ce qui ne s'affiche qu'après un geste (palette, menu, dialogue) :
+//   --clic "sélecteur"  clique cet élément (sélecteur CSS ou texte : text=Nouveau)
+//   --touche "Meta+K"   presse ce raccourci (syntaxe Playwright : Meta+K, Escape, ArrowDown)
+//   --saisie "acm"      tape ce texte dans l'élément qui a le focus
+//   --action fichier.js code évalué dans la page, sans rechargement, pour tout le reste
+//   --attendre "sél."   attend que cet élément soit visible avant de photographier (5 s au plus)
+//   Ordre : clic, touche, saisie, action, attente. Chaque geste est rejoué à chaque largeur et
+//   chaque thème, sur une page neuve.
 // Sortie : les captures et `mesures.json` dans --out, un résumé lisible sur la sortie standard.
 
 import { chromium } from 'playwright'
@@ -24,7 +33,12 @@ const widths = arg('widths', '1280,375').split(',').map(Number)
 const tabs = Number(arg('tabs', 25))
 const initFile = arg('init')
 const storage = arg('storage')
-const amorce = arg('amorce')
+const amorces = (arg('amorce', '') || '').split(',').map(f => f.trim()).filter(Boolean)
+const clic = arg('clic')
+const touche = arg('touche')
+const saisie = arg('saisie')
+const actionFile = arg('action')
+const attendre = arg('attendre')
 
 // --- mesures faites dans la page -------------------------------------------------
 
@@ -107,7 +121,7 @@ await mkdir(out, { recursive: true })
 // repli sur le Chromium fourni par Playwright s'il est présent.
 const navigateur = await chromium.launch({ channel: 'chrome' })
   .catch(() => chromium.launch())
-const mesures = { url, date: new Date().toISOString(), largeurs: {}, console: [] }
+const mesures = { url, date: new Date().toISOString(), largeurs: {}, console: [], gestesRates: [] }
 const captures = []
 
 for (const largeur of widths) {
@@ -129,13 +143,28 @@ for (const largeur of widths) {
     if (initFile) await page.addInitScript({ path: initFile })
 
     await page.goto(url, { waitUntil: 'networkidle' }).catch(() => page.goto(url))
-    if (amorce) {
+    for (const amorce of amorces) {
       // le code de l'amorce est enveloppé et attendu : sinon la page est rechargée
       // avant la fin des opérations asynchrones (création de compte, écritures)
       const code = await readFile(amorce, 'utf8')
       await page.evaluate(`(async () => { ${code}\n })()`)
-      await page.goto(url, { waitUntil: 'networkidle' }).catch(() => page.goto(url))
     }
+    if (amorces.length) {
+      // reload, pas goto : sur une URL à fragment (#agenda), goto ne recharge rien
+      await page.reload({ waitUntil: 'networkidle' }).catch(() => page.reload())
+    }
+    // les gestes avant capture : ce qui ne s'affiche qu'après un clic ou un raccourci
+    const geste = async (nom, f) => {
+      try { await f() } catch (e) { mesures.gestesRates.push(`${largeur}px/${theme} : ${nom} — ${String(e.message || e).split('\n')[0].slice(0, 160)}`) }
+    }
+    if (clic) await geste(`clic ${clic}`, () => page.locator(clic).first().click({ timeout: 5000 }))
+    if (touche) await geste(`touche ${touche}`, () => page.keyboard.press(touche))
+    if (saisie) await geste(`saisie ${saisie}`, () => page.keyboard.type(saisie, { delay: 30 }))
+    if (actionFile) await geste(`action ${actionFile}`, async () => {
+      const code = await readFile(actionFile, 'utf8')
+      await page.evaluate(`(async () => { ${code}\n })()`)
+    })
+    if (attendre) await geste(`attendre ${attendre}`, () => page.locator(attendre).first().waitFor({ state: 'visible', timeout: 5000 }))
     await page.waitForTimeout(600)
 
     const fichier = join(out, `${largeur}-${theme === 'dark' ? 'sombre' : 'clair'}.png`)
@@ -144,9 +173,10 @@ for (const largeur of widths) {
 
     if (theme === 'light') {
       const m = await page.evaluate(mesuresDansLaPage)
-      // parcours clavier
+      // parcours clavier ; après un geste, on part de l'élément qui a le focus (la palette),
+      // pas du corps de la page, sinon le parcours la refermerait ou la sauterait
       const clavier = []
-      await page.evaluate(() => document.body.focus())
+      if (!clic && !touche && !saisie && !actionFile) await page.evaluate(() => document.body.focus())
       for (let i = 0; i < tabs; i++) {
         await page.keyboard.press('Tab')
         const e = await page.evaluate(etatDuFocus)
@@ -188,3 +218,7 @@ for (const [largeur, m] of Object.entries(mesures.largeurs)) {
   console.log('')
 }
 console.log(mesures.console.length ? `Console : ${mesures.console.length} erreur(s)\n  ${mesures.console.slice(0, 5).join('\n  ')}` : 'Console : aucune erreur')
+if (mesures.gestesRates.length) {
+  console.log(`\nGESTES RATÉS (l'écran photographié n'est peut-être pas celui attendu) :\n  ${mesures.gestesRates.join('\n  ')}`)
+  process.exitCode = 1
+}

@@ -53,7 +53,15 @@ Tu communiques toujours en **français**.
      et dis-le dans ton rapport avec ce qu'il pose. La prochaine passe le réécrirait sinon.
      Tu ne modifies jamais l'amorce du dépôt : c'est un fichier hors de ton périmètre.
 2. Identifie **les écrans que la livraison touche** (ta consigne, ou `MISSION.md`) et leurs
-   URL. Un ou deux écrans, pas toute l'application.
+   URL. **Trois écrans au plus par passe.** Au-delà, tu dépasses ton budget à chaque fois : 79,
+   85, 87 échanges mesurés sur quatre ou cinq écrans, pour 40 admis. Si la consigne en nomme
+   plus de trois, fais les trois premiers et écris les autres dans « Non examiné » : le lead
+   lancera une autre passe.
+3. Lis **ce qui est déjà connu** : la consigne te donne la liste des défauts déjà ouverts sur le
+   projet (tâches isolées, écarts notés aux livraisons précédentes). Un défaut de cette liste
+   que tu revois ne va pas dans « Défauts constatés » : il va dans « Déjà connu », avec son
+   code, en une ligne. Le défaut des contrôles à 32 px a été rapporté trois fois de suite sur
+   un projet avant de devenir une tâche : trois fois le correcteur a été lancé pour rien.
 
 ## Phase 1 — Lancer la passe
 
@@ -66,6 +74,19 @@ node .claude/tools/passe-visuelle/passe-visuelle.mjs \
   --out .pilot/recette/<AAAA-MM-JJ>-<écran> \
   [--amorce <fichier déclaré dans la section Pilot>]
 ```
+
+**Ce qui ne s'affiche qu'après un geste** — une palette ⌘K, un menu, un dialogue — se
+photographie avec les options de l'outil, jamais avec un script écrit hors dépôt ni avec le
+navigateur piloté :
+
+```bash
+  --touche "Meta+K" --saisie "acm" --attendre "[cmdk-list]"    # palette ouverte, remplie
+  --clic "text=Nouveau" --attendre "[role=dialog]"              # dialogue ouvert
+  --action ouvrir.js                                            # tout le reste, en JavaScript
+```
+
+Les gestes sont rejoués à chaque largeur et chaque thème. Si un geste rate, l'outil le dit en
+fin de relevé et sort en erreur : l'image n'est pas celle de l'écran attendu, ne la juge pas.
 
 En dix secondes, l'outil rend un relevé lisible et dépose dans `--out` quatre images
 (1280 et 375 px, clair et sombre) plus `mesures.json`. Il mesure déjà, exactement :
@@ -100,10 +121,16 @@ ne peux ni le mesurer ni le montrer, ne le rapporte pas.
 
 ## Phase 3 — Le navigateur piloté, seulement si nécessaire
 
-Si un défaut ne se voit qu'en interaction (un menu à ouvrir, un formulaire à soumettre),
-ouvre un onglet neuf et va voir. **Budget : 15 actions, jamais plus.** Constate par le texte
-de la page (`read_page`, `get_page_text`, `find`), qui coûte trois fois moins qu'une capture.
-Referme l'onglet en partant.
+Si un défaut ne se voit qu'en interaction que les options de l'outil ne couvrent pas (un
+formulaire à soumettre, un enchaînement), ouvre un onglet neuf et va voir. **Budget :
+15 actions, jamais plus.** Constate par le texte de la page (`read_page`, `get_page_text`,
+`find`), qui coûte trois fois moins qu'une capture. Referme l'onglet en partant.
+
+**Un clic sans effet n'est pas un défaut de l'application.** Quand la fenêtre de Chrome est
+zoomée, l'outil clique à côté de l'élément : le bouton « Modifier » d'un projet a été rapporté
+inerte, le correcteur lancé, et l'éditeur s'ouvrait très bien. Avant de rapporter un clic
+inerte, vérifie par `find` que l'élément est là, et dis « clic sans effet dans le navigateur
+piloté, non confirmé » — pas « le bouton ne fonctionne pas ».
 
 ## Phase 4 — Les preuves
 
@@ -120,6 +147,9 @@ Application : <URL> · Largeurs : 1280 / 375 · Images : `.pilot/recette/<…>/`
 
 ### Défauts constatés
 - <ce qu'on voit, où, de combien> — `<image>`
+
+### Déjà connu
+- <code de la tâche ou de l'écart> : <revu, inchangé | revu, aggravé de …>
 
 ### Contrôlé, sans défaut
 - <débordement, recouvrement, parcours clavier, console : ce qui est ressorti propre>
