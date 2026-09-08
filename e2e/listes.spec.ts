@@ -172,8 +172,22 @@ test.describe("édition en place dans la liste (CRM-49, contrat 25)", () => {
     /* Le curseur est passé à la cellule éditable suivante (contrat 25). */
     expect(await focusedCell(memberPage)).toBe(`${bravo}:type`);
 
+    /* Au clavier seul : la cellule s'ouvre sur Entrée et se referme sur Entrée (D6). */
+    await cell(memberPage, alpha, "city").focus();
+    await memberPage.keyboard.press("Enter");
+    await expect(memberPage.getByRole("textbox", { name: "Ville" })).toBeFocused();
+    await memberPage.getByRole("textbox", { name: "Ville" }).fill("Biarritz");
+    await memberPage.keyboard.press("Enter");
+    await expect(cell(memberPage, alpha, "city")).toHaveText("Biarritz");
+
     await memberPage.goto(`/entreprises/${alpha}`);
-    await expect(memberPage.getByRole("region", { name: "Fil d'activité" }).getByText("Ville : Nantes → Bordeaux")).toBeVisible();
+    const feed = memberPage.getByRole("region", { name: "Fil d'activité" });
+    await expect(feed.getByText("Ville : Nantes → Bordeaux")).toBeVisible();
+    await expect(feed.getByText("Ville : Bordeaux → Biarritz")).toBeVisible();
+
+    /* Aucune colonne de la liste des personnes ne s'édite en place : « Profils » se déduit, un responsable se change sur la fiche. */
+    await memberPage.goto("/personnes");
+    await expect(memberPage.locator("[data-cell]")).toHaveCount(0);
   });
 
   test("une cellule de liste s'ouvre de la même façon et enregistre le choix", async ({ memberPage }) => {
