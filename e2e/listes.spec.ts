@@ -139,6 +139,18 @@ test.describe("tri au clic et colonnes choisies (CRM-48, contrat 23)", () => {
     await columns.getByRole("button", { name: "Monter la colonne Responsable" }).click();
     await expect(memberPage).toHaveURL(/colonnes=ownerId%2Ctype/);
 
+    /* « Modifiée le » s'affiche : le menu la propose, elle se masque et se déplace comme les autres colonnes. */
+    await expect(header("Modifiée le")).toBeVisible();
+    await columns.getByRole("checkbox", { name: "Modifiée le" }).click();
+    await expect(memberPage).toHaveURL(/colonnes=ownerId%2Ctype$/);
+    await expect(header("Modifiée le")).toHaveCount(0);
+
+    await columns.getByRole("checkbox", { name: "Modifiée le" }).click();
+    await expect(memberPage).toHaveURL(/colonnes=ownerId%2Ctype%2CupdatedAt$/);
+    await columns.getByRole("button", { name: "Monter la colonne Modifiée le" }).click();
+    await expect(memberPage).toHaveURL(/colonnes=ownerId%2CupdatedAt%2Ctype$/);
+    await expect(header("Modifiée le")).toBeVisible();
+
     /* La même adresse, ouverte dans un autre onglet, garde le tri et les colonnes (contrat 23). */
     const other = await memberPage.context().newPage();
     await other.goto(memberPage.url());

@@ -30,10 +30,21 @@ describe("état d'une liste dans son URL (CRM-47, CRM-48, D18)", () => {
     expect(bare.filters).toEqual([]);
     expect(bare.inactive).toEqual([]);
     expect(bare.sort).toEqual(DEFAULT_SORT);
-    /* Les colonnes visibles par défaut restent celles du registre. */
-    expect(bare.columns).toEqual(["kind", "city"]);
+    /* Les colonnes visibles par défaut restent celles du registre, suivies de « Modifiée le » que la liste rend elle-même. */
+    expect(bare.columns).toEqual(["kind", "city", "updatedAt"]);
     expect(bare.includeArchived).toBe(false);
     expect(listStateToParams(TEST_TYPE, bare).toString()).toBe("");
+  });
+
+  /* « Modifiée le » s'affiche comme une colonne : elle se masque et se déplace comme les autres, sinon le menu tairait une colonne visible. */
+  it("masque et déplace « Modifiée le » comme n'importe quelle colonne", () => {
+    const hidden = parseListState(TEST_TYPE, new URLSearchParams("colonnes=kind,city"));
+    expect(hidden.columns).toEqual(["kind", "city"]);
+    expect(listStateToParams(TEST_TYPE, hidden).toString()).toBe("colonnes=kind%2Ccity");
+
+    const moved = parseListState(TEST_TYPE, new URLSearchParams("colonnes=updatedAt,kind"));
+    expect(moved.columns).toEqual(["updatedAt", "kind"]);
+    expect(parseListState(TEST_TYPE, listStateToParams(TEST_TYPE, moved))).toEqual(moved);
   });
 
   it("ouvre une URL bricolée sans erreur : tri impossible ramené au défaut, colonne inconnue ignorée, première colonne jamais masquée, filtre signalé inactif", () => {

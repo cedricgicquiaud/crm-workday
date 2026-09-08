@@ -58,7 +58,8 @@ describe("API générique d'une liste (CRM-47, CRM-48, D18, D24)", () => {
     const all = await list("");
     expect(all.records.map((record) => record.name)).toEqual(["Bravo Liste", "Alpha Liste"]);
     expect(all.count).toBe(2);
-    expect(all.columns).toEqual(["type", "city", "ownerId"]);
+    /* Les colonnes du registre, puis « Modifiée le » : elle s'affiche, donc elle se déclare comme les autres. */
+    expect(all.columns).toEqual(["type", "city", "ownerId", "updatedAt"]);
     expect(all.sort).toEqual({ field: "updatedAt", direction: "desc" });
 
     const sorted = await list("?tri=name:asc");
