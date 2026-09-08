@@ -27,4 +27,17 @@ describe("tri d'une liste (CRM-48, D6)", () => {
     expect(isSortable(TEST_TYPE, "inconnu")).toBe(false);
     expect(isSortable(TEST_TYPE, DEFAULT_SORT.field)).toBe(true);
   });
+
+  it("trie un champ de liste et un champ responsable sur la valeur affichée, pas sur la clé enregistrée", () => {
+    const users = [
+      { id: "u1", name: "Zoé Alard" },
+      { id: "u2", name: "Ana Bello" },
+    ];
+    const records = [record("Première", day("2026-09-02"), { kind: "zzz", ownerId: "u1" }), record("Seconde", day("2026-09-01"), { kind: "client", ownerId: "u2" })];
+
+    /* « Alerte » avant « Client » alors que la clé « zzz » vient après « client ». */
+    expect(names(sortRecords(TEST_TYPE, records, { field: "kind", direction: "asc" }, users))).toEqual(["Première", "Seconde"]);
+    /* « Ana Bello » avant « Zoé Alard » alors que l'identifiant « u1 » vient avant « u2 ». */
+    expect(names(sortRecords(TEST_TYPE, records, { field: "ownerId", direction: "asc" }, users))).toEqual(["Seconde", "Première"]);
+  });
 });

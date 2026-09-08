@@ -20,11 +20,12 @@ export function registerTestObject(): void {
     titleField: "name",
     fields: [
       { key: "name", label: "Nom", type: "text", required: true, sortable: true, order: 10 },
-      { key: "kind", label: "Genre", type: "list", values: [{ value: "client", label: "Client" }, { value: "prospect", label: "Prospect" }], sortable: true, order: 20 },
+      /* La clé « zzz » porte le libellé « Alerte » : le tri sur la valeur affichée se distingue du tri sur la clé enregistrée. */
+      { key: "kind", label: "Genre", type: "list", values: [{ value: "client", label: "Client" }, { value: "prospect", label: "Prospect" }, { value: "zzz", label: "Alerte" }], sortable: true, order: 20 },
       { key: "city", label: "Ville", type: "text", sortable: true, order: 30 },
       { key: "signedOn", label: "Signée le", type: "date", order: 40 },
       { key: "amount", label: "Montant", type: "number", order: 50 },
-      { key: "ownerId", label: "Responsable", type: "user", order: 60 },
+      { key: "ownerId", label: "Responsable", type: "user", sortable: true, order: 60 },
     ],
     relations: [],
     listColumns: ["kind", "city"],
