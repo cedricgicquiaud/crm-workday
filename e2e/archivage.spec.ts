@@ -98,3 +98,43 @@ test.describe("archiver une personne : profil contact en lecture seule (CRM-61, 
     await expect(profile.getByText("Non précisé")).toBeVisible();
   });
 });
+
+/** Rattache une personne à une entreprise : le contact ainsi créé retient sa fiche. */
+async function attachContact(page: Page, companyId: string, lastName: string): Promise<string> {
+  const personId = await createPerson(page, lastName);
+  const attached = await page.request.patch(`/api/personnes/${personId}/profil-contact`, { data: { companyId } });
+  expect(attached.status()).toBe(200);
+  return personId;
+}
+
+test.describe("supprimer définitivement une entreprise (CRM-62, CRM-63, contrat 31)", () => {
+  test("un membre ne voit pas la commande ; l'administrateur la voit, l'écran lui liste ce qui retient une fiche liée, et une fiche sans lien disparaît", async ({ memberPage, adminPage }) => {
+    const heldName = `Fonderie Retenue ${suffix()}`;
+    const heldId = await createCompany(memberPage, heldName);
+    await attachContact(memberPage, heldId, `Bonnet ${suffix()}`);
+
+    await memberPage.goto(`/entreprises/${heldId}`);
+    await memberPage.getByRole("button", { name: "Actions" }).click();
+    await expect(memberPage.getByRole("menuitem", { name: "Archiver" })).toBeVisible();
+    await expect(memberPage.getByRole("menuitem", { name: "Supprimer définitivement" })).toHaveCount(0);
+
+    await adminPage.goto(`/entreprises/${heldId}`);
+    await runAction(adminPage, "Supprimer définitivement");
+    const dialog = adminPage.getByRole("dialog", { name: "Supprimer définitivement ?" });
+    await dialog.getByRole("button", { name: "Supprimer définitivement" }).click();
+    await expect(dialog.getByRole("alert")).toContainText("Contacts");
+    expect(await dialog.getByRole("alert").getByRole("listitem").allTextContents()).toEqual(["Contacts : 1"]);
+    await dialog.getByRole("button", { name: "Annuler" }).click();
+    expect((await adminPage.request.get(`/api/entreprises/${heldId}`)).status()).toBe(200);
+
+    const freeName = `Presses Delcourt ${suffix()}`;
+    const freeId = await createCompany(adminPage, freeName);
+    await adminPage.goto(`/entreprises/${freeId}`);
+    await runAction(adminPage, "Supprimer définitivement");
+    await adminPage.getByRole("dialog", { name: "Supprimer définitivement ?" }).getByRole("button", { name: "Supprimer définitivement" }).click();
+
+    await expect(adminPage).toHaveURL(/\/entreprises$/);
+    await expect(adminPage.getByRole("link", { name: freeName })).toHaveCount(0);
+    expect((await adminPage.request.get(`/api/entreprises/${freeId}`)).status()).toBe(404);
+  });
+});
