@@ -4,6 +4,7 @@
  * déclare `sortable` : l'en-tête cliquable et l'URL lisent la même règle.
  */
 import { fieldsOf } from "@/features/objects/fields";
+import { displayValue, type UserOption } from "@/features/objects/labels";
 import type { ObjectRecord } from "@/features/objects/service";
 
 export type SortDirection = "asc" | "desc";
@@ -37,7 +38,17 @@ function compareIn(direction: SortDirection, a: unknown, b: unknown): number {
   return (direction === "desc" ? -1 : 1) * compare(a, b);
 }
 
-/** Fiches triées, sans modifier le tableau reçu ; à valeurs égales, la dernière modifiée est en tête. */
-export function sortRecords(type: string, records: readonly ObjectRecord[], sort: Sort): ObjectRecord[] {
-  return [...records].sort((a, b) => compareIn(sort.direction, a[sort.field], b[sort.field]) || compareIn("desc", a[UPDATED_AT], b[UPDATED_AT]));
+/**
+ * Fiches triées, sans modifier le tableau reçu ; à valeurs égales, la dernière modifiée est en tête.
+ * Une liste et un responsable se trient sur la valeur affichée (« Client », « Ana Bello ») : trier
+ * sur la clé enregistrée (« zzz », un identifiant) donnerait un ordre que personne ne lit à l'écran.
+ */
+export function sortRecords(type: string, records: readonly ObjectRecord[], sort: Sort, users: readonly UserOption[] = []): ObjectRecord[] {
+  const field = fieldsOf(type).find((candidate) => candidate.key === sort.field);
+  const shown = (record: ObjectRecord) => {
+    const value = record[sort.field];
+    if (!field || isEmpty(value) || (field.type !== "list" && field.type !== "user")) return value;
+    return displayValue(field, value, users);
+  };
+  return [...records].sort((a, b) => compareIn(sort.direction, shown(a), shown(b)) || compareIn("desc", a[UPDATED_AT], b[UPDATED_AT]));
 }
