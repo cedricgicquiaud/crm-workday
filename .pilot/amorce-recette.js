@@ -104,3 +104,31 @@ for (const activite of activites) {
     throw new Error(`amorce-recette : création d'une activité sur ${activite.fiche} refusée (${creation.status}).`);
   }
 }
+
+// Livraison 2.5b — une vue « Clients parisiens » sur les entreprises, épinglée dans la barre latérale
+// du compte de recette. Même règle que les blocs précédents : on lit d'abord les vues de l'objet et on
+// ne crée que ce qui manque, pour qu'une relance n'émette aucune requête refusée. L'épingle part avec
+// la création de la vue : les deux vont ensemble, une relance n'en repose donc aucune.
+const vuesEntreprises = await fetch("/api/vues?objet=company");
+if (!vuesEntreprises.ok) {
+  throw new Error(`amorce-recette : lecture des vues des entreprises refusée (${vuesEntreprises.status}).`);
+}
+const vueClients = (await vuesEntreprises.json()).views.find((vue) => vue.name === "Clients parisiens");
+if (!vueClients) {
+  const creationVue = await fetch("/api/vues", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ objectType: "company", name: "Clients parisiens", query: "f=type:est:client&f=city:contient:Paris&tri=name:asc" }),
+  });
+  if (!creationVue.ok) {
+    throw new Error(`amorce-recette : création de la vue « Clients parisiens » refusée (${creationVue.status}).`);
+  }
+  const epingle = await fetch("/api/vues-epinglees", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ viewId: (await creationVue.json()).id }),
+  });
+  if (!epingle.ok) {
+    throw new Error(`amorce-recette : épinglage de la vue « Clients parisiens » refusé (${epingle.status}).`);
+  }
+}
