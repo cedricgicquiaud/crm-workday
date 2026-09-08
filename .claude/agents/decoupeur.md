@@ -51,6 +51,10 @@ même s'il ne représente qu'une ligne dans un fichier que personne ne considèr
 Ces livraisons restent séparées, mais elles se produisent **en série** : la seconde part une
 fois la première mergée. Dis-le dans ton rendu — sans quoi elles seront lancées ensemble.
 
+Le journal des migrations est un fichier partagé, même si chaque livraison crée son propre
+fichier de migration : deux livraisons qui en créent une chacune se touchent. En parallèle,
+une seule des deux crée la sienne ; l'autre attend, ou passe en série.
+
 ## Ce que tu rends
 
 Les livraisons dans l'ordre, puis les frontières que tu n'as pas su trancher.

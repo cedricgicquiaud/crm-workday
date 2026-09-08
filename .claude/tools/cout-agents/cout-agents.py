@@ -14,8 +14,11 @@ Trois durées par agent :
   actif    somme des intervalles de moins de 90 s entre deux événements ;
   attente  somme des intervalles de plus de 90 s — une permission qui attend un humain, une
            commande longue, un agent laissé en veille après son rapport.
-Une attente de plus de 5 min est toujours listée avec la commande qui la précède : c'est là
-qu'on lit si l'agent travaillait ou attendait.
+Une attente de plus de 5 min est toujours listée avec ce qui la précède. Deux cas, distingués :
+  bloqué   le dernier événement avant le trou est une commande : l'agent attendait son résultat
+           ou une permission ;
+  veille   le dernier événement est un texte (son rapport) : l'agent avait fini et attendait
+           qu'on le relance. Rien de perdu, sauf si le lead le relance tard.
 """
 import json, os, sys, re, datetime, collections
 
@@ -44,9 +47,9 @@ def commande(item):
     return item.get("name") or "?"
 
 def lire(chemin):
-    r = dict(actif=0.0, attente=0.0, horloge=0.0, requetes=0, ecrits=0, relus=0, sortis=0,
-             navigateur=0, captures=0, trou=0.0, trou_apres="", trou_a=None, cwd="")
-    prev = None; premier = None; derniere_commande = ""
+    r = dict(actif=0.0, attente=0.0, veille=0.0, horloge=0.0, requetes=0, ecrits=0, relus=0, sortis=0,
+             navigateur=0, captures=0, trou=0.0, trou_apres="", trou_a=None, trou_veille=False, cwd="")
+    prev = None; premier = None; derniere_commande = ""; dernier_est_texte = False
     ids = set()
     for ligne in open(chemin, errors="replace"):
         try: d = json.loads(ligne)
@@ -60,8 +63,10 @@ def lire(chemin):
                 if dt <= TROU: r["actif"] += dt
                 else:
                     r["attente"] += dt
+                    if dernier_est_texte: r["veille"] += dt
                     if dt > r["trou"]:
                         r["trou"] = dt; r["trou_apres"] = derniere_commande; r["trou_a"] = prev
+                        r["trou_veille"] = dernier_est_texte
             prev = t
         m = d.get("message") or {}
         u = m.get("usage") or {}
@@ -72,6 +77,9 @@ def lire(chemin):
             r["sortis"] += u.get("output_tokens") or 0
         c = m.get("content")
         if not isinstance(c, list): continue
+        if d.get("type") == "assistant":
+            # un tour qui finit sur du texte sans appel d'outil : l'agent a rendu, il attend
+            dernier_est_texte = not any(isinstance(it, dict) and it.get("type") == "tool_use" for it in c)
         for it in c:
             if not isinstance(it, dict): continue
             if it.get("type") == "tool_use":
@@ -83,7 +91,7 @@ def lire(chemin):
                 for x in (corps if isinstance(corps, list) else [corps]):
                     if isinstance(x, dict) and x.get("type") == "image": r["captures"] += 1
     if premier and prev: r["horloge"] = (prev - premier).total_seconds() / 60
-    r["actif"] /= 60; r["attente"] /= 60; r["trou"] /= 60
+    r["actif"] /= 60; r["attente"] /= 60; r["veille"] /= 60; r["trou"] /= 60
     return r
 
 def cwd_de(chemin):
@@ -145,16 +153,24 @@ def main():
               f"{moy('navigateur'):6.0f} {moy('captures'):9.1f}")
         for k in ("actif", "attente", "requetes", "ecrits", "relus", "sortis", "navigateur"):
             tot[k] += sum(x[k] for x in L)
-    print(f"\nTotal : {tot['actif']/60:.1f} h de travail d'agents, {tot['attente']/60:.1f} h d'attente, "
+    for k in ("veille",):
+        tot[k] = sum(x[k] for L in par_agent.values() for x in L)
+    bloque = tot['attente'] - tot['veille']
+    print(f"\nTotal : {tot['actif']/60:.1f} h de travail d'agents, {bloque/60:.1f} h bloqué sur une commande, "
+          f"{tot['veille']/60:.1f} h de veille après rapport, "
           f"{tot['requetes']} échanges, {tot['ecrits']/1e6:.1f} M jetons écrits, {tot['relus']/1e6:.0f} M relus.")
 
     attentes = [x for L in par_agent.values() for x in L if x["attente"] > ATTENTE_MIN]
-    print(f"\nAttentes de plus de {ATTENTE_MIN} min (l'agent n'y travaillait pas ; après SendMessage = en veille après son rapport, rien de perdu) :")
+    print(f"\nAttentes de plus de {ATTENTE_MIN} min :")
     if not attentes: print("  aucune")
-    for x in sorted(attentes, key=lambda y: -y["attente"]):
+    for x in sorted(attentes, key=lambda y: -(y["attente"] - y["veille"])):
         quand = x["trou_a"].astimezone().strftime("%d/%m %H:%M") if x["trou_a"] else "?"
-        print(f"  {x['fichier'][:44]:44} {x['attente']:5.0f} min, dont {x['trou']:.0f} à {quand}"
-              f" après : {x['trou_apres'] or '(aucune commande)'}")
+        b = x["attente"] - x["veille"]
+        if x["trou_veille"]:
+            cause = f"VEILLE après son rapport, relancé {x['trou']:.0f} min plus tard"
+        else:
+            cause = f"BLOQUÉ {x['trou']:.0f} min après : {x['trou_apres'] or '(aucune commande)'}"
+        print(f"  {x['fichier'][:44]:44} bloqué {b:4.0f} min, veille {x['veille']:4.0f} min — {cause} (à {quand})")
 
     if seuils:
         print("\nAu-dessus des seuils (agents à regarder) :")

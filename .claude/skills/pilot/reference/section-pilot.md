@@ -17,6 +17,10 @@ _seulement ce qui est propre à ce dépôt._
 **Selon le projet** — une ligne absente vaut « non », et ce qu'on perd est dit à côté
 
 - Lancer l'app : `<commande, ex. npm run dev>` — sans elle, le `testeur` n'a pas d'écran à ouvrir
+- Poste par worktree : `<ce qui change d'un worktree à l'autre, ex. .env.local du poste A :
+  APP_URL=http://localhost:3001, DATABASE_URL=…/crm_a, TEST_DATABASE_URL=…/crm_test_a ;
+  poste B : 3002, crm_b, crm_test_b>` — sans elle, `Agents en parallèle` reste à 1 : deux
+  worktrees se partageraient le port et la base
 - Amorce de recette : `.pilot/amorce-recette.js` — ouvre une session et pose des données ;
   sans elle, le `testeur` photographie des écrans vides
 - Testeur : `passe visuelle automatisée` (défaut) | `Maestro sur simulateur` (projet mobile)

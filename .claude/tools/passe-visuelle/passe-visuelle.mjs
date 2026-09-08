@@ -16,11 +16,17 @@
 //   --attendre "sél."   attend que cet élément soit visible avant de photographier (5 s au plus)
 //   Ordre : clic, touche, saisie, action, attente. Chaque geste est rejoué à chaque largeur et
 //   chaque thème, sur une page neuve.
+// Le serveur de l'application, lancé et arrêté par l'outil, jamais par l'agent :
+//   --serveur "npm run dev"  commande de la ligne `Lancer l'app :` de la section Pilot.
+//                       L'outil la lance dans son propre groupe de processus, attend que l'URL
+//                       réponde (60 s au plus), fait la passe, puis arrête tout le groupe.
+//                       Si l'URL répond déjà avant le lancement, il ne lance rien et n'arrête rien.
 // Sortie : les captures et `mesures.json` dans --out, un résumé lisible sur la sortie standard.
 
 import { chromium } from 'playwright'
 import { mkdir, writeFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { spawn } from 'node:child_process'
 
 const arg = (n, d) => {
   const i = process.argv.indexOf('--' + n)
@@ -39,6 +45,40 @@ const touche = arg('touche')
 const saisie = arg('saisie')
 const actionFile = arg('action')
 const attendre = arg('attendre')
+const serveur = arg('serveur')
+
+// --- le serveur de l'application ----------------------------------------------------
+
+const repond = async () => {
+  try { const r = await fetch(url, { redirect: 'manual' }); return r.status < 500 } catch { return false }
+}
+let processusServeur = null
+if (serveur) {
+  if (await repond()) {
+    console.log(`Serveur déjà en place sur ${url} : l'outil ne lance rien et n'arrêtera rien.`)
+  } else {
+    processusServeur = spawn(serveur, { shell: true, detached: true, stdio: 'ignore' })
+    processusServeur.unref()
+    const debut = Date.now()
+    while (!(await repond())) {
+      if (Date.now() - debut > 60000) {
+        console.error(`Le serveur « ${serveur} » ne répond pas sur ${url} après 60 s.`)
+        try { process.kill(-processusServeur.pid, 'SIGTERM') } catch {}
+        process.exit(2)
+      }
+      await new Promise(r => setTimeout(r, 500))
+    }
+    console.log(`Serveur lancé par l'outil (« ${serveur} », groupe ${processusServeur.pid}), ${url} répond.`)
+  }
+}
+const arreterServeur = () => {
+  if (!processusServeur) return
+  // tout le groupe : npm et le processus qu'il a lancé, pas seulement le premier
+  try { process.kill(-processusServeur.pid, 'SIGTERM') } catch {}
+  processusServeur = null
+}
+process.on('exit', arreterServeur)
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { arreterServeur(); process.exit(130) })
 
 // --- mesures faites dans la page -------------------------------------------------
 
@@ -195,6 +235,7 @@ for (const largeur of widths) {
   }
 }
 await navigateur.close()
+arreterServeur()
 await writeFile(join(out, 'mesures.json'), JSON.stringify(mesures, null, 2))
 
 // --- résumé lisible ---------------------------------------------------------------

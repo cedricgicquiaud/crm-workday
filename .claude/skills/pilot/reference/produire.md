@@ -55,9 +55,32 @@ livraison, c'est du bruit qui cache les vraies transitions.
    modifiables (ceux du jalon), décisions produit recopiées de la fiche feature, **le texte des
    phrases du contrat** affectées à cette livraison (le numéro seul ne dit pas ce qu'il faut
    prouver), idiomes du `CLAUDE.md` qui touchent ces fichiers, commande de tests, titre de la PR.
+   **La liste des fichiers se déduit du contrat, phrase par phrase** : pour chaque phrase,
+   écris les fichiers qui la portent, et vérifie qu'ils sont dans la liste. Deux fois de suite
+   sur crm-workday, une phrase du contrat demandait un écran que la liste n'ouvrait pas ; le
+   producteur a signalé et s'est arrêté, comme sa fiche le veut, et il a fallu le relancer.
+   Quand ça arrive quand même, **le producteur relancé ouvre un nouveau cycle** : son code
+   n'a jamais été relu, donc `verifier` et `testeur` repassent, puis une correction, une
+   seule. Ce n'est pas une seconde correction sur le même audit, c'est le premier aller-retour
+   d'un second cycle.
    La façon de travailler — ordre des commits, périmètre, « tu ne tranches pas », `UAT.md`, stop
    après la PR, format du rapport — est dans la fiche de l'agent, pas ici : deux textes qui
    disent la même chose finissent par se contredire. L'exclure de git (`.git/info/exclude`).
+   **Deux producteurs à la fois : chaque worktree a son poste.** Sur une page statique, deux
+   worktrees vivent côte à côte sans rien partager. Sur une application avec serveur et base,
+   ils partagent tout : le port, la base de développement, la base de test, et le journal des
+   migrations. Le second serveur refuse de démarrer, les tests de l'un cassent sur les tables
+   de l'autre, et l'outil de passe visuelle photographie l'application du voisin. Avant de
+   monter `Agents en parallèle` à 2, la section Pilot porte une ligne `Poste par worktree :`
+   qui dit ce qui change d'un worktree à l'autre — sur crm-workday, un fichier `.env.local`
+   par poste, A ou B, avec son port et ses deux bases. Au moment de créer le worktree, le lead
+   lui attribue un poste libre et y copie ce fichier ; `Lancer l'app` reste la même commande.
+   Le testeur reçoit l'URL du poste. **Une migration au plus par paire** : le journal des
+   migrations est un fichier partagé, deux branches qui y ajoutent chacune une entrée se
+   contredisent au merge ; le découpeur le déclare comme contact. Sans ligne `Poste par
+   worktree`, on reste à 1.
+   C'est ce qui permet l'épreuve des deux heures de la méthode : deux livraisons disjointes,
+   deux worktrees, l'écran fermé, et deux PR à relire au retour.
 3. **Lancer les producteurs**, un agent `tdd-writer` par worktree, au plus `n` à la fois
    (une livraison finie libère une place pour la suivante ; le plafond reste le nombre de
    livraisons disjointes). Session indépendante (pane) quand le travail est long et doit être
@@ -74,13 +97,15 @@ livraison, c'est du bruit qui cache les vraies transitions.
    - `testeur` sur l'application lancée (`Lancer l'app`), dans le worktree de la livraison :
      il lance `.claude/tools/passe-visuelle/passe-visuelle.mjs` sur chaque écran livré
      (avec l'`Amorce de recette` déclarée, sans quoi il ne verrait que des écrans vides).
-     Sa consigne porte trois choses : **les écrans, trois au plus** (au-delà, une seconde
-     passe ou un second testeur : sur quatre ou cinq écrans il double son budget à chaque
-     fois) ; **le geste qui ouvre l'écran** quand il ne s'affiche qu'après une action (« ⌘K
-     puis "acm" », « clic sur Nouveau ») ; **ce qui est déjà connu** — les tâches isolées
-     ouvertes de la team et les écarts « à relire » des livraisons précédentes de la feature,
-     pour qu'il ne les rapporte pas une troisième fois et que le correcteur ne soit pas lancé
-     sur du connu.
+     Sa consigne porte quatre choses : **la commande `Lancer l'app`**, que l'outil lance et
+     arrête lui-même (un testeur qui tue à la main un serveur lancé en tâche de fond peut
+     rester bloqué une heure sur ce `kill`) ; **les écrans, trois au plus** (au-delà, une
+     seconde passe ou un second testeur : sur quatre ou cinq écrans il double son budget à
+     chaque fois) ; **le geste qui ouvre l'écran** quand il ne s'affiche qu'après une action
+     (« ⌘K puis "acm" », « clic sur Nouveau ») ; **ce qui est déjà connu** — les tâches
+     isolées ouvertes de la team et les écarts « à relire » des livraisons précédentes de la
+     feature, pour qu'il ne les rapporte pas une troisième fois et que le correcteur ne soit
+     pas lancé sur du connu.
      L'outil mesure en dix secondes le débordement horizontal et l'élément fautif, les
      recouvrements, le parcours clavier et la console, et dépose images et `mesures.json`
      dans `.pilot/recette/<date>-<écran>/`. L'agent ne refait pas ces mesures : il regarde

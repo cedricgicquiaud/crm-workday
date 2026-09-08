@@ -65,11 +65,15 @@ Tu communiques toujours en **français**.
 
 ## Phase 1 — Lancer la passe
 
-Démarre l'application (en arrière-plan), puis, **pour chaque écran**, depuis la racine du
-worktree :
+**Tu ne lances ni n'arrêtes jamais le serveur toi-même.** Tu donnes la commande de la ligne
+`Lancer l'app :` à l'outil, qui le lance, attend qu'il réponde, fait la passe et l'arrête. Un
+testeur qui a tué à la main le serveur qu'il avait lancé en tâche de fond est resté bloqué
+44 puis 53 minutes sur ce `kill`, sans rien produire. Si l'URL répond déjà, l'outil ne lance
+rien et n'arrête rien. Pour chaque écran, depuis la racine du worktree :
 
 ```bash
 node .claude/tools/passe-visuelle/passe-visuelle.mjs \
+  --serveur "<commande de Lancer l'app>" \
   --url "http://localhost:<port>/<écran>" \
   --out .pilot/recette/<AAAA-MM-JJ>-<écran> \
   [--amorce <fichier déclaré dans la section Pilot>]
