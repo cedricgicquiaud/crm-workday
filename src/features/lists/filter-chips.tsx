@@ -51,8 +51,8 @@ export function FilterChips({ type, state, users }: Props) {
             <span className="truncate" title={label}>
               {label}
             </span>
-            {/* 20 px : la croix tient entre les bordures de la puce de 24 px des fondations ; son icône garde ses 12 px. */}
-            <Button variant="ghost" size="icon-xs" className="size-5 rounded-full" aria-label={`Retirer le filtre ${label}`} onClick={() => go({ ...state, filters: state.filters.filter((_, position) => position !== index) })}>
+            {/* 20 px peints, pour tenir entre les bordures de la puce de 24 px ; le pseudo-élément porte la cible à 24 px sans rien changer au rendu. */}
+            <Button variant="ghost" size="icon-xs" className="relative size-5 rounded-full after:absolute after:-inset-1 after:content-['']" aria-label={`Retirer le filtre ${label}`} onClick={() => go({ ...state, filters: state.filters.filter((_, position) => position !== index) })}>
               <XIcon aria-hidden />
             </Button>
           </span>
