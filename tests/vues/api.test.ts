@@ -3,8 +3,11 @@ import { inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET as getViews, POST as postView } from "@/app/api/vues/route";
 import { DELETE as deleteViewRoute, PATCH as patchView } from "@/app/api/vues/[id]/route";
+import { PATCH as reorderPinsRoute, POST as postPin } from "@/app/api/vues-epinglees/route";
+import { DELETE as deletePin } from "@/app/api/vues-epinglees/[id]/route";
 import { savedView, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { listPinnedViews } from "@/features/views/pinned";
 import type { ViewSummary } from "@/features/views/views";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
@@ -15,6 +18,8 @@ const BOB = { email: "bob-api-vues@exemple.fr", firstName: "Bob", lastName: "Nar
 
 const QUERY = "f=kind:est:client&tri=name:asc";
 
+let alice: string;
+let bob: string;
 let aliceCookie: string;
 let bobCookie: string;
 
@@ -30,8 +35,8 @@ beforeAll(async () => {
   registerTestObject();
   await db.delete(savedView);
   await db.delete(user).where(inArray(user.email, [ALICE.email, BOB.email]));
-  await createUserWithPassword(ALICE);
-  await createUserWithPassword(BOB);
+  alice = (await createUserWithPassword(ALICE)).id;
+  bob = (await createUserWithPassword(BOB)).id;
   aliceCookie = await sessionCookie(ALICE.email, ALICE.password);
   bobCookie = await sessionCookie(BOB.email, BOB.password);
 });
@@ -91,5 +96,54 @@ describe("API des vues (CRM-51, contrat 24, contrat 26)", () => {
     /* Sans session, rien n'est lisible ni écrit (D12). */
     expect((await listViews()).status).toBe(401);
     expect((await postView(jsonRequest("POST", "/api/vues", { objectType: TEST_TYPE, name: "Sans session", query: "" }))).status).toBe(401);
+  });
+});
+
+/**
+ * API des épingles : la part personnelle des vues (contrat 24). Chacun n'écrit que dans sa propre
+ * barre latérale, et supprimer une vue la retire de celle de tout le monde.
+ */
+describe("API des vues épinglées (CRM-52, CRM-53, contrat 24)", () => {
+  const pinned = async (userId: string) => (await listPinnedViews(userId)).map((view) => view.name);
+
+  async function create(name: string, cookie: string): Promise<string> {
+    const res = await postView(jsonRequest("POST", "/api/vues", { objectType: TEST_TYPE, name, query: "" }, cookie));
+    expect(res.status).toBe(201);
+    return ((await res.json()) as { id: string }).id;
+  }
+
+  it("épingle et désépingle dans sa seule barre latérale, dans l'ordre enregistré", async () => {
+    const clients = await create("Clients à relancer", aliceCookie);
+    const chantiers = await create("Chantiers ouverts", aliceCookie);
+
+    expect((await postPin(jsonRequest("POST", "/api/vues-epinglees", { viewId: clients }, aliceCookie))).status).toBe(201);
+    expect((await postPin(jsonRequest("POST", "/api/vues-epinglees", { viewId: chantiers }, aliceCookie))).status).toBe(201);
+    expect(await pinned(alice)).toEqual(["Clients à relancer", "Chantiers ouverts"]);
+    /* Le collègue voit ces vues dans la liste des vues, mais sa barre latérale reste la sienne. */
+    expect(await pinned(bob)).toEqual([]);
+
+    expect((await reorderPinsRoute(jsonRequest("PATCH", "/api/vues-epinglees", { viewIds: [chantiers, clients] }, aliceCookie))).status).toBe(200);
+    expect(await pinned(alice)).toEqual(["Chantiers ouverts", "Clients à relancer"]);
+
+    expect((await deletePin(jsonRequest("DELETE", `/api/vues-epinglees/${clients}`, undefined, aliceCookie), byId(clients))).status).toBe(200);
+    expect(await pinned(alice)).toEqual(["Chantiers ouverts"]);
+
+    /* Refus : vue inconnue, vue déjà épinglée, épingle absente, aucune session. */
+    expect((await postPin(jsonRequest("POST", "/api/vues-epinglees", { viewId: randomUUID() }, aliceCookie))).status).toBe(404);
+    expect((await postPin(jsonRequest("POST", "/api/vues-epinglees", { viewId: chantiers }, aliceCookie))).status).toBe(409);
+    expect((await deletePin(jsonRequest("DELETE", `/api/vues-epinglees/${clients}`, undefined, aliceCookie), byId(clients))).status).toBe(404);
+    expect((await postPin(jsonRequest("POST", "/api/vues-epinglees", { viewId: chantiers }))).status).toBe(401);
+  });
+
+  it("retire une vue supprimée de la barre latérale de chacun", async () => {
+    const partagee = await create("Vue partagée", aliceCookie);
+    expect((await postPin(jsonRequest("POST", "/api/vues-epinglees", { viewId: partagee }, aliceCookie))).status).toBe(201);
+    expect((await postPin(jsonRequest("POST", "/api/vues-epinglees", { viewId: partagee }, bobCookie))).status).toBe(201);
+    expect(await pinned(bob)).toEqual(["Vue partagée"]);
+
+    /* Un collègue la supprime : elle quitte les deux barres (CRM-53). */
+    expect((await deleteViewRoute(jsonRequest("DELETE", `/api/vues/${partagee}`, undefined, bobCookie), byId(partagee))).status).toBe(200);
+    expect(await pinned(alice)).not.toContain("Vue partagée");
+    expect(await pinned(bob)).toEqual([]);
   });
 });
