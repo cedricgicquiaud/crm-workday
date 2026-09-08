@@ -84,6 +84,10 @@ describe("API des vues (CRM-51, contrat 24, contrat 26)", () => {
     const absent = randomUUID();
     expect((await patchView(jsonRequest("PATCH", `/api/vues/${absent}`, { name: "Ailleurs" }, aliceCookie), byId(absent))).status).toBe(404);
 
+    /* Une liste qui n'existe pas est une ressource inexistante, jamais une panne (D24). */
+    const unknownObject = await getViews(jsonRequest("GET", "/api/vues?objet=inconnu", undefined, aliceCookie));
+    expect(unknownObject.status).toBe(404);
+
     /* Sans session, rien n'est lisible ni écrit (D12). */
     expect((await listViews()).status).toBe(401);
     expect((await postView(jsonRequest("POST", "/api/vues", { objectType: TEST_TYPE, name: "Sans session", query: "" }))).status).toBe(401);
