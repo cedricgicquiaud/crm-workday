@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, seedAccounts, test } from "./fixtures/auth";
 import { resetObjects } from "./fixtures/objets";
-import { resetPersons } from "./fixtures/personnes";
+import { archiveCompany, resetPersons } from "./fixtures/personnes";
 
 /* Les fiches finissent par « (e2e) » : la fixture des objets les efface, et rien d'autre. */
 /* Next.js pose un annonceur de route au même rôle dans le corps de page : les avertissements se ciblent par leur conteneur. */
@@ -251,5 +251,22 @@ test.describe("téléphone, 375 px : la liste passe en cartes (CRM-50, contrat 2
     await expect(memberPage.locator("[data-cell]:visible")).toHaveCount(0);
     await expect(memberPage.getByRole("button", { name: "Nouvelle personne" })).toBeInViewport();
     await fitsTheScreen(memberPage, "liste des personnes");
+  });
+});
+
+test.describe("bascule « archivées » (CRM-47, D21)", () => {
+  test("les fiches archivées restent hors de la liste jusqu'à ce que la bascule les rappelle, et l'URL le retient", async ({ memberPage }) => {
+    const mark = tag();
+    await createCompany(memberPage, named("Active", mark), { type: "client" });
+    const rangee = await createCompany(memberPage, named("Rangee", mark), { type: "client" });
+    archiveCompany(rangee);
+
+    await memberPage.goto(`/entreprises?f=name:contient:${mark}&tri=name:asc`);
+    expect(await names(memberPage)).toEqual([named("Active", mark)]);
+
+    await memberPage.getByRole("switch", { name: "Archivées" }).click();
+
+    await expect(memberPage).toHaveURL(/archivees=1/);
+    expect(await names(memberPage)).toEqual([named("Active", mark), named("Rangee", mark)]);
   });
 });
