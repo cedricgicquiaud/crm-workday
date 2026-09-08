@@ -138,3 +138,40 @@ test.describe("supprimer définitivement une entreprise (CRM-62, CRM-63, contrat
     expect((await adminPage.request.get(`/api/entreprises/${freeId}`)).status()).toBe(404);
   });
 });
+
+test.describe("téléphone, 375 px (contrat 25 de la feature 1, D9)", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  /** Aucun défilement horizontal de la page, un seul h1, et aucun cadre qui défile en largeur (un texte tronqué par des points de suspension n'est pas un débordement). */
+  async function fitsTheScreen(page: Page, label: string, { modalOpen = false } = {}) {
+    /* Un dialogue ouvert masque le reste de la page à l'accessibilité : le titre ne se compte qu'à dialogue fermé. */
+    if (!modalOpen) await expect(page.getByRole("heading", { level: 1 }), label).toHaveCount(1);
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+    expect(scrollWidth, label).toBeLessThanOrEqual(clientWidth);
+    const wider = await page.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>("body *"))
+        .filter((el) => el.clientWidth > 1 && el.scrollWidth > el.clientWidth + 1)
+        .filter((el) => getComputedStyle(el).overflowX !== "visible" && getComputedStyle(el).textOverflow !== "ellipsis")
+        .map((el) => `${el.tagName.toLowerCase()} ${el.scrollWidth}>${el.clientWidth}`),
+    );
+    expect(wider, label).toEqual([]);
+  }
+
+  test("le menu d'actions, la fiche archivée sous sa bannière et la confirmation de suppression tiennent dans l'écran", async ({ adminPage }) => {
+    const id = await createCompany(adminPage, `Fonderie Étroite du Sud-Ouest ${suffix()}`);
+    await adminPage.goto(`/entreprises/${id}`);
+    await fitsTheScreen(adminPage, "fiche avec le menu d'actions");
+
+    await adminPage.getByRole("button", { name: "Actions" }).click();
+    const remove = adminPage.getByRole("menuitem", { name: "Supprimer définitivement" });
+    await expect(remove).toBeInViewport();
+    await remove.click();
+    await expect(adminPage.getByRole("dialog", { name: "Supprimer définitivement ?" })).toBeVisible();
+    await fitsTheScreen(adminPage, "confirmation de suppression", { modalOpen: true });
+    await adminPage.keyboard.press("Escape");
+
+    await runAction(adminPage, "Archiver");
+    await expect(adminPage.getByText(ARCHIVED_BANNER)).toBeVisible();
+    await fitsTheScreen(adminPage, "fiche archivée");
+  });
+});
