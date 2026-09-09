@@ -3,6 +3,14 @@
 
 Usage :
   python3 .claude/tools/cout-agents/cout-agents.py [dossier du projet] [--detail] [--seuils]
+  python3 .claude/tools/cout-agents/cout-agents.py [dossier du projet] --direct [--une-fois] [--notifier] [--depuis 120]
+
+Mode direct : pendant un run, un tableau des agents en cours, rafraîchi toutes les 30 s, à
+lancer dans un second terminal (un panneau cmux à côté de la session). Une ligne par agent dont
+le journal a bougé depuis `--depuis` minutes (120 par défaut) : état, temps actif, jetons relus
+contre son seuil, dernier geste. `--une-fois` affiche le tableau et sort (pour le lead, dans
+ses messages). `--notifier` envoie les alertes en notification macOS par `cmux notify` si la
+commande cmux existe.
 
 Lit les transcripts de sous-agents dans ~/.claude/projects/*/*/subagents/*.jsonl et garde ceux
 dont le `cwd` est le projet ou l'un de ses worktrees (`<projet>-<n>`). La session principale
@@ -54,8 +62,9 @@ def commande(item):
 
 def lire(chemin):
     r = dict(actif=0.0, attente=0.0, veille=0.0, horloge=0.0, requetes=0, ecrits=0, relus=0, sortis=0,
-             navigateur=0, captures=0, trou=0.0, trou_apres="", trou_a=None, trou_veille=False, cwd="")
-    prev = None; premier = None; derniere_commande = ""; dernier_est_texte = False
+             navigateur=0, captures=0, trou=0.0, trou_apres="", trou_a=None, trou_veille=False, cwd="",
+             premier=None, dernier=None, derniere_commande="", dernier_type="")
+    prev = None; premier = None; derniere_commande = ""; dernier_est_texte = False; dernier_type = ""
     ids = set()
     for ligne in open(chemin, errors="replace"):
         try: d = json.loads(ligne)
@@ -83,6 +92,8 @@ def lire(chemin):
             r["sortis"] += u.get("output_tokens") or 0
         c = m.get("content")
         if not isinstance(c, list): continue
+        if d.get("type") in ("assistant", "user"):
+            dernier_type = "tool_use" if any(isinstance(it, dict) and it.get("type") == "tool_use" for it in c) else d["type"]
         if d.get("type") == "assistant":
             # un tour qui finit sur du texte sans appel d'outil : l'agent a rendu, il attend
             dernier_est_texte = not any(isinstance(it, dict) and it.get("type") == "tool_use" for it in c)
@@ -97,6 +108,8 @@ def lire(chemin):
                 for x in (corps if isinstance(corps, list) else [corps]):
                     if isinstance(x, dict) and x.get("type") == "image": r["captures"] += 1
     if premier and prev: r["horloge"] = (prev - premier).total_seconds() / 60
+    r["premier"] = premier; r["dernier"] = prev; r["derniere_commande"] = derniere_commande
+    r["dernier_type"] = "texte" if dernier_est_texte else ("commande" if dernier_type == "tool_use" else "reponse")
     r["actif"] /= 60; r["attente"] /= 60; r["veille"] /= 60; r["trou"] /= 60
     return r
 
@@ -129,8 +142,105 @@ def transcripts(projet):
                 fichiers.append(f)
     return fichiers
 
+def nom_agent(chemin):
+    """agent-aproducteur-2-5b-vues-0e36c710776937e4.jsonl -> producteur-2-5b-vues"""
+    n = os.path.basename(chemin)[:-len(".jsonl")]
+    n = re.sub(r"^agent-a", "", n)
+    return re.sub(r"-[0-9a-f]{16}$", "", n)
+
+def type_agent(chemin):
+    m = re.match(r"agent-a([a-z]+?)-", os.path.basename(chemin))
+    a = m.group(1) if m else "autre"
+    return ALIAS.get(a, a)
+
+def duree(minutes):
+    return f"{minutes/60:.0f} h {minutes%60:02.0f}" if minutes >= 60 else f"{minutes:.0f} min"
+
+def etat(x, maintenant):
+    """actif / bloqué / rendu / réfléchit, et la phrase qui va avec."""
+    depuis = (maintenant - x["dernier"]).total_seconds() / 60 if x["dernier"] else 0
+    cmd = x["derniere_commande"] or "(aucune commande)"
+    if depuis * 60 <= TROU:
+        return "actif", f"{cmd}  (il y a {depuis*60:.0f} s)"
+    if x["dernier_type"] == "texte":
+        return "rendu", f"rapport rendu il y a {duree(depuis)}"
+    if x["dernier_type"] == "commande":
+        return "bloqué", f"sur : {cmd}  (depuis {duree(depuis)})"
+    return "réfléchit", f"réponse en cours depuis {duree(depuis)}, après : {cmd}"
+
+def alertes_de(x, e, depuis_min):
+    s = SEUILS.get(x["type"], {})
+    a = []
+    if e == "bloqué" and depuis_min > ATTENTE_MIN: a.append(f"bloqué depuis {duree(depuis_min)}")
+    if s and x["relus"] / 1e6 > s["jetons_relus_M"]: a.append(f"{x['relus']/1e6:.0f} M relus > {s['jetons_relus_M']}")
+    if s and x["actif"] > s["minutes"]: a.append(f"{x['actif']:.0f} min actives > {s['minutes']}")
+    if s and x["requetes"] > s["requetes"]: a.append(f"{x['requetes']} échanges > {s['requetes']}")
+    return a
+
+def notifier(titre, corps):
+    import shutil, subprocess
+    if not shutil.which("cmux"): return
+    subprocess.run(["cmux", "notify", "--title", titre, "--body", corps],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def tableau_direct(projet, depuis, deja_notifie, avec_notif):
+    maintenant = datetime.datetime.now(datetime.timezone.utc)
+    lignes = []
+    for f in transcripts(projet):
+        x = lire(f)
+        if not x["dernier"] or (maintenant - x["dernier"]).total_seconds() > depuis * 60: continue
+        x["nom"] = nom_agent(f); x["type"] = type_agent(f); lignes.append(x)
+    lignes.sort(key=lambda x: x["premier"])
+    heure = maintenant.astimezone().strftime("%H:%M:%S")
+    out = [f"Agents en cours — {os.path.basename(projet)}  ({len(lignes)} depuis {depuis} min)  {heure}", ""]
+    if not lignes:
+        out.append("  aucun journal d'agent n'a bougé dans ce délai"); return out
+    out.append(f"{'agent':32} {'état':9} {'actif':>7} {'relus':>12} {'seuil':>6}   dernier geste")
+    alertes = []
+    for x in lignes:
+        e, phrase = etat(x, maintenant)
+        depuis_min = (maintenant - x["dernier"]).total_seconds() / 60
+        s = SEUILS.get(x["type"], {})
+        seuil = f"/{s['jetons_relus_M']} M" if s else ""
+        relus = f"{x['relus']/1e6:.0f} M"
+        drapeau = "  ! " if alertes_de(x, e, depuis_min) else "    "
+        out.append(f"{x['nom'][:32]:32} {e:9} {duree(x['actif']):>7} {relus:>12} {seuil:>6}{drapeau}{phrase[:70]}")
+        for a in alertes_de(x, e, depuis_min):
+            alertes.append((x["nom"], a))
+    actif = sum(x["actif"] for x in lignes); relus = sum(x["relus"] for x in lignes)
+    n = collections.Counter(etat(x, maintenant)[0] for x in lignes)
+    out.append("")
+    out.append(f"Total : {duree(actif)} de travail, {relus/1e6:.0f} M jetons relus — "
+               + ", ".join(f"{v} {k}" for k, v in n.items()))
+    if alertes:
+        out.append(""); out.append("À regarder :")
+        for nom, a in alertes:
+            out.append(f"  {nom[:32]:32} {a}")
+            cle = (nom, a.split(" ")[0])
+            if avec_notif and cle not in deja_notifie:
+                deja_notifie.add(cle); notifier(f"pilot — {nom}", a)
+    return out
+
+def direct(projet, une_fois, avec_notif, depuis):
+    import time
+    deja = set()
+    while True:
+        out = tableau_direct(projet, depuis, deja, avec_notif)
+        if not une_fois: print("\033[2J\033[H", end="")
+        print("\n".join(out))
+        if une_fois: return 0
+        print("\n(rafraîchi toutes les 30 s, Ctrl-C pour sortir)")
+        try: time.sleep(30)
+        except KeyboardInterrupt: return 0
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if "--depuis" in sys.argv:
+        i = sys.argv.index("--depuis"); depuis = int(sys.argv[i + 1]); args = [a for a in args if a != sys.argv[i + 1]]
+    else: depuis = 120
+    if "--direct" in sys.argv:
+        projet = os.path.abspath(args[0]) if args else os.getcwd()
+        return direct(projet, "--une-fois" in sys.argv, "--notifier" in sys.argv, depuis)
     detail = "--detail" in sys.argv
     seuils = "--seuils" in sys.argv
     projet = os.path.abspath(args[0]) if args else os.getcwd()
@@ -142,9 +252,7 @@ def main():
 
     par_agent = collections.defaultdict(list)
     for f in fichiers:
-        m = re.match(r"agent-a([a-z]+?)-", os.path.basename(f))
-        agent = m.group(1) if m else "autre"
-        agent = ALIAS.get(agent, agent)
+        agent = type_agent(f)
         r = lire(f); r["fichier"] = os.path.basename(f); par_agent[agent].append(r)
 
     print(f"\nCoût des sous-agents — {os.path.basename(projet)}  ({len(fichiers)} agents)\n")

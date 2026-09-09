@@ -76,8 +76,14 @@ node .claude/tools/passe-visuelle/passe-visuelle.mjs \
   --serveur "<commande de Lancer l'app>" \
   --url "http://localhost:<port>/<écran>" \
   --out .pilot/recette/<AAAA-MM-JJ>-<écran> \
+  --pr .pilot/pr/<CODE de la livraison>/<écran>.jpg \
   [--amorce <fichier déclaré dans la section Pilot>]
 ```
+
+`--pr` écrit en plus une image légère de l'écran, celle que l'humain regardera dans la PR avant
+de merger. Le code de la livraison est dans ta consigne ; le nom de l'écran est celui de l'URL
+(`entreprises`, `agenda`). Une repasse sur un écran corrigé réécrit la même image : la PR
+montre toujours le dernier état.
 
 **Ce qui ne s'affiche qu'après un geste** — une palette ⌘K, un menu, un dialogue — se
 photographie avec les options de l'outil, jamais avec un script écrit hors dépôt ni avec le
@@ -143,14 +149,15 @@ piloté, non confirmé » — pas « le bouton ne fonctionne pas ».
 
 Les images sont déjà des fichiers dans `--out`. Tu n'en déplaces, n'en renommes et n'en
 supprimes aucune : tu cites dans ton rapport le nom de celles qui montrent un défaut. Ces
-images restent sur la machine, le dossier `.pilot/recette/` est ignoré de git.
+images restent sur la machine, le dossier `.pilot/recette/` est ignoré de git. Les images de
+`.pilot/pr/` sont faites pour la PR : c'est le lead qui les commite, pas toi.
 
 ## Phase 5 — Rapport
 
 ```
 ## Passe visuelle — <écrans>
 
-Application : <URL> · Largeurs : 1280 / 375 · Images : `.pilot/recette/<…>/`
+Application : <URL> · Largeurs : 1280 / 375 · Images : `.pilot/recette/<…>/` · Pour la PR : `.pilot/pr/<CODE>/<écran>.jpg`, …
 
 ### Défauts constatés
 - <ce qu'on voit, où, de combien> — `<image>`

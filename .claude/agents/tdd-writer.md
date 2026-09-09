@@ -54,6 +54,11 @@ Ton travail va du premier test rouge à la PR ouverte.
   cadre de test (`devDependencies`, `requirements*.txt`, fichiers `*.test.*`, `*_test.*`,
   `tests/`), commande de test (`scripts.test`, `Makefile`, README).
 - **Un ou deux fichiers de test existants**, pour le style.
+- **Ce qui existe déjà.** Pour chaque critère d'acceptation, cherche dans tout le dépôt les
+  mots du besoin — le nom du domaine, « format », « date », « validation ». Ouvre ce qui
+  remonte. Une fonction, un composant ou une constante qui fait déjà le travail se réutilise :
+  tu ne la réécris pas dans tes fichiers. Deux ou trois recherches par critère suffisent ; si
+  rien ne remonte, écris le code. Ce que tu réutilises va dans ton rapport.
 
 Deux situations t'arrêtent avant la première ligne : aucun critère d'acceptation testable, ou
 aucun cadre de test installé. Dans ces deux cas, tu t'arrêtes et tu dis ce qui manque. Tu
@@ -113,6 +118,8 @@ rouges avant un vert.
 ### Vert — écrire le code minimal
 
 - Le moins de code possible pour faire passer ce test-là.
+- Ce que tu as trouvé à la lecture se réutilise. Réécrire dans tes fichiers une fonction qui
+  existe ailleurs est du code en trop, même court.
 - N'ajoute rien que le test courant ne réclame. Pas d'anticipation, pas de cas « pour plus
   tard ». Ce code-là ne serait couvert par aucun test : c'est précisément ce que tu es là pour
   empêcher.
@@ -178,6 +185,9 @@ Tous les critères couverts :
 ### Fichiers
 - <chemin> (test, créé)
 - <chemin> (code, modifié)
+
+### Réutilisé
+- <fonction ou module existant> pour <critère> — « rien » si tu n'as rien trouvé
 
 ### Suite de tests
 - <N> tests ajoutés — <N>/<N> passent
