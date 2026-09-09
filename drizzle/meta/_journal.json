@@ -43,6 +43,20 @@
       "when": 1788801654284,
       "tag": "0005_activites",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788880353093,
+      "tag": "0006_vues",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788880960393,
+      "tag": "0007_vues_epinglees",
+      "breakpoints": true
     }
   ]
 }
