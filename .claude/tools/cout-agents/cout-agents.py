@@ -25,15 +25,21 @@ import json, os, sys, re, datetime, collections
 TROU = 90        # secondes : au-delà, l'agent n'est pas en train de travailler
 ATTENTE_MIN = 5  # minutes : au-delà, l'attente est nommée avec sa commande
 
-# Seuils par agent, tirés des mesures du 31/08 (médiane observée x 2, arrondi).
-# Un dépassement n'est pas une faute : c'est un agent à regarder.
+# Seuils par agent : médiane observée x 2, arrondi. Recalibrés le 09/09 sur les neuf
+# livraisons de crm-workday (application avec serveur, base et tests de bout en bout) ; les
+# seuils du 31/08 venaient d'une page statique et le testeur les dépassait à chaque passe.
+# Les minutes sont du temps actif. Un dépassement n'est pas une faute : c'est un agent à regarder.
 SEUILS = {
-    "prod":  {"requetes": 140, "jetons_relus_M": 12, "minutes": 25},
-    "test":  {"requetes":  40, "jetons_relus_M":  3, "minutes": 10},
-    "verif": {"requetes":  45, "jetons_relus_M":  2, "minutes":  8},
-    "fix":   {"requetes":  60, "jetons_relus_M":  3, "minutes": 12},
-    "audit": {"requetes":  45, "jetons_relus_M":  2, "minutes":  8},
+    "prod":  {"requetes": 450, "jetons_relus_M": 70, "minutes": 90},
+    "test":  {"requetes": 160, "jetons_relus_M": 10, "minutes": 25},
+    "verif": {"requetes": 120, "jetons_relus_M":  8, "minutes": 15},
+    "fix":   {"requetes": 250, "jetons_relus_M": 30, "minutes": 50},
+    "audit": {"requetes": 120, "jetons_relus_M":  8, "minutes": 15},
 }
+# Les fiches actuelles s'appellent producteur, verifier, testeur, correcteur ; les seuils gardent
+# les clés courtes des premiers essais (prod, verif, test, fix).
+ALIAS = {"retest": "test", "testeur": "test", "retesteur": "test", "producteur": "prod",
+         "tdd": "prod", "verifier": "verif", "correcteur": "fix"}
 
 def ts(v):
     try: return datetime.datetime.fromisoformat(v.replace("Z", "+00:00"))
@@ -105,8 +111,8 @@ def cwd_de(chemin):
     return ""
 
 def du_projet(cwd, projet):
-    """Le projet lui-même, un sous-dossier, ou un worktree frère `<projet>-<n>`."""
-    return cwd == projet or cwd.startswith(projet + "/") or re.match(re.escape(projet) + r"-\d+(/|$)", cwd) is not None
+    """Le projet lui-même, un sous-dossier, ou un worktree frère `<projet>-<n>` / `<projet>-a`."""
+    return cwd == projet or cwd.startswith(projet + "/") or re.match(re.escape(projet) + r"-[A-Za-z0-9]+(/|$)", cwd) is not None
 
 def transcripts(projet):
     base = os.path.expanduser("~/.claude/projects")
@@ -138,7 +144,7 @@ def main():
     for f in fichiers:
         m = re.match(r"agent-a([a-z]+?)-", os.path.basename(f))
         agent = m.group(1) if m else "autre"
-        agent = {"retest": "test", "testeur": "test"}.get(agent, agent)
+        agent = ALIAS.get(agent, agent)
         r = lire(f); r["fichier"] = os.path.basename(f); par_agent[agent].append(r)
 
     print(f"\nCoût des sous-agents — {os.path.basename(projet)}  ({len(fichiers)} agents)\n")

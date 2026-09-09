@@ -178,7 +178,10 @@ fabrique et dans quel fichier.
    constat de refus. **Toutes les tâches de la feature sont créées à son ouverture**, pas
    livraison par livraison : Linear calcule l'avancement sur le total, qui ne redescend jamais.
    Une feature sans jalon = une seule livraison implicite. **Ne rien créer.**
-5. **S'arrêter : l'humain valide la liste.**
+5. **S'arrêter : l'humain valide la liste.** Si le découpage a déplacé une clause du contrat
+   ou amendé une décision produit du temps 1 — un recoupage pour deux agents le fait presque
+   toujours —, c'est une décision de l'humain : elle se grave dans la fiche feature, section
+   « Décisions produit », avec « amende la décision n° X », avant de créer quoi que ce soit.
 6. Créer les tâches (`save_issue`) : team, project = la feature, `milestone` = la livraison,
    statut « À faire », label, description au template Tâche, **dans l'ordre des livraisons puis
    des tâches**, `sortOrder` = rang (API `issueUpdate`). Dans la description de chaque jalon :
