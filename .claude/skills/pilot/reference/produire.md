@@ -81,6 +81,31 @@ livraison, c'est du bruit qui cache les vraies transitions.
    worktree`, on reste à 1.
    C'est ce qui permet l'épreuve des deux heures de la méthode : deux livraisons disjointes,
    deux worktrees, l'écran fermé, et deux PR à relire au retour.
+
+   **Contrôle de poste, avant tout producteur.** Un poste se prépare selon la recette de la
+   ligne `Poste par worktree` — dépendances installées, base migrée, compte de recette créé —
+   puis se vérifie par une commande, la même que celle du testeur, sur un écran protégé :
+
+   ```bash
+   node .claude/tools/passe-visuelle/passe-visuelle.mjs --serveur "<Lancer l'app>" \
+     --url "<URL du poste>/<écran protégé>" --amorce <amorce> --out .pilot/recette/controle-<poste>
+   ```
+
+   Le serveur répond, l'amorce ouvre une session, l'image est celle de l'écran demandé : le
+   poste est prêt, une ligne au fil (« Poste B prêt »). « ÉCRAN INATTENDU » ou serveur muet :
+   le poste ne l'est pas, on le prépare et on recommence. Aucun producteur ne démarre sur un
+   poste non contrôlé. Le 08/09, le poste B n'avait pas son compte de recette : c'est l'humain
+   qui l'a vu, en dictant une commande au lead. Ce contrôle est là pour que ça ne remonte
+   plus jusqu'à lui.
+
+   **Une décision du cadrage amendée se grave avant de lancer.** Le découpage pour deux
+   agents, ou le run lui-même, peut déplacer une clause du contrat d'une livraison à une
+   autre, ou contredire une décision produit — « l'historique ne se supprime jamais » contre
+   « la fiche supprimée n'apparaît plus nulle part ». Ce n'est pas un détail d'ordre de
+   mission : c'est une décision, tranchée par l'humain, qui va dans la fiche Linear de la
+   feature, section « Décisions produit », avec la mention « amende la décision n° X ». Puis
+   recopiée dans `MISSION.md`. La règle existait pour les décisions prises au merge ; elle
+   vaut à tout moment.
 3. **Lancer les producteurs**, un agent `tdd-writer` par worktree, au plus `n` à la fois
    (une livraison finie libère une place pour la suivante ; le plafond reste le nombre de
    livraisons disjointes). Session indépendante (pane) quand le travail est long et doit être
