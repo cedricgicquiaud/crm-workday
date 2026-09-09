@@ -11,7 +11,8 @@ import { fieldsOf } from "@/features/objects/fields";
 import { displayValue, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 
-type Props = { type: string; record: SerializedRecord; users: readonly UserOption[] };
+/** `readOnly` : la fiche entière ne se modifie plus (fiche archivée, D21) ; `field.editable` reste la règle du champ. */
+type Props = { type: string; record: SerializedRecord; users: readonly UserOption[]; readOnly?: boolean };
 
 const MAIN_SECTION = "Champs";
 
@@ -34,7 +35,7 @@ const asString = (value: unknown) => (value === null || value === undefined ? ""
  * valeur enregistrée revient. Les champs s'empilent sur une seule colonne et prennent toute la
  * largeur de la colonne centrale : une adresse email ou une rue s'y lit en entier.
  */
-export function FieldsSection({ type, record: initial, users }: Props) {
+export function FieldsSection({ type, record: initial, users, readOnly = false }: Props) {
   const router = useRouter();
   const definition = getObject(type);
   const [record, setRecord] = useState(initial);
@@ -75,7 +76,7 @@ export function FieldsSection({ type, record: initial, users }: Props) {
           <h2 className="text-base font-medium">{section.name}</h2>
           <div className="grid gap-3">
             {section.fields.map((field) => (
-              <EditableField key={field.key} type={type} field={field} value={asString(record[field.key])} error={errors[field.key]} users={users} onSave={(value) => save(field, value)} />
+              <EditableField key={field.key} type={type} field={field} value={asString(record[field.key])} error={errors[field.key]} users={users} readOnly={readOnly} onSave={(value) => save(field, value)} />
             ))}
           </div>
         </section>
@@ -84,10 +85,29 @@ export function FieldsSection({ type, record: initial, users }: Props) {
   );
 }
 
-type EditableProps = { type: string; field: FieldDescriptor; value: string; error?: string; users: readonly UserOption[]; onSave: (value: string) => Promise<boolean> };
+/**
+ * Valeur en lecture seule : un nom calculé, un champ dérivé, ou n'importe quel champ d'une fiche
+ * archivée (D21). Elle se lit comme du texte. Rendue par un contrôle éteint, elle serait à demi
+ * transparente — le contraste tomberait sous le seuil lisible alors que c'est une donnée de la
+ * fiche (défaut d'audit 2.2). Les sections propres à un objet s'en servent aussi.
+ */
+export function ReadOnlyValue({ id, label, value }: { id: string; label: string; value: string }) {
+  return (
+    <div className="grid gap-1">
+      <span id={`${id}-label`} className="flex items-center gap-2 text-sm leading-none font-medium select-none">
+        {label}
+      </span>
+      <p id={id} aria-labelledby={`${id}-label`} className="min-w-0 truncate text-sm" title={value}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+type EditableProps = { type: string; field: FieldDescriptor; value: string; error?: string; users: readonly UserOption[]; readOnly: boolean; onSave: (value: string) => Promise<boolean> };
 
 /** Un champ éditable en place : le contrôle porte le libellé au-dessus (12 px / 500) et l'erreur en dessous (11 px). */
-function EditableField({ type, field, value: saved, error, users, onSave }: EditableProps) {
+function EditableField({ type, field, value: saved, error, users, readOnly, onSave }: EditableProps) {
   const id = `champ-${type}-${field.key}`;
   const errorId = `${id}-error`;
   const [draft, setDraft] = useState(saved);
@@ -97,25 +117,10 @@ function EditableField({ type, field, value: saved, error, users, onSave }: Edit
     setSeen(saved);
     setDraft(saved);
   }
-  const editable = field.editable !== false;
+  const editable = field.editable !== false && !readOnly;
   const describedBy = error ? errorId : undefined;
 
-  /* Lecture seule (un nom calculé, un champ dérivé) : la valeur se lit comme du texte. Rendue par un
-     contrôle éteint, elle serait à demi transparente — le contraste tomberait sous le seuil lisible
-     alors que c'est une donnée de la fiche (défaut d'audit 2.2). */
-  if (!editable) {
-    const text = displayValue(field, saved, users);
-    return (
-      <div className="grid gap-1">
-        <span id={`${id}-label`} className="flex items-center gap-2 text-sm leading-none font-medium select-none">
-          {field.label}
-        </span>
-        <p id={id} aria-labelledby={`${id}-label`} className="min-w-0 truncate text-sm" title={text}>
-          {text}
-        </p>
-      </div>
-    );
-  }
+  if (!editable) return <ReadOnlyValue id={id} label={field.label} value={displayValue(field, saved, users)} />;
 
   async function commit() {
     if (draft === saved) return;

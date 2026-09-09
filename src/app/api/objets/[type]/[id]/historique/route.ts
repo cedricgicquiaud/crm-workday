@@ -15,8 +15,13 @@ export const GET = withApi(async (request: Request, { params }: Context) => {
   return NextResponse.json({ entries: await listHistory(type, id) });
 });
 
-/** Une entrée d'historique ne se modifie pas et ne se supprime pas (contrat 15). */
-const refuse = withApi<[Context]>(async () => NextResponse.json({ error: "historique_immuable", message: "L'historique ne se modifie pas et ne se supprime pas." }, { status: 405, headers: { allow: "GET" } }));
+/**
+ * Une entrée d'historique ne se modifie pas et ne se supprime pas (contrat 15) — sauf avec sa
+ * fiche, lors d'une suppression définitive (amendement de la décision 12, validé le 8 septembre
+ * 2026, appliqué par `src/features/archive/delete.ts`). Aucune route ne la supprime seule : le
+ * refus reste 405.
+ */
+const refuse = withApi<[Context]>(async () => NextResponse.json({ error: "historique_immuable", message: "L'historique ne se modifie pas et ne se supprime pas, sauf avec la fiche elle-même lors d'une suppression définitive." }, { status: 405, headers: { allow: "GET" } }));
 
 export const PATCH = refuse;
 export const DELETE = refuse;

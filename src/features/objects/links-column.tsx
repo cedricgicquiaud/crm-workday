@@ -91,7 +91,7 @@ const addLabel = (objectKey: string) => {
  * contact », D7) : bouton secondaire, le bouton plein reste celui de la liste. Sans relation
  * déclarée, la colonne montre son état vide.
  */
-export async function LinksColumn({ type, id, className }: { type: string; id: string; className?: string }) {
+export async function LinksColumn({ type, id, className, readOnly = false }: { type: string; id: string; className?: string; readOnly?: boolean }) {
   const [groups, users, { user }] = await Promise.all([linkedGroups(type, id), listUserOptions(), requireSession()]);
   return (
     <section aria-label="Liens" className={cn("grid min-w-0 content-start gap-3", className)}>
@@ -102,7 +102,8 @@ export async function LinksColumn({ type, id, className }: { type: string; id: s
         groups.map((group) => (
           <section key={group.key} aria-label={group.label} className="grid justify-items-start gap-1">
             <h3 className="text-sm font-medium text-muted-foreground">{group.label}</h3>
-            {group.create && <QuickCreateDialog type={group.create.type} users={users} currentUserId={user.id} prefill={group.create.prefill} trigger={{ label: addLabel(group.create.type), variant: "outline", size: "sm" }} />}
+            {/* Fiche archivée : la création rapide disparaît — elle ne peut plus rattacher quoi que ce soit (D21). */}
+            {group.create && !readOnly && <QuickCreateDialog type={group.create.type} users={users} currentUserId={user.id} prefill={group.create.prefill} trigger={{ label: addLabel(group.create.type), variant: "outline", size: "sm" }} />}
             {group.records.length === 0 ? (
               <p className="text-sm text-muted-foreground">Aucune fiche liée.</p>
             ) : (

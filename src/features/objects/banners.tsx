@@ -1,6 +1,8 @@
 import { cn } from "cn";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { overdueTasks } from "@/features/activities/overdue";
+import { getObject } from "@/features/objects/registry";
+import { getObjectRecord } from "@/features/objects/service";
 
 /** Familles de teinte des signalements (fondations « Signalement ») : une par gravité, jamais une par valeur. */
 export type BannerTone = "danger" | "warning" | "info";
@@ -34,8 +36,18 @@ async function overdueTasksBanner(type: string, id: string): Promise<Banner[]> {
   return [{ rank: "tache_echue", tone: "warning", message: `${tasks.length} tâche${plural} échue${plural}.` }];
 }
 
+/**
+ * « Entreprise archivée : la fiche est en lecture seule. » (contrat 30). Le ton dit un état inerte,
+ * pas un défaut : la fiche est intacte, seule l'écriture est fermée, et « restaurer » la rouvre.
+ */
+async function archivedBanner(type: string, id: string): Promise<Banner[]> {
+  const record = await getObjectRecord(type, id);
+  if (!record.archivedAt) return [];
+  return [{ rank: "archivee", tone: "info", message: `${getObject(type).labels.singular} archivée : la fiche est en lecture seule.` }];
+}
+
 /** Une ligne par source ; les livraisons suivantes ajoutent la leur ici. */
-const SOURCES: readonly BannerSource[] = [overdueTasksBanner];
+const SOURCES: readonly BannerSource[] = [archivedBanner, overdueTasksBanner];
 
 /** Tous les signalements d'une fiche, du plus grave au moins grave. */
 export async function collectBanners(type: string, id: string): Promise<Banner[]> {
