@@ -121,7 +121,7 @@ test.describe("fusionner deux entreprises (CRM-59, contrat 29)", () => {
     /* Tout ce que portait l'absorbée est là, et le fil porte l'entrée de fusion, marquée automatique. */
     const feed = adminPage.getByRole("region", { name: "Fil d'activité" });
     await expect(feed.getByText(`Premier rendez-vous ${sfx}`)).toBeVisible();
-    await expect(feed.getByText("Fiche fusionnée")).toBeVisible();
+    await expect(feed.getByText(`Fusionnée avec Fonderie Bertin SARL ${sfx}`, { exact: true })).toBeVisible();
     await expect(feed.getByText("automatique").first()).toBeVisible();
 
     /* La bannière a disparu des deux côtés, et l'adresse de l'absorbée mène à la conservée. */

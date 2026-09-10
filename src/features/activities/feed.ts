@@ -152,7 +152,7 @@ async function totalOf(loaded: number, countRows: () => Promise<{ value: number 
   return Math.max(Number(row?.value ?? loaded), loaded);
 }
 
-const ACTION_LABELS: Record<HistoryEntry["action"], string> = { creee: "Fiche créée", modifiee: "Champ modifié", archivee: "Fiche archivée", restauree: "Fiche restaurée", fusionnee: "Fiche fusionnée" };
+const ACTION_LABELS: Record<HistoryEntry["action"], string> = { creee: "Fiche créée", modifiee: "Champ modifié", archivee: "Fiche archivée", restauree: "Fiche restaurée", fusionnee: "Fusionnée avec" };
 
 /** « Type : Prospect → Client » ; une valeur absente se lit « vide ». */
 function changeLabel(fields: readonly FieldDescriptor[], entry: HistoryEntry, users: readonly UserOption[]): string {
@@ -164,7 +164,10 @@ function changeLabel(fields: readonly FieldDescriptor[], entry: HistoryEntry, us
 
 /** Phrase d'une entrée d'historique — « Fiche créée », « Type : Prospect → Client » (D12). */
 function historyLabel(type: string, entry: HistoryEntry, users: readonly UserOption[]): string {
-  return entry.action === "modifiee" ? changeLabel(historyFieldsOf(type), entry, users) : ACTION_LABELS[entry.action];
+  if (entry.action === "modifiee") return changeLabel(historyFieldsOf(type), entry, users);
+  /* Une fusion nomme la fiche absorbée (contrat 29) : son titre est dans `newValue`. */
+  if (entry.action === "fusionnee" && entry.newValue) return `${ACTION_LABELS.fusionnee} ${entry.newValue}`;
+  return ACTION_LABELS[entry.action];
 }
 
 /**
