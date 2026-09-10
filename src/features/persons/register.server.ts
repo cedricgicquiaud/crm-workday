@@ -4,9 +4,9 @@
  * par le manifeste serveur.
  */
 import { and, desc, eq, exists, ilike, isNull, or } from "drizzle-orm";
-import { company, person, personEmail } from "@/db/schema";
+import { company, contactProfile, person, personEmail } from "@/db/schema";
 import { normalizeName } from "@/features/duplicates/normalize";
-import { registerServerObject, type SearchHit } from "@/features/objects/registry.server";
+import { registerServerObject, type DependentTable, type SearchHit } from "@/features/objects/registry.server";
 import { db } from "@/lib/db";
 import { normalizeEmail } from "./schema";
 
@@ -38,4 +38,15 @@ function duplicateKey(record: Record<string, unknown>): string | null {
   return normalizeName(`${String(record.firstName ?? "")} ${String(record.lastName ?? "")}`) || null;
 }
 
-registerServerObject({ key: "person", table: person, search, duplicateKey });
+/**
+ * Ce qui dépend d'une personne sans être un objet : ses autres adresses (plusieurs par personne) et
+ * son profil contact (un au plus, D3). La fusion s'en sert pour rattacher ces lignes à la fiche
+ * conservée. L'entreprise de rattachement et le champ dérivé « Profils » suivent le profil : ils ne
+ * veulent rien dire sans lui.
+ */
+const dependents: readonly DependentTable[] = [
+  { table: personEmail, fkColumn: "personId", label: "Adresses email" },
+  { table: contactProfile, fkColumn: "personId", label: "Profil contact", oneAtMost: true, carries: ["companyId", "profiles"] },
+];
+
+registerServerObject({ key: "person", table: person, search, duplicateKey, dependents });
