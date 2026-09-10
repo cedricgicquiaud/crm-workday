@@ -148,3 +148,22 @@ export async function retireValue(id: string, value: string): Promise<CustomFiel
   if (!current.values.includes(value)) throw new HttpError(404, "valeur_introuvable", `« ${value} » n'est pas une valeur de « ${current.label} ».`);
   return updateDefinition(id, { values: current.values.filter((entry) => entry !== value) });
 }
+
+/**
+ * Monte ou descend un champ d'un rang dans son objet : les deux voisins échangent leur rang. Un
+ * champ déjà en bout de liste ne bouge pas — ce n'est pas une erreur, il n'y a rien après lui.
+ */
+export async function moveDefinition(id: string, direction: "up" | "down"): Promise<CustomFieldDefinition> {
+  const current = await getDefinition(id);
+  const siblings = await listDefinitions(current.objectType);
+  const index = siblings.findIndex((definition) => definition.id === id);
+  const neighbour = siblings[index + (direction === "up" ? -1 : 1)];
+  if (!neighbour) return current;
+  await db.update(customFieldDefinition).set({ position: current.position, updatedAt: new Date() }).where(eq(customFieldDefinition.id, neighbour.id));
+  const [row] = await db
+    .update(customFieldDefinition)
+    .set({ position: neighbour.position, updatedAt: new Date() })
+    .where(eq(customFieldDefinition.id, id))
+    .returning();
+  return toDefinition(row);
+}
