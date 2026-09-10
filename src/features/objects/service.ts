@@ -8,6 +8,7 @@
 import "@/features/objects/manifest.server";
 import { and, asc, desc, eq, getTableColumns, isNull, ne, type SQL } from "drizzle-orm";
 import { loadCustomFields } from "@/features/custom-fields/definitions";
+import { isCustomFieldKey } from "@/features/custom-fields/fields-source";
 import { attachCustomValues, splitCustomValues, writeCustomValues } from "@/features/custom-fields/values";
 import { recordHistory } from "@/features/history/history";
 import { fieldsOf, serializeValue, validateValues, type FieldValues } from "@/features/objects/fields";
@@ -188,13 +189,15 @@ export async function updateObject(type: string, id: string, patch: unknown, act
     .map((field) => ({ field, oldValue: serializeValue(field, current[field.key]), newValue: serializeValue(field, values[field.key]) }))
     .filter((change) => change.oldValue !== change.newValue);
   if (changed.length === 0) return current;
-  const { base, custom } = splitCustomValues(Object.fromEntries(changed.map(({ field, newValue }) => [field.key, newValue])));
+  /* Les colonnes de la fiche partent dans sa table ; les champs personnalisés dans la leur, déjà sérialisés, comme l'historique les lit. */
+  const columnChanges = changed.filter(({ field }) => !isCustomFieldKey(field.key));
+  const customChanges = changed.filter(({ field }) => isCustomFieldKey(field.key));
   const [row] = await db
     .update(table)
-    .set({ ...Object.fromEntries(Object.keys(base).map((key) => [key, values[key]])), updatedAt: new Date() })
+    .set({ ...Object.fromEntries(columnChanges.map(({ field }) => [field.key, values[field.key]])), updatedAt: new Date() })
     .where(eq(columns.id, id))
     .returning();
-  await writeCustomValues(type, id, custom);
+  await writeCustomValues(type, id, Object.fromEntries(customChanges.map(({ field, newValue }) => [field.key, newValue])));
   await recordHistory(changed.map(({ field, oldValue, newValue }) => ({ objectType: type, objectId: id, action: "modifiee" as const, field: field.key, oldValue, newValue, authorId: actor.id })));
   return withCustomValues(type, row as ObjectRecord);
 }
