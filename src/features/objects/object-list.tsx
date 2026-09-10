@@ -2,6 +2,7 @@ import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import Link from "next/link";
 import "@/features/objects/manifest.server";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ArchivedBadge } from "@/features/lists/list-cards";
 import { CustomFieldsSource } from "@/features/custom-fields/custom-fields-section";
 import { loadCustomFields } from "@/features/custom-fields/definitions";
 import { listForState } from "@/features/lists/apply-filters";
@@ -116,10 +117,14 @@ export async function ObjectList({ type, query }: { type: string; query?: ListQu
                   const label = displayValue(title, record[title.key], users);
                   return (
                     <TableRow key={record.id} className="h-8">
-                      <TableCell className="truncate py-1 font-medium" title={label}>
-                        <Link href={definition.href(record.id)} className="hover:underline focus-visible:rounded-sm">
-                          {label}
-                        </Link>
+                      <TableCell className="py-1 font-medium" title={label}>
+                        {/* La fiche archivée porte sa marque en toutes lettres : la couleur seule ne dit rien (CRM-68, fondations « Signalement »). */}
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <Link href={definition.href(record.id)} className="truncate hover:underline focus-visible:rounded-sm">
+                            {label}
+                          </Link>
+                          {record.archivedAt != null && <ArchivedBadge type={type} />}
+                        </span>
                       </TableCell>
                       {columns.map((column) =>
                         /* La colonne de base ne se saisit pas : la liste la rend elle-même, en date courte alignée à droite. */
