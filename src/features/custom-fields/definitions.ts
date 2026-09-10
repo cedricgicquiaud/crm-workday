@@ -5,6 +5,7 @@
  */
 import "@/features/objects/manifest.server";
 import { and, asc, eq, ne } from "drizzle-orm";
+import { cache } from "react";
 import { customFieldDefinition } from "@/db/schema";
 import { setCustomFields, type CustomFieldDefinition, type CustomFieldType } from "@/features/custom-fields/fields-source";
 import { parseDefinitionInput, parseLabel, parseValues } from "@/features/custom-fields/schema";
@@ -79,12 +80,22 @@ export async function createDefinition(input: unknown, actor: Actor): Promise<Cu
 }
 
 /**
+ * Une lecture des définitions par requête : `cache` de React mémorise l'appel pour toute la durée du
+ * rendu ou de la requête. La page, la route et le service générique passent tous par `loadCustomFields`
+ * — sans cette mémorisation, une fiche affichée lisait la table trois fois (la page, la fiche, la
+ * bannière) et une liste deux fois. Hors requête (tests, scripts), il n'y a pas de portée à mémoriser :
+ * chaque appel relit, ce qui est le comportement attendu là-bas.
+ */
+const readDefinitions = cache(() => listDefinitions());
+
+/**
  * Remplit la source de champs lue par `fieldsOf`, et rend les définitions pour que l'écran les
  * repose de son côté (`CustomFieldsSource`). Le serveur passe par ici à chaque rendu et à chaque
- * écriture : les définitions changent sans redéploiement, il n'y a rien à mettre en cache.
+ * écriture : les définitions changent sans redéploiement, il n'y a rien à garder d'une requête à
+ * l'autre. La source est reposée à chaque appel, la table lue une fois.
  */
 export async function loadCustomFields(): Promise<CustomFieldDefinition[]> {
-  const definitions = await listDefinitions();
+  const definitions = await readDefinitions();
   setCustomFields(definitions);
   return definitions;
 }
