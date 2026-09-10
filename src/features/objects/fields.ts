@@ -1,12 +1,13 @@
 /**
- * Lecture des descripteurs de champs d'un objet. La livraison 2.4 y ajoutera les champs
- * personnalisés définis par un administrateur, sans que les lecteurs changent.
+ * Lecture des descripteurs de champs d'un objet : ceux qu'il déclare au registre, et ceux qu'un
+ * administrateur a définis (2.4). Les lecteurs ne distinguent pas les uns des autres.
  */
+import { customFieldsOf } from "@/features/custom-fields/fields-source";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 
-/** Champs d'un objet, dans l'ordre d'affichage (`order` croissant). */
+/** Champs d'un objet, dans l'ordre d'affichage (`order` croissant) ; les champs personnalisés viennent après. */
 export function fieldsOf(type: string): readonly FieldDescriptor[] {
-  return [...getObject(type).fields].sort((a, b) => a.order - b.order);
+  return [...getObject(type).fields, ...customFieldsOf(type)].sort((a, b) => a.order - b.order);
 }
 
 /**
