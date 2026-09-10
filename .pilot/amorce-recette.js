@@ -173,3 +173,28 @@ if (ficheAvecChamps && Object.keys(valeurs).length > 0) {
     throw new Error(`amorce-recette : saisie des champs personnalisés sur ${ficheAvecChamps.name} refusée (${saisie.status}).`);
   }
 }
+
+// Livraison 2.6a — une paire de doublons probables pour la recette : « Acme » et « ACME SAS » se
+// réduisent au même nom une fois la forme juridique retirée, les deux fiches portent donc la
+// bannière « doublon probable » avec son lien de fusion. Les deux fiches diffèrent sur la ville et
+// le secteur : le dialogue de fusion a ainsi des champs à faire trancher. **Rien n'est fusionné
+// ici** : le testeur doit voir les deux bannières. Même règle que les blocs précédents — on lit
+// d'abord la liste et on ne crée que les raisons sociales absentes, pour qu'une relance n'émette
+// aucune requête refusée ; une fiche fusionnée à la main en recette n'est pas recréée sous son
+// ancien nom tant que l'autre porte encore le sien.
+const listeDoublons = await fetch("/api/entreprises");
+if (!listeDoublons.ok) {
+  throw new Error(`amorce-recette : lecture des entreprises refusée (${listeDoublons.status}).`);
+}
+const nomsPresents = new Set((await listeDoublons.json()).companies.map((entreprise) => entreprise.name));
+const jumelles = [
+  { name: "Acme", type: "prospect", city: "Paris", postalCode: "75002", street: "12 rue de la Paix", sector: "Conseil" },
+  { name: "ACME SAS", type: "client", city: "Lyon", postalCode: "69003", street: "40 rue Garibaldi", website: "https://www.acme.fr" },
+];
+for (const jumelle of jumelles) {
+  if (nomsPresents.has(jumelle.name)) continue;
+  const creation = await fetch("/api/entreprises", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(jumelle) });
+  if (!creation.ok && creation.status !== 409) {
+    throw new Error(`amorce-recette : création de ${jumelle.name} refusée (${creation.status}).`);
+  }
+}
