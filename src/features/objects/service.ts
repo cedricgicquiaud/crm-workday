@@ -7,6 +7,7 @@
  */
 import "@/features/objects/manifest.server";
 import { and, asc, desc, eq, getTableColumns, isNull, ne, type SQL } from "drizzle-orm";
+import type { PgTable } from "drizzle-orm/pg-core";
 import { loadCustomFields } from "@/features/custom-fields/definitions";
 import { allCustomFieldsOf, isCustomFieldKey } from "@/features/custom-fields/fields-source";
 import { attachCustomValues, splitCustomValues, writeCustomValues } from "@/features/custom-fields/values";
@@ -159,15 +160,27 @@ export async function redirectedId(type: string, id: string): Promise<string | n
 export async function getObjectRecord(type: string, id: string): Promise<ObjectRecord> {
   const { table } = getServerObject(type);
   if (!UUID.test(id)) throw notFound(type);
-  const columns = getTableColumns(table);
-  const [row] = await db.select().from(table).where(eq(columns.id, id)).limit(1);
-  if (!row) {
-    const kept = await redirectedId(type, id);
-    if (kept) return getObjectRecord(type, kept);
-    throw notFound(type);
-  }
+  const row = (await rowById(table, id)) ?? (await keptRow(type, table, id));
   await loadCustomFields();
   return withCustomValues(type, row as ObjectRecord);
+}
+
+/** Ligne d'une table par son identifiant, ou `null` : la lecture d'une fiche et le suivi d'une redirection la partagent. */
+async function rowById(table: PgTable, id: string): Promise<Record<string, unknown> | null> {
+  const [row] = await db.select().from(table).where(eq(getTableColumns(table).id, id)).limit(1);
+  return (row as Record<string, unknown> | undefined) ?? null;
+}
+
+/**
+ * Fiche conservée à la place d'une fiche absorbée, en **un seul saut** : la fusion aplatit la chaîne
+ * des redirections (elle re-pointe celles qui menaient à l'absorbée), donc un second saut ne pourrait
+ * être qu'un cycle — le suivre ferait tourner la lecture sans fin. Sans fiche au bout, 404.
+ */
+async function keptRow(type: string, table: PgTable, id: string): Promise<Record<string, unknown>> {
+  const kept = await redirectedId(type, id);
+  const row = kept && kept !== id ? await rowById(table, kept) : null;
+  if (!row) throw notFound(type);
+  return row;
 }
 
 /** Une fiche archivée est en lecture seule : toute écriture répond 409 (D21). */
