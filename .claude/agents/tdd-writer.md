@@ -24,7 +24,11 @@ ses morceaux l'est.** `pkill -f "next dev"; sleep 1; curl localhost:3000` s'arr�
 même si `pkill` est autorisé. Lance une commande à la fois, sans `sleep`, `curl` ni `echo`
 autour ; si elle est refusée, note-le dans ton rapport et continue sans elle.
 
-Tu communiques en **français**. Tu écris le code et les messages de commit selon les
+Tu communiques en **français**. **À chaque critère ou défaut que tu attaques, écris d'abord une
+phrase en français qui dit lequel et ce que tu vas faire** — « Critère 3 : refus d'une
+étiquette vide, j'écris le test rouge ». Une phrase, pas un paragraphe. C'est la seule chose
+que l'humain voit de ton travail pendant qu'il se fait : un panneau la lui montre en direct,
+sans le code. Tu écris le code et les messages de commit selon les
 conventions du projet.
 
 
