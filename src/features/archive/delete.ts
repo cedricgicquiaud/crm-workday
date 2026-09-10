@@ -6,11 +6,12 @@
  *
  * L'historique ne se supprime jamais, **sauf avec la fiche elle-même** (amendement de D12 validé le
  * 8 septembre 2026) : il n'est lisible que depuis sa fiche, et le contrat exige qu'elle n'apparaisse
- * plus nulle part. La fiche et ses entrées partent donc dans la même transaction.
+ * plus nulle part. La fiche, ses entrées et ses valeurs de champs personnalisés partent donc dans la
+ * même transaction.
  */
 import { and, count, eq, getTableColumns, or, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
-import { activity, auditLog, emailLog } from "@/db/schema";
+import { activity, auditLog, customFieldValue, emailLog } from "@/db/schema";
 import { getObject, listObjects } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
 import { getObjectRecord } from "@/features/objects/service";
@@ -70,6 +71,8 @@ export async function deleteRecord(type: string, id: string): Promise<void> {
   const columns = getTableColumns(table);
   await db.transaction(async (tx) => {
     await tx.delete(auditLog).where(and(eq(auditLog.objectType, type), eq(auditLog.objectId, id)));
+    /* Les valeurs personnalisées (2.4) partent avec la fiche : aucune clé étrangère ne les tient, la fiche n'est dans aucune table commune. */
+    await tx.delete(customFieldValue).where(and(eq(customFieldValue.objectType, type), eq(customFieldValue.objectId, id)));
     await tx.delete(table).where(eq(columns.id, id));
   });
 }
