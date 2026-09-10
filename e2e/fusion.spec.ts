@@ -108,12 +108,15 @@ test.describe("fusionner deux entreprises (CRM-59, contrat 29)", () => {
     await expect(dialog.getByRole("listitem").filter({ hasText: "Activités : 1" })).toBeVisible();
 
     /* Champ par champ : la ville de l'absorbée est prise, la raison sociale reste celle de la conservée. */
-    await dialog.getByRole("radiogroup", { name: "Ville" }).getByRole("radio", { name: "Lyon" }).click();
+    const lyon = dialog.getByRole("radiogroup", { name: "Ville" }).getByRole("radio", { name: "Lyon" });
+    await lyon.click();
+    await expect(lyon).toBeChecked();
+
     await dialog.getByRole("button", { name: "Fusionner", exact: true }).click();
 
     await expect(adminPage).toHaveURL(new RegExp(`/entreprises/${kept}$`));
     await expect(adminPage.getByRole("heading", { level: 1, name: `Fonderie Bertin ${sfx}` })).toBeVisible();
-    await expect(adminPage.getByRole("region", { name: "Champs" }).getByRole("textbox", { name: "Ville" })).toHaveValue("Lyon");
+    await expect(adminPage.getByRole("region", { name: "Adresse" }).getByRole("textbox", { name: "Ville" })).toHaveValue("Lyon");
 
     /* Tout ce que portait l'absorbée est là, et le fil porte l'entrée de fusion, marquée automatique. */
     const feed = adminPage.getByRole("region", { name: "Fil d'activité" });

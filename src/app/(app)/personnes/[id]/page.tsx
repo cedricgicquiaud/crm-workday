@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import "@/features/objects/manifest.server";
 import { Badge } from "@/components/ui/badge";
 import { ActivityFeed, SheetPanes } from "@/features/activities/activity-feed";
@@ -43,6 +43,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   /* Les champs personnalisés d'abord : la fiche et ses briques les lisent comme des champs déclarés (2.4). */
   const customFields = await loadCustomFields();
   const [record, users, profile, companies, session] = await Promise.all([loadPerson(id), listUserOptions(), getContactProfile(id), listRecordOptions("company"), requireSession()]);
+  /* Fiche absorbée par une fusion : son adresse mène à la fiche conservée (contrat 29). */
+  if (record.id !== id) redirect(definition.href(record.id));
   /* Les options d'utilisateurs sont lues une fois pour la fiche, puis passées au fil : il ne les relit pas. */
   const feed = await listFeed(TYPE, id, users);
   const fields = fieldsOf(TYPE);
@@ -50,6 +52,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const profiles = fields.find((f) => f.key === "profiles")!;
   /* Fiche archivée : elle se lit, elle ne s'écrit plus (D21) — champs en texte, composeur, créations rapides et profil contact retirés. */
   const archived = record.archivedAt != null;
+  const isAdmin = session.user.role === "administrateur";
   return (
     <div className="grid gap-6">
       <CustomFieldsSource definitions={customFields} />
@@ -61,11 +64,11 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             {definition.labels.singular}
           </Badge>
           <Badge variant="outline" className="border-border">{`Profils : ${displayValue(profiles, record.profiles, users)}`}</Badge>
-          <ObjectActionsMenu type={TYPE} id={id} archived={archived} canDelete={session.user.role === "administrateur"} />
+          <ObjectActionsMenu type={TYPE} id={id} title={record.name as string} archived={archived} canDelete={isAdmin} />
         </div>
         <p className="tabular text-sm text-muted-foreground">{`Créée le ${formatDate(record.createdAt)} · modifiée le ${formatDate(record.updatedAt)} · responsable : ${displayValue(owner, record.ownerId, users)}`}</p>
       </header>
-      <SheetBanners type={TYPE} id={id} />
+      <SheetBanners type={TYPE} id={id} showAction={isAdmin} />
       <SheetPanes
         feedCount={feed.items.length}
         links={<LinksColumn type={TYPE} id={id} readOnly={archived} />}

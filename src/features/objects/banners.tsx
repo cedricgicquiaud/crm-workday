@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { cn } from "cn";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { overdueTasks } from "@/features/activities/overdue";
 import { duplicatesOfRecord } from "@/features/duplicates/duplicates";
+import { duplicateMessage, MERGE_PARAM } from "@/features/duplicates/normalize";
 import { getObject } from "@/features/objects/registry";
 import { getObjectRecord } from "@/features/objects/service";
 
@@ -28,9 +30,6 @@ const rankOrder = (rank: string) => BANNER_RANKS.find((declared) => declared.key
 
 /** Signalements du plus grave au moins grave. */
 export const sortBanners = (banners: readonly Banner[]): Banner[] => [...banners].sort((a, b) => rankOrder(a.rank) - rankOrder(b.rank));
-
-/** Paramètre d'adresse qui ouvre la fusion sur la fiche, la jumelle déjà choisie (lu par le menu d'actions). */
-export const MERGE_PARAM = "fusion";
 
 /** Une source de signalement : elle lit une fiche et rend les bannières qu'elle justifie. */
 type BannerSource = (type: string, id: string) => Promise<Banner[]>;
@@ -61,8 +60,8 @@ async function archivedBanner(type: string, id: string): Promise<Banner[]> {
 async function duplicateBanner(type: string, id: string): Promise<Banner[]> {
   const duplicates = await duplicatesOfRecord(type, id);
   if (duplicates.length === 0) return [];
-  const named = duplicates.length === 1 ? `« ${duplicates[0].title} » porte un nom très proche` : `${duplicates.length} fiches portent un nom très proche`;
-  return [{ rank: "doublon", tone: "warning", message: `Doublon probable : ${named}.`, action: { label: "Fusionner…", href: `${getObject(type).href(id)}?${MERGE_PARAM}=${duplicates[0].id}` } }];
+  const message = duplicateMessage(duplicates.map((duplicate) => duplicate.title));
+  return [{ rank: "doublon", tone: "warning", message, action: { label: "Fusionner…", href: `${getObject(type).href(id)}?${MERGE_PARAM}=${duplicates[0].id}` } }];
 }
 
 /** Une ligne par source ; les livraisons suivantes ajoutent la leur ici. */
@@ -84,15 +83,29 @@ const TONES: Record<BannerTone, string> = {
  * Bannière en haut du contenu d'une fiche (D5, fondations « Signalement ») : **une seule à la fois**,
  * la plus grave, bordure gauche de 3 px à la teinte de sa famille ; les autres sont comptées à côté.
  * Sans signalement, rien ne s'affiche. Elle informe, elle n'interrompt pas : `role="status"`.
+ *
+ * `showAction` : le geste que propose la bannière n'est pas ouvert à tous (la fusion est réservée à
+ * un administrateur, contrat 31). La page qui rend la fiche connaît le rôle et le dit ici ; sans
+ * elle, le lien mènerait à un écran qui ne s'ouvre pas.
  */
-export async function SheetBanners({ type, id }: { type: string; id: string }) {
+export async function SheetBanners({ type, id, showAction = false }: { type: string; id: string; showAction?: boolean }) {
   const banners = await collectBanners(type, id);
   if (banners.length === 0) return null;
   const [first, ...others] = banners;
+  const action = showAction ? first.action : undefined;
   return (
     <Alert role="status" className={cn("border-l-[3px]", TONES[first.tone])}>
       <AlertTitle>{first.message}</AlertTitle>
-      {others.length > 0 && <AlertDescription>{`et ${others.length} autre signalement${others.length > 1 ? "s" : ""}`}</AlertDescription>}
+      {(action || others.length > 0) && (
+        <AlertDescription>
+          {action && (
+            <Link href={action.href} className="font-medium underline underline-offset-2">
+              {action.label}
+            </Link>
+          )}
+          {others.length > 0 && <span>{`et ${others.length} autre signalement${others.length > 1 ? "s" : ""}`}</span>}
+        </AlertDescription>
+      )}
     </Alert>
   );
 }
