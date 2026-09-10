@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { CircleDashedIcon } from "lucide-react";
 import { customFieldDefinition, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
-import { createDefinition, listDefinitions } from "@/features/custom-fields/definitions";
+import { createDefinition, listDefinitions, moveDefinition } from "@/features/custom-fields/definitions";
 import { CUSTOM_FIELD_LABEL_MAX } from "@/features/custom-fields/schema";
 import { HttpError } from "@/lib/auth/session";
 import { closeDb, db } from "@/lib/db";
@@ -82,5 +82,22 @@ describe("définitions de champs personnalisés (CRM-54)", () => {
       expect((refused as HttpError).message).not.toBe("");
     }
     expect((await listDefinitions(TEST_TYPE)).map((definition) => definition.label)).toEqual(["Effectif", "Segment"]);
+  });
+
+  it("réordonne les champs d'un objet : monter un champ le passe devant son voisin, et le premier ne monte pas plus haut", async () => {
+    const [premier, second] = await listDefinitions(TEST_TYPE);
+
+    await moveDefinition(second.id, "up");
+    expect((await listDefinitions(TEST_TYPE)).map((definition) => definition.label)).toEqual([second.label, premier.label]);
+
+    /* Le champ en tête reste en tête : rien ne bouge, et rien n'échoue. */
+    await moveDefinition(second.id, "up");
+    expect((await listDefinitions(TEST_TYPE)).map((definition) => definition.label)).toEqual([second.label, premier.label]);
+
+    await moveDefinition(second.id, "down");
+    expect((await listDefinitions(TEST_TYPE)).map((definition) => definition.label)).toEqual([premier.label, second.label]);
+
+    /* Le rang d'un objet ne dépend pas des champs d'un autre. */
+    expect((await listDefinitions(OTHER_TYPE)).map((definition) => definition.label)).toEqual(["Effectif"]);
   });
 });
