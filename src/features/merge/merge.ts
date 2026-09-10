@@ -42,13 +42,22 @@ const valuesOf = (type: string, id: string) => and(eq(customFieldValue.objectTyp
 
 /**
  * Les deux fiches d'une fusion, vérifiées avant toute écriture : 400 si c'est la même, 404 si l'une
- * est inconnue, 409 si l'une est archivée. Les types différents sont refusés par la route, qui seule
- * connaît le type annoncé pour chacune.
+ * est inconnue, 409 si l'une est archivée ou n'existe plus que par sa redirection. Les types
+ * différents sont refusés par la route, qui seule connaît le type annoncé pour chacune.
+ *
+ * La lecture d'une fiche suit les redirections : une fiche absorbée se lit comme la fiche conservée.
+ * Ce sont donc les identifiants **résolus** qui disent si la paire n'en fait qu'une — comparer les
+ * identifiants annoncés laisserait rejouer une fusion déjà faite, qui supprimerait la fiche conservée
+ * en croyant supprimer l'absorbée.
  */
 async function pairOf(type: string, keptId: string, absorbedId: string): Promise<{ kept: ObjectRecord; absorbed: ObjectRecord }> {
-  if (keptId === absorbedId) throw new HttpError(400, "meme_fiche", `${getObject(type).labels.singular} ne se fusionne pas avec elle-même.`);
+  const sameRecord = () => new HttpError(400, "meme_fiche", `${getObject(type).labels.singular} ne se fusionne pas avec elle-même.`);
+  if (keptId === absorbedId) throw sameRecord();
   const [kept, absorbed] = await Promise.all([getObjectRecord(type, keptId), getObjectRecord(type, absorbedId)]);
-  for (const record of [kept, absorbed]) {
+  if (kept.id === absorbed.id) throw sameRecord();
+  for (const [announced, record] of [[keptId, kept] as const, [absorbedId, absorbed] as const]) {
+    /* L'identifiant annoncé désigne une fiche déjà absorbée : la fusion porterait sur une fiche disparue. */
+    if (record.id !== announced) throw new HttpError(409, "fiche_absorbee", `${getObject(type).labels.singular} déjà fusionnée avec une autre : elle n'entre pas dans une nouvelle fusion.`, { id: record.id });
     if (record.archivedAt) throw new HttpError(409, "fiche_archivee", `${getObject(type).labels.singular} archivée : elle n'entre pas dans une fusion.`, { id: record.id });
   }
   return { kept, absorbed };
