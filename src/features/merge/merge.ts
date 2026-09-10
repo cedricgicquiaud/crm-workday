@@ -15,18 +15,22 @@ import type { PgTable } from "drizzle-orm/pg-core";
 import { activity, auditLog, customFieldValue, emailLog, objectRedirect } from "@/db/schema";
 import { deleteBlockers } from "@/features/archive/delete";
 import { customFieldKey, isCustomFieldKey } from "@/features/custom-fields/fields-source";
-import { fieldsOf } from "@/features/objects/fields";
+import { fieldsOf, serializeValue } from "@/features/objects/fields";
+import { displayValue } from "@/features/objects/labels";
 import { getObject, listObjects } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
-import { getObjectRecord, type ObjectRecord } from "@/features/objects/service";
+import { getObjectRecord, listUserOptions, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
 /** Une famille de ce qui sera déplacé : sa clé, ce qu'elle est pour un lecteur, et combien. */
 export type MergeCount = { key: string; label: string; count: number };
 
-/** Ce que la fusion fera, avant de la faire : les deux fiches et le compte exact par famille. */
-export type MergePlan = { keptId: string; absorbedId: string; moved: MergeCount[] };
+/** Un champ que les deux fiches ne remplissent pas pareil : à trancher avant de fusionner (D20). */
+export type MergeField = { key: string; label: string; kept: string; absorbed: string };
+
+/** Ce que la fusion fera, avant de la faire : les deux fiches, le compte par famille, les champs à trancher. */
+export type MergePlan = { keptId: string; absorbedId: string; moved: MergeCount[]; fields: MergeField[] };
 
 async function countWhere(table: PgTable, where: SQL): Promise<number> {
   const [row] = await db.select({ value: count() }).from(table).where(where);
@@ -64,7 +68,21 @@ async function attachments(type: string, keptId: string, id: string): Promise<Me
 /** Ce que la fusion déplacera, annoncé au dialogue de confirmation avant qu'il n'écrive rien (contrat 29). */
 export async function planMerge(type: string, keptId: string, absorbedId: string): Promise<MergePlan> {
   const { kept, absorbed } = await pairOf(type, keptId, absorbedId);
-  return { keptId, absorbedId, moved: await attachments(type, kept.id, absorbed.id) };
+  const [moved, fields] = await Promise.all([attachments(type, kept.id, absorbed.id), differingFields(type, kept, absorbed)]);
+  return { keptId, absorbedId, moved, fields };
+}
+
+/**
+ * Champs que les deux fiches ne remplissent pas pareil, dans l'ordre d'affichage, avec ce que
+ * chacune porte, écrit comme la fiche l'écrit (une liste par son libellé, un responsable par son
+ * nom). Les champs identiques ne se tranchent pas : les proposer allongerait le dialogue pour rien.
+ */
+async function differingFields(type: string, kept: ObjectRecord, absorbed: ObjectRecord): Promise<MergeField[]> {
+  const users = await listUserOptions();
+  return fieldsOf(type)
+    .filter((field) => field.editable !== false)
+    .filter((field) => serializeValue(field, kept[field.key]) !== serializeValue(field, absorbed[field.key]))
+    .map((field) => ({ key: field.key, label: field.label, kept: displayValue(field, kept[field.key], users), absorbed: displayValue(field, absorbed[field.key], users) }));
 }
 
 /** Définitions de champ personnalisé dont une fiche porte déjà une valeur. */
