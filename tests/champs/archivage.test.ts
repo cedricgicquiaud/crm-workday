@@ -8,6 +8,7 @@ import { customFieldKey, setCustomFields } from "@/features/custom-fields/fields
 import { fieldsOf, historyFieldsOf, sheetFieldsOf } from "@/features/objects/fields";
 import { createObject, getObjectRecord, updateObject } from "@/features/objects/service";
 import { createView } from "@/features/views/views";
+import { HttpError } from "@/lib/auth/session";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
@@ -64,9 +65,12 @@ describe("champ personnalisé archivé (CRM-56, contrat 19)", () => {
     /* L'historique nomme toujours le libellé du champ, longtemps après son archivage. */
     expect(historyFieldsOf(TYPE).find((field) => field.key === effectif)?.label).toBe("Effectif");
 
-    /* Le champ ne se saisit plus : une écriture sur lui ne change rien à la valeur enregistrée. */
-    const untouched = await updateObject(TYPE, renseignee, { [effectif]: 999 }, actor);
-    expect(untouched[effectif]).toBe("120");
+    /* Le champ ne se saisit plus : une écriture sur lui est refusée (409) — jamais acceptée sans rien écrire. */
+    const refusal = await updateObject(TYPE, renseignee, { [effectif]: 999 }, actor).then(() => null).catch((caught: unknown) => caught as HttpError);
+    expect(refusal).toBeInstanceOf(HttpError);
+    expect(refusal?.status).toBe(409);
+    expect(refusal?.details.fields).toMatchObject({ [effectif]: "« Effectif » est un champ archivé : il ne se saisit plus." });
+    expect((await getObjectRecord(TYPE, renseignee))[effectif]).toBe("120");
 
     expect(filtreDeVue.id).toBeTruthy();
   });
