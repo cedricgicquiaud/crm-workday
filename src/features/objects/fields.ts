@@ -21,6 +21,18 @@ export function historyFieldsOf(type: string): readonly FieldDescriptor[] {
   return [...definition.fields, ...(definition.historyFields ?? []), ...allCustomFieldsOf(type)].sort((a, b) => a.order - b.order);
 }
 
+/**
+ * Champs qu'une fiche affiche : ceux qui se saisissent, plus les champs personnalisés archivés dont
+ * cette fiche porte une valeur (contrat 19). Le champ archivé arrive en lecture seule : sa valeur se
+ * lit comme un texte, elle ne se modifie plus, et une fiche sans valeur ne le montre pas du tout.
+ */
+export function sheetFieldsOf(type: string, record: Record<string, unknown>): readonly FieldDescriptor[] {
+  const shown = fieldsOf(type);
+  const kept = new Set(shown.map((field) => field.key));
+  const archived = allCustomFieldsOf(type).filter((field) => !kept.has(field.key) && !blank(record[field.key]));
+  return [...shown, ...archived].sort((a, b) => a.order - b.order);
+}
+
 /** Valeurs validées : texte pour `text`, `list`, `user` et `date` (jour ISO), nombre pour `number`, `null` pour un champ vidé. */
 export type FieldValues = Record<string, string | number | null>;
 export type FieldErrors = Record<string, string>;

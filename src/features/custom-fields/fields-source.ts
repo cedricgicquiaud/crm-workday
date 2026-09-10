@@ -55,6 +55,8 @@ export function toDescriptor(definition: CustomFieldDefinition): FieldDescriptor
     required: definition.required,
     values: definition.type === "list" ? definition.values.map((value) => ({ value, label: value })) : undefined,
     sortable: true,
+    /* Archivé : la valeur se lit, elle ne se saisit plus (contrat 19). */
+    editable: !definition.archived,
     section: CUSTOM_FIELDS_SECTION,
     order: CUSTOM_ORDER_BASE + definition.position,
   };

@@ -77,6 +77,20 @@ export async function loadCustomFields(): Promise<CustomFieldDefinition[]> {
   return definitions;
 }
 
+/**
+ * Archive un champ (contrat 19) : sa valeur reste lisible sur les fiches qui en portent une, il ne
+ * se saisit plus et sort des filtres. Un champ ne se supprime pas — ce qui a été saisi resterait
+ * orphelin, et les vues qui le nomment n'auraient plus rien à nommer.
+ */
+export async function archiveDefinition(id: string): Promise<CustomFieldDefinition> {
+  const [row] = await db
+    .update(customFieldDefinition)
+    .set({ archivedAt: new Date(), updatedAt: new Date() })
+    .where(eq(customFieldDefinition.id, id))
+    .returning();
+  return toDefinition(row);
+}
+
 /** Modifie un champ défini ; seules les propriétés reçues changent. */
 export async function updateDefinition(id: string, patch: { required?: boolean }): Promise<CustomFieldDefinition> {
   const [row] = await db
