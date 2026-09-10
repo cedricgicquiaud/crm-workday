@@ -31,6 +31,9 @@ test.beforeAll(() => {
   resetAll();
   seedAccounts();
 });
+/* Chaque test part sans aucun champ : un champ obligatoire laissé par le test d'avant refuserait la
+   création des fiches du suivant (400 « obligatoire »), et l'ordre d'exécution deviendrait le sujet. */
+test.beforeEach(resetCustomFields);
 test.afterAll(resetAll);
 
 test.describe("Paramètres → Champs (CRM-54, contrats 20 et 22)", () => {
