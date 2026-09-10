@@ -88,4 +88,16 @@ describe("API des champs personnalisés (CRM-54, contrats 20 et 22)", () => {
     const labels = (await db.select().from(customFieldDefinition)).map((entry) => entry.label);
     expect(labels).not.toContain("Interdit");
   });
+
+  it("réordonne un champ depuis l'API : monter le second le passe en tête de son objet", async () => {
+    await postField(jsonRequest("POST", "/api/champs", { objectType: TYPE, label: "Ancienneté", type: "number" }, adminCookie));
+    const before = ((await (await getFields(jsonRequest("GET", `/api/champs?objet=${TYPE}`, undefined, adminCookie))).json()) as { fields: CustomFieldDefinition[] }).fields;
+    const second = before[1];
+
+    const moved = await patchField(jsonRequest("PATCH", `/api/champs/${second.id}`, { move: "up" }, adminCookie), byId(second.id));
+    expect(moved.status).toBe(200);
+
+    const after = ((await (await getFields(jsonRequest("GET", `/api/champs?objet=${TYPE}`, undefined, adminCookie))).json()) as { fields: CustomFieldDefinition[] }).fields;
+    expect(after.map((field) => field.label)).toEqual([second.label, before[0].label, ...before.slice(2).map((field) => field.label)]);
+  });
 });
