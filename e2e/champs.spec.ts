@@ -3,6 +3,7 @@ import { expect, seedAccounts, test } from "./fixtures/auth";
 import { resetCustomFields } from "./fixtures/champs";
 import { resetObjects } from "./fixtures/objets";
 import { resetPersons } from "./fixtures/personnes";
+import { resetViews } from "./fixtures/vues";
 
 /* Champs et fiches finissent par « (e2e) » : les fixtures les effacent, et rien d'autre. */
 const FIELD_FORM = '[data-slot="field-form"]';
@@ -20,6 +21,7 @@ async function createField(page: Page, body: Record<string, unknown>): Promise<s
 
 /* Les personnes d'abord : leur historique retient les comptes de test, effacés ensuite par l'amorce. */
 function resetAll() {
+  resetViews();
   resetCustomFields();
   resetPersons();
   resetObjects();
@@ -144,5 +146,41 @@ test.describe("champs personnalisés sur la fiche et dans la liste (CRM-55, CRM-
     expect(person.status()).toBe(201);
     await adminPage.goto(`/personnes/${((await person.json()) as { id: string }).id}`);
     await expect(adminPage.getByRole("region", { name: "Autres champs" }).getByLabel(named("Note", mark))).toHaveValue("à rappeler");
+  });
+});
+
+test.describe("champ personnalisé archivé (CRM-56, contrat 19)", () => {
+  test("garde la valeur lisible en texte sur la fiche, ne se saisit plus, et laisse s'ouvrir une vue qui filtrait dessus avec « filtre inactif »", async ({ adminPage }) => {
+    const mark = tag();
+    const effectifLabel = named("Effectif", mark);
+    const effectif = await createField(adminPage, { objectType: "company", label: effectifLabel, type: "number" });
+
+    const created = await adminPage.request.post("/api/entreprises", { data: { name: named("Echo", mark), type: "client", [effectif]: 90 } });
+    expect(created.status()).toBe(201);
+    const { id } = (await created.json()) as { id: string };
+
+    const view = await adminPage.request.post("/api/vues", { data: { objectType: "company", name: named("Grosses structures", mark), query: `f=${effectif}:plus_grand:50` } });
+    expect(view.status()).toBe(201);
+    const viewId = ((await view.json()) as { id: string }).id;
+
+    expect((await adminPage.request.patch(`/api/champs/${effectif.replace("cf_", "")}`, { data: { archived: true } })).status()).toBe(200);
+
+    /* La valeur reste lisible, en texte : un contrôle éteint la rendrait à demi transparente. */
+    await adminPage.goto(`/entreprises/${id}`);
+    const others = adminPage.getByRole("region", { name: "Autres champs" });
+    await expect(others.getByText("90")).toBeVisible();
+    await expect(others.getByRole("spinbutton", { name: effectifLabel })).toHaveCount(0);
+    await expect(others.getByRole("textbox", { name: effectifLabel })).toHaveCount(0);
+
+    /* La vue s'ouvre encore, avec son avertissement, et rend toutes les fiches. */
+    await adminPage.goto(`/entreprises?vue=${viewId}`);
+    const warning = adminPage.locator('[data-slot="list-warnings"]');
+    await expect(warning).toContainText("Filtre inactif");
+    await expect(warning).toContainText(effectifLabel);
+    await expect(adminPage.getByRole("link", { name: named("Echo", mark) })).toBeVisible();
+
+    /* Le champ archivé ne se pose plus en filtre : la barre de filtres ne le propose pas. */
+    await adminPage.getByRole("button", { name: "Ajouter un filtre" }).click();
+    await expect(adminPage.locator('[data-slot="filter-form"]').getByLabel("Champ").getByRole("option", { name: effectifLabel })).toHaveCount(0);
   });
 });
