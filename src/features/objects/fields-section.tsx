@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { fieldsOf } from "@/features/objects/fields";
+import { sheetFieldsOf } from "@/features/objects/fields";
 import { displayValue, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 
@@ -71,7 +71,7 @@ export function FieldsSection({ type, record: initial, users, readOnly = false }
 
   return (
     <div className="grid content-start gap-6">
-      {sections(fieldsOf(type)).map((section) => (
+      {sections(sheetFieldsOf(type, record)).map((section) => (
         <section key={section.name} aria-label={section.name} className="grid gap-3">
           <h2 className="text-base font-medium">{section.name}</h2>
           <div className="grid gap-3">
@@ -138,18 +138,21 @@ function EditableField({ type, field, value: saved, error, users, readOnly, onSa
   }
 
   const options = field.type === "list" ? field.values ?? [] : field.type === "user" ? users.map((u) => ({ value: u.id, label: u.name })) : null;
+  /* Une valeur retirée de la liste (2.4) reste affichée telle qu'elle a été enregistrée, marquée, et ne se choisit plus. */
+  const retired = field.retiredValues?.find((value) => value.value === saved);
+  const items = retired ? [...(options ?? []), { value: retired.value, label: displayValue(field, saved, users) }] : options;
 
   return (
     <div className="grid gap-1">
       <Label htmlFor={id}>{field.label}</Label>
-      {options ? (
-        <Select items={options} value={saved || null} onValueChange={(next) => void onSave(next ?? "")} disabled={!editable}>
+      {items ? (
+        <Select items={items} value={saved || null} onValueChange={(next) => void onSave(next ?? "")} disabled={!editable}>
           <SelectTrigger id={id} aria-label={field.label} size="sm" aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="w-full">
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
-            {options.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
+            {items.map((option) => (
+              <SelectItem key={option.value} value={option.value} disabled={option.value === retired?.value}>
                 {option.label}
               </SelectItem>
             ))}

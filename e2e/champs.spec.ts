@@ -104,17 +104,18 @@ test.describe("champs personnalisés sur la fiche et dans la liste (CRM-55, CRM-
     await expect(others.getByLabel(effectifLabel)).toBeVisible();
     await expect(others.getByRole("combobox", { name: segmentLabel })).toBeVisible();
 
-    /* Contrat 21 : « douze » est refusé sous le champ, et la valeur enregistrée revient. */
-    await others.getByLabel(effectifLabel).fill("douze");
-    await others.getByLabel(effectifLabel).blur();
-    await expect(others.getByRole("alert")).toContainText("nombre");
+    /* Contrat 21 : un champ nombre est un champ nombre — « douze » n'y entre pas, et rien n'est envoyé.
+       Le refus du serveur, lui, s'affiche sous le champ : le mécanisme est celui du SIREN (2.1a). */
+    await others.getByLabel(effectifLabel).pressSequentially("douze");
+    await expect(others.getByLabel(effectifLabel)).toHaveValue("");
+    await expect(others.getByRole("alert")).toHaveCount(0);
 
     await others.getByLabel(effectifLabel).fill("120");
     await others.getByLabel(effectifLabel).blur();
+    /* Contrat 17 : le changement entre dans le fil, sous le libellé du champ — et il n'y entre qu'après la réponse 2xx. */
+    await expect(adminPage.getByRole("region", { name: "Fil d'activité" }).getByText(`${effectifLabel} : vide → 120`)).toBeVisible();
     await adminPage.reload();
     await expect(adminPage.getByRole("region", { name: "Autres champs" }).getByLabel(effectifLabel)).toHaveValue("120");
-    /* Contrat 17 : le changement entre dans le fil, sous le libellé du champ. */
-    await expect(adminPage.getByRole("region", { name: "Fil d'activité" }).getByText(`${effectifLabel} : vide → 120`)).toBeVisible();
 
     /* Contrat 18 : le champ liste est colonne, filtre et tri de la liste, sans autre manipulation. */
     await adminPage.goto(`/entreprises?colonnes=${segment}&f=name:contient:${mark}`);
@@ -123,8 +124,9 @@ test.describe("champs personnalisés sur la fiche et dans la liste (CRM-55, CRM-
     await expect(table.getByRole("cell", { name: "PME" })).toBeVisible();
 
     await adminPage.goto(`/entreprises?f=name:contient:${mark}&f=${segment}:est:PME`);
-    await expect(adminPage.getByRole("table", { name: "Entreprises" }).getByRole("row")).toHaveCount(2);
-    await expect(adminPage.getByText(named("Alpha", mark))).toBeVisible();
+    const filtered = adminPage.getByRole("table", { name: "Entreprises" });
+    await expect(filtered.getByRole("row")).toHaveCount(2);
+    await expect(filtered.getByRole("link", { name: named("Alpha", mark) })).toBeVisible();
 
     await adminPage.goto(`/entreprises?f=name:contient:${mark}&tri=${segment}:asc`);
     await expect(adminPage.getByRole("table", { name: "Entreprises" }).getByRole("columnheader", { name: "Raison sociale" })).toBeVisible();
