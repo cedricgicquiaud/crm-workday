@@ -74,8 +74,8 @@ sur ce workspace ; intégration GitHub activée dans ce workspace (Settings → 
 7. Poser la base de la boucle : les lignes `Lancer l'app :` et `Testeur :` de la section
    Pilot (déduites de la stack : page statique → `python3 -m http.server 8765` et navigateur
    piloté ; app avec serveur → sa commande de dev ; mobile Expo → simulateur + Maestro),
-   confirmées d'un mot ; `.claude/settings.json` avec l'allowlist s'il n'existe pas, au
-   modèle du § 2.4 de `BOUCLE-AGENTS.md` : la commande de tests, la commande de lancement
+   confirmées d'un mot ; `.claude/settings.json` avec l'allowlist s'il n'existe pas (le hook de suivi y est déjà,
+   posé par `install.sh` ; ne pas y toucher), au modèle du § 2.4 de `BOUCLE-AGENTS.md` : la commande de tests, la commande de lancement
    de l'app et celle de build, `git status/diff/log/show/add/commit/push/branch`, les
    lectures (`ls`, `cat`, `grep`, `find`, `head`, `tail`, `sort`, `echo`), ce qu'il faut
    pour éteindre un serveur (`lsof`, `ps`, `kill`, `pkill`, `sleep`, `curl` vers l'app

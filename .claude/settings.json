@@ -42,5 +42,18 @@
       "Bash(git show:*)",
       "Bash(ps:*)"
     ]
+  },
+  "hooks": {
+    "SubagentStart": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/tools/cout-agents/panneau-agent.sh"
+          }
+        ]
+      }
+    ]
   }
 }

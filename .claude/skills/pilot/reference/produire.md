@@ -26,22 +26,29 @@ qu'on ne peut pas interrompre au bon moment. **L'accusé d'arrêt d'un agent qui
 son rapport ne vaut pas une ligne** : cinq « accusé d'arrêt, déjà pris en compte » par
 livraison, c'est du bruit qui cache les vraies transitions.
 
-**Dis comment suivre le run en direct, dans le message de lancement.** Entre deux lignes du
-fil, l'humain ne voit rien : pendant les quarante minutes d'un producteur, la session est
-muette. Un tableau des agents en cours existe, à lancer dans un second terminal — un panneau
-cmux à côté de la session, ou n'importe quel terminal :
+**L'humain voit les grandes étapes de chaque agent dans un panneau cmux, sans rien faire.**
+Un hook `SubagentStart`, posé dans `.claude/settings.json` par `install.sh`, ouvre à chaque
+agent lancé un panneau qui suit ses étapes en français : la phrase qu'il écrit avant chaque
+critère, puis « commit : test », « commit : code », « tests : 68 verts », « PR ouverte ».
+Jamais une commande. Le panneau se ferme quand l'agent a rendu son rapport. Sans cmux, rien
+ne s'ouvre ; la même chose se lance à la main, dans n'importe quel terminal :
 
 ```
-python3 .claude/tools/cout-agents/cout-agents.py . --direct --notifier
+python3 .claude/tools/cout-agents/cout-agents.py . --suivre            # un bloc par agent
+python3 .claude/tools/cout-agents/cout-agents.py . --suivre <nom>      # le flux d'un agent
+python3 .claude/tools/cout-agents/cout-agents.py . --direct --notifier # alertes seulement
 ```
 
-Une ligne par agent : état (actif, bloqué sur une commande, rapport rendu), minutes actives,
-jetons relus contre son seuil, dernier geste. Rafraîchi toutes les trente secondes ; avec
-`--notifier`, un agent bloqué plus de cinq minutes ou au-dessus de son seuil déclenche une
-notification macOS. Mets cette ligne dans le message de lancement du run, juste sous le plan.
-**Et à chaque fois que tu reprends la parole**, joins l'instantané du moment,
-`--direct --une-fois`, sous ta ligne de transition : l'humain qui n'a pas ouvert de second
-terminal voit quand même où en est chaque agent et ce qu'il a coûté.
+Ne refais pas ce suivi dans tes messages : le fil garde ses lignes de transition, une par
+événement.
+
+**Préviens l'humain quand il n'est plus devant l'écran.** L'outil `PushNotification` envoie
+une notification sur le Mac, et sur son téléphone si le contrôle à distance est connecté. Trois
+moments la justifient, et seulement ceux-là : le run est fini et des PR attendent son merge
+(« 2 PR prêtes, 3 décisions à trancher ») ; un agent attend une permission depuis plus de cinq
+minutes (« producteur 2.4 bloqué sur npm run build ») ; le run s'est arrêté sur une erreur.
+Jamais pour une transition ordinaire : une notification inutile coûte l'attention à toutes
+les suivantes. Moins de 200 caractères, ce qu'il doit faire en premier.
 
 1. Pré-requis : feature « Planifiée », `.claude/settings.json` (allowlist) et
    `.pilot/MISSION.template.md` présents, branche principale à jour. Lire `Agents en
