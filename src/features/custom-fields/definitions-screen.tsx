@@ -116,16 +116,18 @@ function FieldRow({ field, first, last, onWrite }: RowProps) {
 
   return (
     <li className="grid min-w-0 gap-2 rounded-lg border p-2.5">
+      {/* Le nom ne descend pas sous 12 rem : à 375 px, il garde sa ligne et le badge, les flèches et
+          « Archiver » passent dessous — sans plancher, il tombait à quelques pixels (« S… »). */}
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         {field.archived ? (
-          <p id={labelId} className="min-w-0 flex-1 truncate text-sm font-medium" title={field.label}>
+          <p id={labelId} className="min-w-48 flex-1 truncate text-sm font-medium" title={field.label}>
             {field.label}
           </p>
         ) : (
           <Input
             id={labelId}
             aria-label={`Libellé du champ ${field.label}`}
-            className="h-7 min-w-0 flex-1 truncate"
+            className="h-7 min-w-48 flex-1 truncate"
             value={label}
             maxLength={CUSTOM_FIELD_LABEL_MAX}
             title={label}
