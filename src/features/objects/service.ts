@@ -8,7 +8,7 @@
 import "@/features/objects/manifest.server";
 import { and, asc, desc, eq, getTableColumns, isNull, ne, type SQL } from "drizzle-orm";
 import { loadCustomFields } from "@/features/custom-fields/definitions";
-import { isCustomFieldKey } from "@/features/custom-fields/fields-source";
+import { allCustomFieldsOf, isCustomFieldKey } from "@/features/custom-fields/fields-source";
 import { attachCustomValues, splitCustomValues, writeCustomValues } from "@/features/custom-fields/values";
 import { recordHistory } from "@/features/history/history";
 import { fieldsOf, serializeValue, validateValues, type FieldValues } from "@/features/objects/fields";
@@ -56,7 +56,22 @@ async function assertUsersExist(type: string, values: FieldValues): Promise<void
   if (Object.keys(errors).length > 0) throw invalid(errors);
 }
 
+/**
+ * Un champ personnalisé archivé ne se saisit plus (contrat 19) : une clé `cf_` qui en désigne un est
+ * refusée (409), champ par champ, pour que la fiche l'affiche sous le champ. `validateValues` ignore
+ * les clés qu'aucun descripteur ne porte — sans ce refus, l'écriture répondrait 200 sans rien écrire.
+ */
+function assertNotArchived(type: string, input: unknown): void {
+  const raw = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const writable = new Set(fieldsOf(type).map((field) => field.key));
+  const archived = allCustomFieldsOf(type).filter((field) => !writable.has(field.key) && field.key in raw);
+  if (archived.length === 0) return;
+  const errors = Object.fromEntries(archived.map((field) => [field.key, `« ${field.label} » est un champ archivé : il ne se saisit plus.`]));
+  throw new HttpError(409, "champ_archive", Object.values(errors)[0], { fields: errors });
+}
+
 async function validateOrThrow(type: string, input: unknown, options: { partial: boolean }): Promise<FieldValues> {
+  assertNotArchived(type, input);
   const { values, errors } = validateValues(fieldsOf(type), input, options);
   if (Object.keys(errors).length > 0) throw invalid(errors);
   await assertUsersExist(type, values);
