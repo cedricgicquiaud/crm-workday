@@ -1,10 +1,29 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
+import { CircleDashedIcon } from "lucide-react";
 import { customFieldDefinition, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createDefinition, listDefinitions } from "@/features/custom-fields/definitions";
+import { CUSTOM_FIELD_LABEL_MAX } from "@/features/custom-fields/schema";
+import { HttpError } from "@/lib/auth/session";
 import { closeDb, db } from "@/lib/db";
 import { registerTestObject, TEST_TYPE } from "../listes/objet-de-test";
+import { registerObject } from "@/features/objects/registry";
+
+/** Un second objet déclaré au registre : un libellé déjà pris sur l'un reste libre sur l'autre. */
+const OTHER_TYPE = "test_second_objet";
+const OTHER_OBJECT = {
+  key: OTHER_TYPE,
+  order: 951,
+  labels: { singular: "Second", plural: "Seconds", article: "un" as const },
+  icon: CircleDashedIcon,
+  href: (id: string) => `/seconds/${id}`,
+  listHref: "/seconds",
+  apiBase: "/api/seconds",
+  titleField: "name",
+  fields: [{ key: "name", label: "Nom", type: "text" as const, required: true, order: 10 }],
+  relations: [],
+};
 
 const ADMIN = { email: "admin-champs@exemple.fr", firstName: "Ada", lastName: "Roche", password: "MotDePasse-Champs-1", role: "administrateur" as const };
 
@@ -12,6 +31,7 @@ let actor: { id: string };
 
 beforeAll(async () => {
   registerTestObject();
+  registerObject({ ...OTHER_OBJECT });
   await db.delete(customFieldDefinition);
   await db.delete(user).where(eq(user.email, ADMIN.email));
   actor = { id: (await createUserWithPassword(ADMIN)).id };
@@ -36,5 +56,31 @@ describe("définitions de champs personnalisés (CRM-54)", () => {
 
     const stored = await listDefinitions();
     expect(stored.map((definition) => definition.label)).toEqual(["Effectif", "Segment"]);
+  });
+
+  it("refuse deux champs de même libellé sur le même objet (409), et l'accepte sur un autre objet", async () => {
+    await expect(createDefinition({ objectType: TEST_TYPE, label: "Effectif", type: "text" }, actor)).rejects.toMatchObject({ status: 409, code: "libelle_deja_pris" });
+    await expect(createDefinition({ objectType: TEST_TYPE, label: "  Effectif  ", type: "text" }, actor)).rejects.toMatchObject({ status: 409 });
+    const elsewhere = await createDefinition({ objectType: OTHER_TYPE, label: "Effectif", type: "text" }, actor);
+    expect(elsewhere.objectType).toBe(OTHER_TYPE);
+  });
+
+  it("refuse un libellé vide, un libellé trop long, un type inconnu et une liste sans valeur (400), en nommant le champ fautif", async () => {
+    const refusals: [unknown, string][] = [
+      [{ objectType: TEST_TYPE, label: "   ", type: "text" }, "label"],
+      [{ objectType: TEST_TYPE, label: "x".repeat(CUSTOM_FIELD_LABEL_MAX + 1), type: "text" }, "label"],
+      [{ objectType: TEST_TYPE, label: "Genre", type: "couleur" }, "type"],
+      [{ objectType: TEST_TYPE, label: "Genre", type: "list", values: [] }, "values"],
+      [{ objectType: TEST_TYPE, label: "Genre", type: "list", values: ["Client", "Client"] }, "values"],
+      [{ objectType: "objet_inconnu", label: "Genre", type: "text" }, "objectType"],
+    ];
+    for (const [input, field] of refusals) {
+      const refused = await createDefinition(input, actor).catch((error: unknown) => error);
+      expect(refused).toBeInstanceOf(HttpError);
+      expect(refused).toMatchObject({ status: 400, code: "donnees_invalides" });
+      expect((refused as HttpError).details.fields).toHaveProperty(field);
+      expect((refused as HttpError).message).not.toBe("");
+    }
+    expect((await listDefinitions(TEST_TYPE)).map((definition) => definition.label)).toEqual(["Effectif", "Segment"]);
   });
 });
