@@ -9,6 +9,9 @@
  */
 import type { FieldDescriptor, FieldType } from "@/features/objects/registry";
 
+/** Un libellé de champ tient sur une ligne de fiche et de menu de colonnes. */
+export const CUSTOM_FIELD_LABEL_MAX = 120;
+
 /** Types qu'un champ personnalisé peut prendre (D : ni formule, ni relation, ni choix multiple en V1). */
 export const CUSTOM_FIELD_TYPES = ["text", "list", "date", "number"] as const;
 

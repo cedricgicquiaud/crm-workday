@@ -1,7 +1,8 @@
-/** Les cinq sections de Paramètres, fixées par le cadrage de la feature 1 ; quatre sont réservées aux administrateurs (D11). */
+/** Les sections de Paramètres ; toutes sauf le journal sont réservées aux administrateurs (D11). */
 export const PARAMETRES_ENTRIES = [
   { href: "/parametres/comptes", label: "Comptes", adminOnly: true },
   { href: "/parametres/cabinet", label: "Cabinet", adminOnly: true },
+  { href: "/parametres/champs", label: "Champs", adminOnly: true },
   { href: "/parametres/modeles", label: "Modèles d'emails", adminOnly: true },
   { href: "/parametres/journal", label: "Journal des envois", adminOnly: false },
   { href: "/parametres/envoi-test", label: "Envoi de test", adminOnly: true },

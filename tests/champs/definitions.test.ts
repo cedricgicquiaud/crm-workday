@@ -4,11 +4,11 @@ import { CircleDashedIcon } from "lucide-react";
 import { customFieldDefinition, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createDefinition, listDefinitions, moveDefinition } from "@/features/custom-fields/definitions";
-import { CUSTOM_FIELD_LABEL_MAX } from "@/features/custom-fields/schema";
+import { CUSTOM_FIELD_LABEL_MAX } from "@/features/custom-fields/fields-source";
 import { HttpError } from "@/lib/auth/session";
 import { closeDb, db } from "@/lib/db";
-import { registerTestObject, TEST_TYPE } from "../listes/objet-de-test";
 import { registerObject } from "@/features/objects/registry";
+import { registerTestObject, TEST_TYPE } from "../listes/objet-de-test";
 
 /** Un second objet déclaré au registre : un libellé déjà pris sur l'un reste libre sur l'autre. */
 const OTHER_TYPE = "test_second_objet";

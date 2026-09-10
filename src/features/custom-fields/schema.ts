@@ -4,12 +4,9 @@
  * champ fautif, pour que l'écran l'affiche sous lui plutôt qu'en encadré global.
  */
 import { z } from "zod";
-import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/features/custom-fields/fields-source";
+import { CUSTOM_FIELD_LABEL_MAX, CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/features/custom-fields/fields-source";
 import { listObjects } from "@/features/objects/registry";
 import { HttpError } from "@/lib/auth/session";
-
-/** Un libellé de champ tient sur une ligne de fiche et de menu de colonnes. */
-export const CUSTOM_FIELD_LABEL_MAX = 120;
 
 export type DefinitionInput = { objectType: string; label: string; type: CustomFieldType; values: string[]; required: boolean };
 
