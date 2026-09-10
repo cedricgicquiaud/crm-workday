@@ -1,18 +1,22 @@
 import { cn } from "cn";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { overdueTasks } from "@/features/activities/overdue";
+import { duplicatesOfRecord } from "@/features/duplicates/duplicates";
 import { getObject } from "@/features/objects/registry";
 import { getObjectRecord } from "@/features/objects/service";
 
 /** Familles de teinte des signalements (fondations « Signalement ») : une par gravité, jamais une par valeur. */
 export type BannerTone = "danger" | "warning" | "info";
 
-export type Banner = { rank: string; tone: BannerTone; message: string };
+/** Ce que la bannière propose de faire ; le lien reste sur la fiche et porte de quoi ouvrir le geste. */
+export type BannerAction = { label: string; href: string };
+
+export type Banner = { rank: string; tone: BannerTone; message: string; action?: BannerAction };
 
 /**
- * Rangs de signalement d'une fiche (D5), du plus grave au moins grave. La livraison 2.3 n'en alimente
- * qu'un — la tâche échue ; 2.6a (doublon probable) et 2.6b (fiche archivée) ajoutent leur source à
- * `SOURCES` sans toucher au reste. L'ordre est déclaré, il ne dépend jamais de l'ordre des imports.
+ * Rangs de signalement d'une fiche (D5), du plus grave au moins grave : fiche archivée, doublon
+ * probable, tâche échue. Chaque livraison ajoute sa source à `SOURCES` sans toucher au reste.
+ * L'ordre est déclaré, il ne dépend jamais de l'ordre des imports.
  */
 export const BANNER_RANKS: readonly { key: string; order: number }[] = [
   { key: "archivee", order: 10 },
@@ -24,6 +28,9 @@ const rankOrder = (rank: string) => BANNER_RANKS.find((declared) => declared.key
 
 /** Signalements du plus grave au moins grave. */
 export const sortBanners = (banners: readonly Banner[]): Banner[] => [...banners].sort((a, b) => rankOrder(a.rank) - rankOrder(b.rank));
+
+/** Paramètre d'adresse qui ouvre la fusion sur la fiche, la jumelle déjà choisie (lu par le menu d'actions). */
+export const MERGE_PARAM = "fusion";
 
 /** Une source de signalement : elle lit une fiche et rend les bannières qu'elle justifie. */
 type BannerSource = (type: string, id: string) => Promise<Banner[]>;
@@ -46,8 +53,20 @@ async function archivedBanner(type: string, id: string): Promise<Banner[]> {
   return [{ rank: "archivee", tone: "info", message: `${getObject(type).labels.singular} archivée : la fiche est en lecture seule.` }];
 }
 
+/**
+ * « Doublon probable : « ACME SAS » porte un nom très proche. » (D19, contrat 28). Le signal est
+ * porté par les deux fiches, et son lien ramène sur la fiche courante en ouvrant la fusion : c'est
+ * elle qu'on garde par défaut. Plusieurs jumelles se comptent — les nommer toutes ferait un pavé.
+ */
+async function duplicateBanner(type: string, id: string): Promise<Banner[]> {
+  const duplicates = await duplicatesOfRecord(type, id);
+  if (duplicates.length === 0) return [];
+  const named = duplicates.length === 1 ? `« ${duplicates[0].title} » porte un nom très proche` : `${duplicates.length} fiches portent un nom très proche`;
+  return [{ rank: "doublon", tone: "warning", message: `Doublon probable : ${named}.`, action: { label: "Fusionner…", href: `${getObject(type).href(id)}?${MERGE_PARAM}=${duplicates[0].id}` } }];
+}
+
 /** Une ligne par source ; les livraisons suivantes ajoutent la leur ici. */
-const SOURCES: readonly BannerSource[] = [archivedBanner, overdueTasksBanner];
+const SOURCES: readonly BannerSource[] = [archivedBanner, duplicateBanner, overdueTasksBanner];
 
 /** Tous les signalements d'une fiche, du plus grave au moins grave. */
 export async function collectBanners(type: string, id: string): Promise<Banner[]> {
