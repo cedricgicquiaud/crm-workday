@@ -195,3 +195,33 @@ test.describe("champ personnalisé archivé (CRM-56, contrat 19)", () => {
     await expect(adminPage.locator('[data-slot="filter-form"]').getByLabel("Champ").getByRole("option", { name: effectifLabel })).toHaveCount(0);
   });
 });
+
+/**
+ * Défaut de recette du 10 septembre 2026 : à 375 px, le nom d'un champ se réduisait à « S… ». La
+ * ligne partage sa largeur avec le badge de type (« Liste à choix unique »), les deux flèches de
+ * rang et le bouton « Archiver » ; le nom, seul élément élastique, tombait à quelques pixels.
+ */
+test.describe("Paramètres → Champs à 375 px (CRM-54)", () => {
+  test("garde le nom d'un champ lisible à côté d'un badge de type long, et un nom trop long se termine par des points de suspension avec le nom complet en title", async ({ adminPage }) => {
+    const mark = tag();
+    const segment = named("Segment", mark);
+    const interminable = `${"Nom de champ vraiment très long ".repeat(3)}${mark} (e2e)`;
+    await createField(adminPage, { objectType: "company", label: segment, type: "list", values: ["Grand compte", "PME", "Startup"] });
+    await createField(adminPage, { objectType: "company", label: interminable, type: "list", values: ["Oui", "Non"] });
+
+    await adminPage.setViewportSize({ width: 375, height: 812 });
+    await adminPage.goto("/parametres/champs");
+    const nom = (label: string) => adminPage.locator(FIELDS_LIST).getByRole("textbox", { name: `Libellé du champ ${label}` });
+    await expect(nom(segment)).toHaveValue(segment);
+
+    /* Le nom tient dans sa case : ce qui est écrit dedans est ce qui se lit. */
+    const mesure = await nom(segment).evaluate((box) => ({ clientWidth: box.clientWidth, scrollWidth: box.scrollWidth }));
+    expect(mesure.scrollWidth).toBeLessThanOrEqual(mesure.clientWidth);
+
+    /* Un nom de longueur libre ne pousse rien : il se coupe par des points de suspension, et se lit en entier au survol. */
+    await expect(nom(interminable)).toHaveAttribute("title", interminable);
+    await expect(nom(interminable)).toHaveCSS("text-overflow", "ellipsis");
+    const { scrollWidth, clientWidth } = await adminPage.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+  });
+});
