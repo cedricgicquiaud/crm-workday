@@ -50,7 +50,7 @@ test.describe("Paramètres → Champs (CRM-54, contrats 20 et 22)", () => {
     await form.getByLabel("Libellé").fill(effectif);
     await form.getByLabel("Type").selectOption("number");
     await form.getByRole("button", { name: "Créer", exact: true }).click();
-    await expect(adminPage.locator(FIELDS_LIST).getByText(effectif)).toBeVisible();
+    await expect(adminPage.locator(FIELDS_LIST).getByRole("textbox", { name: `Libellé du champ ${effectif}` })).toHaveValue(effectif);
 
     /* Un champ liste à trois valeurs, obligatoire à la création d'une fiche. */
     await adminPage.getByRole("button", { name: "Nouveau champ" }).click();
@@ -59,7 +59,7 @@ test.describe("Paramètres → Champs (CRM-54, contrats 20 et 22)", () => {
     await form.getByLabel("Type").selectOption("list");
     await form.getByLabel("Valeurs").fill("Grand compte\nPME\nStartup");
     await form.getByRole("button", { name: "Créer", exact: true }).click();
-    await expect(adminPage.locator(FIELDS_LIST).getByText(segment)).toBeVisible();
+    await expect(adminPage.locator(FIELDS_LIST).getByRole("textbox", { name: `Libellé du champ ${segment}` })).toHaveValue(segment);
 
     /* Contrat 22 : le même libellé sur le même objet est refusé, sous le champ, sans rien créer. */
     await adminPage.getByRole("button", { name: "Nouveau champ" }).click();
@@ -68,13 +68,15 @@ test.describe("Paramètres → Champs (CRM-54, contrats 20 et 22)", () => {
     await form.getByRole("button", { name: "Créer", exact: true }).click();
     await expect(form.getByRole("alert")).toContainText("déjà le libellé");
     await adminPage.getByRole("button", { name: "Annuler" }).click();
-    await expect(adminPage.locator(FIELDS_LIST).getByText(segment)).toHaveCount(1);
+    await expect(adminPage.locator(FIELDS_LIST).getByRole("textbox", { name: `Libellé du champ ${segment}` })).toHaveCount(1);
 
-    /* Un champ ne se supprime pas : il s'archive depuis sa ligne, et sa ligne le dit. */
-    const ligne = adminPage.locator(FIELDS_LIST).getByRole("listitem").filter({ hasText: effectif });
-    await ligne.getByRole("button", { name: `Archiver le champ ${effectif}` }).click();
-    await expect(ligne.getByText("Archivé", { exact: true })).toBeVisible();
-    await expect(ligne.getByRole("button", { name: `Restaurer le champ ${effectif}` })).toBeVisible();
+    /* Un champ ne se supprime pas : il s'archive depuis sa ligne, et sa ligne le dit — son libellé
+       n'y est plus une case de saisie, puisqu'il ne se modifie plus. */
+    await adminPage.getByRole("button", { name: `Archiver le champ ${effectif}` }).click();
+    const archivee = adminPage.locator(FIELDS_LIST).getByRole("listitem").filter({ hasText: effectif });
+    await expect(archivee.getByText("Archivé", { exact: true })).toBeVisible();
+    await expect(archivee.getByRole("button", { name: `Restaurer le champ ${effectif}` })).toBeVisible();
+    await expect(archivee.getByRole("textbox", { name: `Libellé du champ ${effectif}` })).toHaveCount(0);
 
     /* Contrat 20 : un membre est renvoyé vers Accueil, et l'appel serveur répond 403. */
     await memberPage.goto("/parametres/champs");

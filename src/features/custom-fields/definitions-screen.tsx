@@ -144,8 +144,9 @@ function FieldRow({ field, first, last, onWrite }: RowProps) {
         <Button variant="ghost" size="icon-xs" aria-label={`Descendre le champ ${field.label}`} disabled={last} onClick={() => void patch({ move: "down" })}>
           <ArrowDownIcon aria-hidden />
         </Button>
-        <Button variant="outline" size="sm" onClick={() => void patch({ archived: !field.archived })}>
-          {field.archived ? `Restaurer le champ ${field.label}` : `Archiver le champ ${field.label}`}
+        {/* Le libellé du champ est de longueur libre : il nomme le bouton pour un lecteur d'écran, il n'y est pas écrit. */}
+        <Button variant="outline" size="sm" aria-label={`${field.archived ? "Restaurer" : "Archiver"} le champ ${field.label}`} onClick={() => void patch({ archived: !field.archived })}>
+          {field.archived ? "Restaurer" : "Archiver"}
         </Button>
       </div>
 
@@ -193,7 +194,7 @@ function FieldRow({ field, first, last, onWrite }: RowProps) {
               }}
             >
               <Input aria-label={`Nouvelle valeur du champ ${field.label}`} className="h-7 max-w-64" value={added} onChange={(event) => setAdded(event.target.value)} />
-              <Button type="submit" variant="secondary" size="sm" disabled={added.trim() === ""}>
+              <Button type="submit" variant="secondary" size="sm" aria-label={`Ajouter une valeur au champ ${field.label}`} disabled={added.trim() === ""}>
                 Ajouter la valeur
               </Button>
             </form>
