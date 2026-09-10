@@ -15,7 +15,7 @@ import { fieldsOf, serializeValue, validateValues, type FieldValues } from "@/fe
 import { userName, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
-import { user } from "@/db/schema";
+import { objectRedirect, user } from "@/db/schema";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
@@ -136,13 +136,36 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const notFound = (type: string) => new HttpError(404, "fiche_introuvable", `${getObject(type).labels.singular} introuvable.`);
 
-/** Lit une fiche ; une fiche inconnue est une ressource inexistante (404), et un identifiant qui n'est pas un UUID aussi : Postgres n'est jamais interrogé avec. */
+/**
+ * Fiche conservée à la place d'une fiche absorbée par une fusion (2.6a), ou `null` quand la fiche
+ * n'a été absorbée par personne. La table garde une ligne par fusion, et une fusion de suite
+ * re-pointe les précédentes : une seule lecture suffit, la chaîne est déjà à plat.
+ */
+export async function redirectedId(type: string, id: string): Promise<string | null> {
+  if (!UUID.test(id)) return null;
+  const [row] = await db
+    .select({ toId: objectRedirect.toId })
+    .from(objectRedirect)
+    .where(and(eq(objectRedirect.objectType, type), eq(objectRedirect.fromId, id)))
+    .limit(1);
+  return row?.toId ?? null;
+}
+
+/**
+ * Lit une fiche ; une fiche inconnue est une ressource inexistante (404), et un identifiant qui
+ * n'est pas un UUID aussi : Postgres n'est jamais interrogé avec. Une fiche absorbée par une fusion
+ * rend la fiche conservée : une référence écrite avant la fusion ne tombe pas sur un 404.
+ */
 export async function getObjectRecord(type: string, id: string): Promise<ObjectRecord> {
   const { table } = getServerObject(type);
   if (!UUID.test(id)) throw notFound(type);
   const columns = getTableColumns(table);
   const [row] = await db.select().from(table).where(eq(columns.id, id)).limit(1);
-  if (!row) throw notFound(type);
+  if (!row) {
+    const kept = await redirectedId(type, id);
+    if (kept) return getObjectRecord(type, kept);
+    throw notFound(type);
+  }
   await loadCustomFields();
   return withCustomValues(type, row as ObjectRecord);
 }
