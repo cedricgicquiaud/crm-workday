@@ -25,11 +25,10 @@ async function matching(type: string, key: string | null, exceptId: string | nul
   const definition = getObject(type);
   const { table, duplicateKey } = getServerObject(type);
   const columns = getTableColumns(table);
-  const rows = await db.select().from(table).where(isNull(columns.archivedAt));
+  const rows = (await db.select().from(table).where(isNull(columns.archivedAt))) as Record<string, unknown>[];
   return rows
-    .filter((row) => String((row as Record<string, unknown>).id) !== exceptId)
-    .filter((row) => duplicateKey(row as Record<string, unknown>) === key)
-    .map((row) => ({ id: String((row as Record<string, unknown>).id), title: String((row as Record<string, unknown>)[definition.titleField] ?? "") }));
+    .filter((row) => String(row.id) !== exceptId && duplicateKey(row) === key)
+    .map((row) => ({ id: String(row.id), title: String(row[definition.titleField] ?? "") }));
 }
 
 /** Doublons probables d'une fiche existante (bannière, D5) : 404 si la fiche est inconnue. */
