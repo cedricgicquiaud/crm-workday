@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { activity, auditLog, company, contactProfile, customFieldDefinition, customFieldValue, emailLog, person, user } from "@/db/schema";
+import { activity, auditLog, company, contactProfile, customFieldDefinition, customFieldValue, emailLog, objectRedirect, person, user } from "@/db/schema";
 import { createActivity } from "@/features/activities/activities";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createDefinition } from "@/features/custom-fields/definitions";
@@ -16,6 +16,7 @@ const MEMBER = { email: "membre-fusion@exemple.fr", firstName: "Alix", lastName:
 let memberId: string;
 
 async function cleanup() {
+  await db.delete(objectRedirect);
   await db.delete(emailLog);
   await db.delete(activity);
   await db.delete(auditLog);
@@ -111,5 +112,33 @@ describe("fusion de deux fiches (CRM-59, contrat 29, D20)", () => {
 
     expect(await db.select().from(customFieldValue).where(eq(customFieldValue.definitionId, note.id))).toHaveLength(1);
     expect((await getObjectRecord("company", kept.id))[key]).toBe("à relancer");
+  });
+});
+
+describe("rejouer une fusion déjà faite (CRM-59, contrat 29)", () => {
+  it("refuse 400 la même paire une seconde fois : l'absorbée se lit désormais comme la conservée, et les deux fiches restent intactes", async () => {
+    const kept = await newCompany("Ateliers Gauthier");
+    const absorbed = await newCompany("Ateliers Gauthier SAS");
+    await mergeRecords("company", kept.id, absorbed.id, []);
+
+    await expect(mergeRecords("company", kept.id, absorbed.id, [])).rejects.toMatchObject({ status: 400, code: "meme_fiche" });
+    await expect(planMerge("company", kept.id, absorbed.id)).rejects.toMatchObject({ status: 400, code: "meme_fiche" });
+
+    /* Rien n'a bougé : la fiche conservée est toujours là, et l'adresse de l'absorbée y mène toujours. */
+    expect((await db.select().from(company).where(eq(company.id, kept.id)))[0].name).toBe("Ateliers Gauthier");
+    expect((await getObjectRecord("company", absorbed.id)).id).toBe(kept.id);
+  });
+
+  it("refuse 409 une fiche qui n'existe plus que par sa redirection : elle a déjà été absorbée par une troisième", async () => {
+    const premiere = await newCompany("Tuileries Marchand");
+    const seconde = await newCompany("Tuileries Marchand SAS");
+    const troisieme = await newCompany("Société Tuileries Marchand");
+    await mergeRecords("company", seconde.id, premiere.id, []);
+
+    await expect(mergeRecords("company", troisieme.id, premiere.id, [])).rejects.toMatchObject({ status: 409, code: "fiche_absorbee" });
+    await expect(mergeRecords("company", premiere.id, troisieme.id, [])).rejects.toMatchObject({ status: 409, code: "fiche_absorbee" });
+
+    expect(await db.select().from(company).where(eq(company.id, seconde.id))).toHaveLength(1);
+    expect(await db.select().from(company).where(eq(company.id, troisieme.id))).toHaveLength(1);
   });
 });
