@@ -3,10 +3,11 @@
  * objet, les modifie, les réordonne et les archive. Ce module ne connaît que la clé d'objet du
  * registre (D4) ; les descripteurs qu'en tirent les écrans vivent dans `fields-source.ts`.
  */
+import "@/features/objects/manifest.server";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { customFieldDefinition } from "@/db/schema";
 import { setCustomFields, type CustomFieldDefinition, type CustomFieldType } from "@/features/custom-fields/fields-source";
-import { parseDefinitionInput } from "@/features/custom-fields/schema";
+import { parseDefinitionInput, parseLabel, parseValues } from "@/features/custom-fields/schema";
 import type { Actor } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -89,40 +90,61 @@ export async function loadCustomFields(): Promise<CustomFieldDefinition[]> {
 }
 
 /**
- * Archive un champ (contrat 19) : sa valeur reste lisible sur les fiches qui en portent une, il ne
- * se saisit plus et sort des filtres. Un champ ne se supprime pas — ce qui a été saisi resterait
- * orphelin, et les vues qui le nomment n'auraient plus rien à nommer.
+ * Ce que devient la liste de valeurs d'un champ quand l'administrateur en envoie une autre : les
+ * valeurs qu'il n'a pas reprises sont retirées, pas effacées (les fiches qui les portent les lisent
+ * encore) ; une valeur retirée qu'il remet revient dans les choix.
  */
-export async function archiveDefinition(id: string): Promise<CustomFieldDefinition> {
-  const [row] = await db
-    .update(customFieldDefinition)
-    .set({ archivedAt: new Date(), updatedAt: new Date() })
-    .where(eq(customFieldDefinition.id, id))
-    .returning();
-  return toDefinition(row);
+function nextValues(current: CustomFieldDefinition, incoming: readonly string[]): { values: string[]; retiredValues: string[] } {
+  const values = [...incoming];
+  const retired = [...current.retiredValues, ...current.values].filter((value) => !values.includes(value));
+  return { values, retiredValues: [...new Set(retired)] };
+}
+
+/** Champs d'un patch reçu, lus contre les règles du champ ; une propriété absente ne change rien. */
+async function readPatch(current: CustomFieldDefinition, input: unknown): Promise<Partial<typeof customFieldDefinition.$inferInsert>> {
+  const raw = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
+  const patch: Partial<typeof customFieldDefinition.$inferInsert> = {};
+  if (raw.label !== undefined) {
+    patch.label = parseLabel(raw.label);
+    await assertLabelFree(current.objectType, patch.label, current.id);
+  }
+  if (raw.required !== undefined) patch.required = raw.required === true;
+  if (raw.values !== undefined && current.type === "list") Object.assign(patch, nextValues(current, parseValues(current.type, raw.values)));
+  /* Archiver deux fois ne repousse pas la date : le champ est déjà archivé, rien ne change. */
+  if (raw.archived !== undefined && raw.archived !== current.archived) patch.archivedAt = raw.archived === true ? new Date() : null;
+  return patch;
 }
 
 /**
- * Retire une valeur d'une liste : elle passe dans `retired_values`. Les fiches qui la portent la
- * lisent encore, marquée « retirée » ; personne ne peut la choisir de nouveau. Rien n'est effacé.
+ * Modifie un champ défini : libellé, obligation, valeurs de la liste, archivage. Seules les
+ * propriétés reçues changent. 400 hors règle, 404 champ inconnu, 409 libellé déjà pris (contrat 22).
+ * Un champ ne se supprime pas — ce qui a été saisi resterait orphelin, et les vues qui le nomment
+ * n'auraient plus rien à nommer.
  */
-export async function retireValue(id: string, value: string): Promise<CustomFieldDefinition> {
+export async function updateDefinition(id: string, input: unknown): Promise<CustomFieldDefinition> {
   const current = await getDefinition(id);
-  if (!current.values.includes(value)) throw new HttpError(404, "valeur_introuvable", `« ${value} » n'est pas une valeur de « ${current.label} ».`);
-  const [row] = await db
-    .update(customFieldDefinition)
-    .set({ values: current.values.filter((entry) => entry !== value), retiredValues: [...current.retiredValues, value], updatedAt: new Date() })
-    .where(eq(customFieldDefinition.id, id))
-    .returning();
-  return toDefinition(row);
-}
-
-/** Modifie un champ défini ; seules les propriétés reçues changent. */
-export async function updateDefinition(id: string, patch: { required?: boolean }): Promise<CustomFieldDefinition> {
+  const patch = await readPatch(current, input);
+  if (Object.keys(patch).length === 0) return current;
   const [row] = await db
     .update(customFieldDefinition)
     .set({ ...patch, updatedAt: new Date() })
     .where(eq(customFieldDefinition.id, id))
     .returning();
   return toDefinition(row);
+}
+
+/**
+ * Archive un champ (contrat 19) : sa valeur reste lisible sur les fiches qui en portent une, il ne
+ * se saisit plus et sort des filtres.
+ */
+export const archiveDefinition = (id: string): Promise<CustomFieldDefinition> => updateDefinition(id, { archived: true });
+
+/**
+ * Retire une valeur d'une liste : elle passe dans les valeurs retirées. Les fiches qui la portent la
+ * lisent encore, marquée « retirée » ; personne ne peut la choisir de nouveau. Rien n'est effacé.
+ */
+export async function retireValue(id: string, value: string): Promise<CustomFieldDefinition> {
+  const current = await getDefinition(id);
+  if (!current.values.includes(value)) throw new HttpError(404, "valeur_introuvable", `« ${value} » n'est pas une valeur de « ${current.label} ».`);
+  return updateDefinition(id, { values: current.values.filter((entry) => entry !== value) });
 }

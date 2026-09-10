@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET as getFields, POST as postField } from "@/app/api/champs/route";
 import { PATCH as patchField } from "@/app/api/champs/[id]/route";
