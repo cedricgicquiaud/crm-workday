@@ -52,7 +52,7 @@ describe("fusion de deux fiches (CRM-59, contrat 29, D20)", () => {
     const segment = await createDefinition({ objectType: "company", label: "Segment", type: "text" }, actor());
     await updateObject("company", absorbed.id, { [customFieldKey(segment.id)]: "PME" }, actor());
 
-    await mergeRecords("company", kept.id, absorbed.id, [], actor());
+    await mergeRecords("company", kept.id, absorbed.id, []);
 
     expect((await db.select().from(person).where(eq(person.id, contact.id)))[0].companyId).toBe(kept.id);
     expect((await db.select().from(activity).where(eq(activity.id, note.id)))[0].objectId).toBe(kept.id);
@@ -66,7 +66,7 @@ describe("fusion de deux fiches (CRM-59, contrat 29, D20)", () => {
     const kept = await newCompany("Banque Solveige");
     const absorbed = await newCompany("Banque Solveige SA");
 
-    await mergeRecords("company", kept.id, absorbed.id, [], actor());
+    await mergeRecords("company", kept.id, absorbed.id, []);
 
     const history = await listHistory("company", kept.id);
     expect(history.filter((entry) => entry.action === "creee")).toHaveLength(2);
@@ -77,7 +77,7 @@ describe("fusion de deux fiches (CRM-59, contrat 29, D20)", () => {
     const kept = await newCompany("Fonderie Bertin");
     const absorbed = await newCompany("Fonderie Bertin SARL", { city: "Lyon", sector: "Métallurgie" });
 
-    const merged = await mergeRecords("company", kept.id, absorbed.id, ["city"], actor());
+    const merged = await mergeRecords("company", kept.id, absorbed.id, ["city"]);
 
     expect(merged.name).toBe("Fonderie Bertin");
     expect(merged.city).toBe("Lyon");
@@ -94,7 +94,7 @@ describe("fusion de deux fiches (CRM-59, contrat 29, D20)", () => {
 
     expect((await planMerge("company", kept.id, absorbed.id)).moved.find((family) => family.key === "valeurs")).toBeUndefined();
 
-    await mergeRecords("company", kept.id, absorbed.id, [], actor());
+    await mergeRecords("company", kept.id, absorbed.id, []);
     expect(await db.select().from(customFieldValue).where(eq(customFieldValue.definitionId, note.id))).toHaveLength(1);
     expect((await getObjectRecord("company", kept.id))[key]).toBe("à rappeler");
   });
@@ -107,7 +107,7 @@ describe("fusion de deux fiches (CRM-59, contrat 29, D20)", () => {
     await updateObject("company", kept.id, { [key]: "à rappeler" }, actor());
     await updateObject("company", absorbed.id, { [key]: "à relancer" }, actor());
 
-    await mergeRecords("company", kept.id, absorbed.id, [key], actor());
+    await mergeRecords("company", kept.id, absorbed.id, [key]);
 
     expect(await db.select().from(customFieldValue).where(eq(customFieldValue.definitionId, note.id))).toHaveLength(1);
     expect((await getObjectRecord("company", kept.id))[key]).toBe("à relancer");

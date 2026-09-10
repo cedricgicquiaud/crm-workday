@@ -18,7 +18,7 @@ import { customFieldKey, isCustomFieldKey } from "@/features/custom-fields/field
 import { fieldsOf } from "@/features/objects/fields";
 import { getObject, listObjects } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
-import { getObjectRecord, type Actor, type ObjectRecord } from "@/features/objects/service";
+import { getObjectRecord, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
@@ -85,12 +85,13 @@ async function countMovingValues(type: string, keptId: string, absorbedId: strin
 }
 
 /**
- * Valeurs que la fiche conservée prend à l'absorbée : les champs explicitement choisis, et eux
+ * Colonnes que la fiche conservée prend à l'absorbée : les champs explicitement choisis, et eux
  * seuls. Un champ que l'objet ne déclare pas, ou qui ne se saisit pas (une colonne calculée par la
- * base), est ignoré : sa valeur ne s'écrit pas.
+ * base), est ignoré. Les champs personnalisés vivent dans leur propre table : ils sont pris par le
+ * déplacement de leurs valeurs, pas par cette mise à jour.
  */
-function chosenValues(type: string, absorbed: ObjectRecord, taken: readonly string[]): Record<string, unknown> {
-  const writable = fieldsOf(type).filter((field) => field.editable !== false);
+function chosenColumns(type: string, absorbed: ObjectRecord, taken: readonly string[]): Record<string, unknown> {
+  const writable = fieldsOf(type).filter((field) => field.editable !== false && !isCustomFieldKey(field.key));
   return Object.fromEntries(writable.filter((field) => taken.includes(field.key)).map((field) => [field.key, absorbed[field.key] ?? null]));
 }
 
@@ -105,15 +106,16 @@ function pointingColumns(type: string): { table: PgTable; column: string }[] {
  * Fusionne deux fiches (D20, contrat 29) : tout ce qui désignait l'absorbée désigne la conservée,
  * l'absorbée disparaît, son adresse redirige, et le fil de la conservée porte « fusionnée avec … »,
  * écrite par le système (elle est donc marquée « automatique », D11). Champ par champ, la valeur
- * gardée est celle de la conservée, sauf pour les champs cités dans `taken`.
+ * gardée est celle de la conservée, sauf pour les champs cités dans `taken`. L'entrée d'historique
+ * n'a pas d'auteur : la fusion est un geste du système, quel que soit l'administrateur qui l'a lancée.
  *
  * Tout part dans une seule transaction : sans elle, une panne au milieu laisserait des activités
  * rattachées à une fiche disparue. L'état des deux fiches est vérifié avant d'écrire (400, 404, 409).
  */
-export async function mergeRecords(type: string, keptId: string, absorbedId: string, taken: readonly string[], actor: Actor): Promise<ObjectRecord> {
+export async function mergeRecords(type: string, keptId: string, absorbedId: string, taken: readonly string[]): Promise<ObjectRecord> {
   const { kept, absorbed } = await pairOf(type, keptId, absorbedId);
   const title = String(absorbed[getObject(type).titleField] ?? "");
-  const values = chosenValues(type, absorbed, taken);
+  const columnValues = chosenColumns(type, absorbed, taken);
   const { table } = getServerObject(type);
   const columns = getTableColumns(table);
   const heldDefinitions = await definitionsOf(type, kept.id);
@@ -138,8 +140,7 @@ export async function mergeRecords(type: string, keptId: string, absorbedId: str
     await tx.insert(objectRedirect).values({ objectType: type, fromId: absorbed.id, toId: kept.id });
     /* L'absorbée part avant que la conservée prenne ses valeurs : une valeur unique (le SIREN) serait sinon refusée. */
     await tx.delete(table).where(eq(columns.id, absorbed.id));
-    const base = Object.fromEntries(Object.entries(values).filter(([key]) => !isCustomFieldKey(key)));
-    await tx.update(table).set({ ...base, updatedAt: new Date() }).where(eq(columns.id, kept.id));
+    await tx.update(table).set({ ...columnValues, updatedAt: new Date() }).where(eq(columns.id, kept.id));
     /* L'entrée est écrite ici, et non par `recordHistory`, pour rester dans la transaction : une fusion sans sa trace serait une fusion muette. */
     await tx.insert(auditLog).values({ objectType: type, objectId: kept.id, action: "fusionnee", newValue: title, authorId: null });
   });
