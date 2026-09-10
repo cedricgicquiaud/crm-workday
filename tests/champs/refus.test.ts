@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { auditLog, company, customFieldDefinition, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
-import { createDefinition } from "@/features/custom-fields/definitions";
+import { createDefinition, updateDefinition } from "@/features/custom-fields/definitions";
 import { customFieldKey } from "@/features/custom-fields/fields-source";
 import { createObject, updateObject } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
@@ -14,6 +14,7 @@ const TYPE = "company";
 let actor: { id: string };
 let effectif: string;
 let segment: string;
+let segmentId: string;
 let ouverture: string;
 let recordId: string;
 
@@ -35,7 +36,8 @@ beforeAll(async () => {
   await db.delete(user).where(eq(user.email, ADMIN.email));
   actor = { id: (await createUserWithPassword(ADMIN)).id };
   effectif = customFieldKey((await createDefinition({ objectType: TYPE, label: "Effectif", type: "number" }, actor)).id);
-  segment = customFieldKey((await createDefinition({ objectType: TYPE, label: "Segment", type: "list", values: ["Grand compte", "PME"] }, actor)).id);
+  segmentId = (await createDefinition({ objectType: TYPE, label: "Segment", type: "list", values: ["Grand compte", "PME"] }, actor)).id;
+  segment = customFieldKey(segmentId);
   ouverture = customFieldKey((await createDefinition({ objectType: TYPE, label: "Ouverture", type: "date" }, actor)).id);
   recordId = (await createObject(TYPE, { name: "ACME", type: "client" }, actor)).id;
 });
@@ -61,5 +63,31 @@ describe("refus de saisie d'une valeur personnalisée (CRM-55, contrat 21)", () 
       expect(refusal.status).toBe(400);
       expect(refusal.details.fields).toMatchObject({ [field]: message });
     }
+  });
+});
+
+/**
+ * Contrat 21 : l'obligation ne vaut qu'à la création d'une fiche et à la saisie du champ. Une fiche
+ * créée avant que le champ devienne obligatoire reste modifiable sur tous ses autres champs.
+ */
+describe("champ personnalisé obligatoire (CRM-55, contrat 21)", () => {
+  it("bloque la création d'une fiche tant que le champ obligatoire est vide, et laisse une fiche antérieure modifiable sur ses autres champs", async () => {
+    const before = await createObject(TYPE, { name: "Antérieure", type: "client" }, actor);
+    await updateDefinition(segmentId, { required: true });
+
+    const refusal = await refusalOf(createObject(TYPE, { name: "Sans segment", type: "client" }, actor));
+    expect(refusal.status).toBe(400);
+    expect(refusal.details.fields).toMatchObject({ [segment]: "« Segment » est obligatoire." });
+
+    const created = await createObject(TYPE, { name: "Avec segment", type: "client", [segment]: "PME" }, actor);
+    expect(created[segment]).toBe("PME");
+
+    /* La fiche d'avant n'a pas de segment : elle se modifie quand même sur ses autres champs. */
+    const renamed = await updateObject(TYPE, before.id, { city: "Nantes" }, actor);
+    expect(renamed.city).toBe("Nantes");
+    expect(renamed[segment]).toBeNull();
+
+    /* Le champ lui-même, vidé sur cette fiche, reste refusé : l'obligation vaut à sa saisie. */
+    expect((await refusalOf(updateObject(TYPE, before.id, { [segment]: "" }, actor))).status).toBe(400);
   });
 });
