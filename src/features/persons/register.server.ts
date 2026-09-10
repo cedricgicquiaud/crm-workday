@@ -5,6 +5,7 @@
  */
 import { and, desc, eq, exists, ilike, isNull, or } from "drizzle-orm";
 import { company, person, personEmail } from "@/db/schema";
+import { normalizeName } from "@/features/duplicates/normalize";
 import { registerServerObject, type SearchHit } from "@/features/objects/registry.server";
 import { db } from "@/lib/db";
 import { normalizeEmail } from "./schema";
@@ -32,10 +33,9 @@ async function search(query: string): Promise<SearchHit[]> {
   return rows.map((row) => ({ id: row.id, title: row.name, subtitle: row.companyName ?? row.email ?? undefined }));
 }
 
-/** Prénom et nom en minuscules, espaces réduits (D19, 2.6a). */
+/** Prénom et nom sans casse, accents ni ponctuation : deux personnes de même clé sont des doublons probables (D19). */
 function duplicateKey(record: Record<string, unknown>): string | null {
-  const name = `${String(record.firstName ?? "")} ${String(record.lastName ?? "")}`.trim().toLowerCase().replace(/\s+/g, " ");
-  return name || null;
+  return normalizeName(`${String(record.firstName ?? "")} ${String(record.lastName ?? "")}`) || null;
 }
 
 registerServerObject({ key: "person", table: person, search, duplicateKey });

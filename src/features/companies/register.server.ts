@@ -4,6 +4,7 @@
  */
 import { and, desc, eq, ilike, isNull, or } from "drizzle-orm";
 import { company } from "@/db/schema";
+import { normalizeCompanyName } from "@/features/duplicates/normalize";
 import { registerServerObject } from "@/features/objects/registry.server";
 import { db } from "@/lib/db";
 import { COMPANY_TYPES, normalizeSiren } from "./schema";
@@ -22,10 +23,9 @@ async function search(query: string) {
   return rows.map((row) => ({ id: row.id, title: row.name, subtitle: COMPANY_TYPES.find((t) => t.value === row.type)?.label }));
 }
 
-/** Raison sociale en minuscules, espaces réduits ; 2.6a y retirera accents, ponctuation et formes juridiques (D19). */
+/** Raison sociale sans casse, accents, ponctuation ni forme juridique : deux fiches de même clé sont des doublons probables (D19). */
 function duplicateKey(record: Record<string, unknown>): string | null {
-  const name = String(record.name ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-  return name || null;
+  return normalizeCompanyName(String(record.name ?? "")) || null;
 }
 
 registerServerObject({ key: "company", table: company, search, duplicateKey });
