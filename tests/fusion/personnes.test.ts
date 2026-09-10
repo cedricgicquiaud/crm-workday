@@ -49,7 +49,7 @@ describe("fusion de deux personnes (CRM-59, D20)", () => {
 
     await mergeRecords("person", kept.id, absorbed.id, []);
 
-    expect(await otherEmailsOf(kept.id)).toEqual(["claire.b@ancienne.fr", "cbonnet@ancienne.fr"]);
+    expect(await otherEmailsOf(kept.id)).toEqual(["cbonnet@ancienne.fr", "claire.b@ancienne.fr"]);
     expect(await db.select().from(personEmail).where(eq(personEmail.personId, kept.id))).toHaveLength(2);
   });
 
