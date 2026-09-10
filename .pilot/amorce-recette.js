@@ -132,3 +132,44 @@ if (!vueClients) {
     throw new Error(`amorce-recette : épinglage de la vue « Clients parisiens » refusé (${epingle.status}).`);
   }
 }
+
+// Livraison 2.4 — deux champs personnalisés sur les entreprises, et une fiche qui en porte les valeurs :
+// sans eux, Paramètres → Champs s'ouvre vide en recette et la section « Autres champs » d'une fiche est
+// absente. Même règle que les blocs précédents : on lit d'abord les champs de l'objet et on ne crée que
+// ce qui manque, pour qu'une relance n'émette aucune requête refusée ; un 409 (libellé repris par un
+// champ renommé) est ignoré. Un champ archivé à la main en recette est laissé tel quel : sa valeur ne se
+// saisit plus (contrat 19), la reposer serait refusée.
+const champsEntreprise = await fetch("/api/champs?objet=company");
+if (!champsEntreprise.ok) {
+  throw new Error(`amorce-recette : lecture des champs personnalisés refusée (${champsEntreprise.status}).`);
+}
+const champsParLibelle = new Map((await champsEntreprise.json()).fields.map((champ) => [champ.label, champ]));
+const champs = [
+  { objectType: "company", label: "Segment", type: "list", values: ["Grand compte", "PME", "Startup"], required: false },
+  { objectType: "company", label: "Effectif", type: "number", required: false },
+];
+for (const champ of champs) {
+  if (champsParLibelle.has(champ.label)) continue;
+  const creation = await fetch("/api/champs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(champ) });
+  if (!creation.ok && creation.status !== 409) {
+    throw new Error(`amorce-recette : création du champ « ${champ.label} » refusée (${creation.status}).`);
+  }
+  if (creation.ok) {
+    champsParLibelle.set(champ.label, (await creation.json()).field);
+  }
+}
+const valeursDeRecette = { Segment: "Grand compte", Effectif: 4200 };
+const ficheAvecChamps = entreprisesParNomComplet.get("Banque Solveige");
+const valeurs = Object.fromEntries(
+  Object.entries(valeursDeRecette)
+    .map(([libelle, valeur]) => [champsParLibelle.get(libelle), valeur])
+    .filter(([champ]) => champ && !champ.archived)
+    .map(([champ, valeur]) => [`cf_${champ.id}`, valeur]),
+);
+if (ficheAvecChamps && Object.keys(valeurs).length > 0) {
+  // Une valeur déjà posée ne change rien : le service ne réécrit que ce qui diffère, la relance est silencieuse.
+  const saisie = await fetch(`/api/entreprises/${ficheAvecChamps.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(valeurs) });
+  if (!saisie.ok) {
+    throw new Error(`amorce-recette : saisie des champs personnalisés sur ${ficheAvecChamps.name} refusée (${saisie.status}).`);
+  }
+}
