@@ -106,6 +106,9 @@ test.describe("fusionner deux entreprises (CRM-59, contrat 29)", () => {
     const dialog = adminPage.getByRole("dialog", { name: "Fusionner deux fiches" });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("listitem").filter({ hasText: "Activités : 1" })).toBeVisible();
+    /* Le compte et les boutons sont sous les yeux sans avoir à faire défiler le dialogue. */
+    await expect(dialog.getByText("Ce qui sera déplacé")).toBeInViewport();
+    await expect(dialog.getByRole("button", { name: "Fusionner", exact: true })).toBeInViewport();
 
     /* Champ par champ : la ville de l'absorbée est prise, la raison sociale reste celle de la conservée. */
     const lyon = dialog.getByRole("radiogroup", { name: "Ville" }).getByRole("radio", { name: "Lyon" });
@@ -197,14 +200,23 @@ test.describe("téléphone, 375 px (contrat 25 de la feature 1, D9)", () => {
   test("la bannière de doublon et le dialogue de fusion tiennent dans l'écran", async ({ adminPage }) => {
     const sfx = suffix();
     const kept = await createCompany(adminPage, `Manufacture des Étoffes du Nord ${sfx}`);
-    await createCompany(adminPage, `Manufacture des Étoffes du Nord SAS ${sfx}`);
+    const absorbed = await createCompany(adminPage, `Manufacture des Étoffes du Nord SAS ${sfx}`);
+    /* Des valeurs à trancher sur cinq champs : le dialogue est aussi long qu'il peut l'être. */
+    await adminPage.request.patch(`/api/entreprises/${absorbed}`, { data: { city: "Lyon", street: "12 rue des Étoffes", postalCode: "69001", sector: "Textile", website: "https://etoffes.example" } });
 
     await adminPage.goto(`/entreprises/${kept}`);
     await expect(adminPage.getByRole("link", { name: "Fusionner…" })).toBeVisible();
     await fitsTheScreen(adminPage, "fiche avec la bannière de doublon");
 
     await adminPage.getByRole("link", { name: "Fusionner…" }).click();
-    await expect(adminPage.getByRole("dialog", { name: "Fusionner deux fiches" })).toBeVisible();
+    const dialog = adminPage.getByRole("dialog", { name: "Fusionner deux fiches" });
+    await expect(dialog).toBeVisible();
     await fitsTheScreen(adminPage, "dialogue de fusion", { modalOpen: true });
+
+    /* Le pied du dialogue reste sous les yeux, quelle que soit la longueur de la liste des champs. */
+    await expect(dialog.getByRole("radiogroup", { name: "Ville" })).toBeVisible();
+    await expect(dialog.getByText("Ce qui sera déplacé")).toBeInViewport();
+    await expect(dialog.getByRole("button", { name: "Fusionner", exact: true })).toBeInViewport();
+    await expect(dialog.getByRole("button", { name: "Annuler" })).toBeInViewport();
   });
 });
