@@ -76,3 +76,13 @@ export async function loadCustomFields(): Promise<CustomFieldDefinition[]> {
   setCustomFields(definitions);
   return definitions;
 }
+
+/** Modifie un champ défini ; seules les propriétés reçues changent. */
+export async function updateDefinition(id: string, patch: { required?: boolean }): Promise<CustomFieldDefinition> {
+  const [row] = await db
+    .update(customFieldDefinition)
+    .set({ ...patch, updatedAt: new Date() })
+    .where(eq(customFieldDefinition.id, id))
+    .returning();
+  return toDefinition(row);
+}
