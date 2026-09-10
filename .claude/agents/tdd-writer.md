@@ -4,6 +4,7 @@ description: Produit une livraison en TDD strict, seul dans sa copie du dépôt 
 color: blue
 tools: Read, Write, Edit, Bash, Glob, Grep, mcp__linear__get_issue, mcp__linear__get_project, mcp__linear__save_issue
 maxTurns: 150
+model: opus
 effort: high
 ---
 

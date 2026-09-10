@@ -4,6 +4,7 @@ description: Audite une livraison avant la revue humaine — il relance les test
 color: orange
 tools: Read, Bash, Glob, Grep
 maxTurns: 50
+model: fable
 effort: high
 ---
 

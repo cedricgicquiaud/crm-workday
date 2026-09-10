@@ -4,6 +4,7 @@ description: Corrige les défauts constatés par le verifier et le testeur — l
 color: yellow
 tools: Read, Write, Edit, Bash, Glob, Grep
 maxTurns: 80
+model: opus
 effort: high
 ---
 
