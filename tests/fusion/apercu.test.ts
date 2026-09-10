@@ -45,7 +45,7 @@ describe("aperçu d'une fusion (CRM-59, contrat 29)", () => {
     const kept = await newCompany("Acme");
     const absorbed = await newCompany("ACME SAS");
     /* Rien n'est encore rattaché à l'absorbée, sauf son entrée de création. */
-    expect(await planMerge("company", kept.id, absorbed.id)).toEqual({ keptId: kept.id, absorbedId: absorbed.id, moved: [{ key: "historique", label: "Historique", count: 1 }] });
+    expect(await planMerge("company", kept.id, absorbed.id)).toEqual({ keptId: kept.id, absorbedId: absorbed.id, moved: [{ key: "historique", label: "Historique", count: 1 }], fields: [{ key: "name", label: "Raison sociale", kept: "Acme", absorbed: "ACME SAS" }] });
 
     const contact = await createObject("person", { firstName: "Claire", lastName: "Bonnet" }, actor());
     await upsertContactProfile(contact.id, { companyId: absorbed.id }, actor());
@@ -71,6 +71,25 @@ describe("aperçu d'une fusion (CRM-59, contrat 29)", () => {
 
     const moved = (await planMerge("company", kept.id, absorbed.id)).moved;
     expect(moved.find((family) => family.key === "activites")).toBeUndefined();
+  });
+});
+
+describe("champs à trancher dans une fusion (CRM-59, contrat 29, D20)", () => {
+  it("nomme les champs dont les deux fiches portent des valeurs différentes, avec ce que chacune porte, et tait ceux qui se ressemblent", async () => {
+    const kept = await newCompany("Papeterie Vidal");
+    const absorbed = await createObject("company", { name: "Papeterie Vidal SAS", type: "prospect", city: "Lyon" }, actor());
+
+    expect((await planMerge("company", kept.id, absorbed.id)).fields).toEqual([
+      { key: "name", label: "Raison sociale", kept: "Papeterie Vidal", absorbed: "Papeterie Vidal SAS" },
+      { key: "type", label: "Type", kept: "Client", absorbed: "Prospect" },
+      { key: "city", label: "Ville", kept: "\u2014", absorbed: "Lyon" },
+    ]);
+  });
+
+  it("ne propose aucun champ à trancher quand les deux fiches portent les mêmes valeurs", async () => {
+    const kept = await newCompany("Presses Jumelles");
+    const absorbed = await newCompany("Presses Jumelles");
+    expect((await planMerge("company", kept.id, absorbed.id)).fields).toEqual([]);
   });
 });
 
