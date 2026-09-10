@@ -20,7 +20,7 @@ export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number];
 /** Une définition telle qu'elle vit en base et telle que l'écran la reçoit : rien que du sérialisable. */
 export type CustomFieldDefinition = {
   id: string;
-  /** clé d'objet du registre (`company`, `person`…) */
+  /** clé d'objet du registre, celle que l'objet déclare */
   objectType: string;
   label: string;
   type: CustomFieldType;
