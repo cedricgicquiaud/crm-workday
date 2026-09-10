@@ -2,7 +2,7 @@
  * Lecture des descripteurs de champs d'un objet : ceux qu'il déclare au registre, et ceux qu'un
  * administrateur a définis (2.4). Les lecteurs ne distinguent pas les uns des autres.
  */
-import { customFieldsOf } from "@/features/custom-fields/fields-source";
+import { allCustomFieldsOf, customFieldsOf } from "@/features/custom-fields/fields-source";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 
 /** Champs d'un objet, dans l'ordre d'affichage (`order` croissant) ; les champs personnalisés viennent après. */
@@ -11,13 +11,14 @@ export function fieldsOf(type: string): readonly FieldDescriptor[] {
 }
 
 /**
- * Champs dont l'historique d'une fiche peut nommer le libellé : ceux de la fiche, plus ceux que
- * l'objet déclare comme édités ailleurs (`historyFields`). Un champ absent d'ici s'afficherait dans
- * l'historique par sa clé brute (« decisionRole ») au lieu de son libellé.
+ * Champs dont l'historique d'une fiche peut nommer le libellé : ceux de la fiche, ceux que l'objet
+ * déclare comme édités ailleurs (`historyFields`), et les champs personnalisés — archivés compris,
+ * car un changement d'hier se relit après l'archivage du champ. Un champ absent d'ici s'afficherait
+ * dans l'historique par sa clé brute (« decisionRole ») au lieu de son libellé.
  */
 export function historyFieldsOf(type: string): readonly FieldDescriptor[] {
   const definition = getObject(type);
-  return [...definition.fields, ...(definition.historyFields ?? [])].sort((a, b) => a.order - b.order);
+  return [...definition.fields, ...(definition.historyFields ?? []), ...allCustomFieldsOf(type)].sort((a, b) => a.order - b.order);
 }
 
 /** Valeurs validées : texte pour `text`, `list`, `user` et `date` (jour ISO), nombre pour `number`, `null` pour un champ vidé. */

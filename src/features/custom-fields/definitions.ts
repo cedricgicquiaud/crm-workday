@@ -5,7 +5,7 @@
  */
 import { and, asc, eq, ne } from "drizzle-orm";
 import { customFieldDefinition } from "@/db/schema";
-import type { CustomFieldDefinition, CustomFieldType } from "@/features/custom-fields/fields-source";
+import { setCustomFields, type CustomFieldDefinition, type CustomFieldType } from "@/features/custom-fields/fields-source";
 import { parseDefinitionInput } from "@/features/custom-fields/schema";
 import type { Actor } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
@@ -64,4 +64,15 @@ export async function createDefinition(input: unknown, actor: Actor): Promise<Cu
     .values({ ...parsed, position: await nextPosition(parsed.objectType), createdBy: actor.id })
     .returning();
   return toDefinition(row);
+}
+
+/**
+ * Remplit la source de champs lue par `fieldsOf`, et rend les définitions pour que l'écran les
+ * repose de son côté (`CustomFieldsSource`). Le serveur passe par ici à chaque rendu et à chaque
+ * écriture : les définitions changent sans redéploiement, il n'y a rien à mettre en cache.
+ */
+export async function loadCustomFields(): Promise<CustomFieldDefinition[]> {
+  const definitions = await listDefinitions();
+  setCustomFields(definitions);
+  return definitions;
 }

@@ -53,6 +53,7 @@ export function toDescriptor(definition: CustomFieldDefinition): FieldDescriptor
     label: definition.label,
     type: definition.type as FieldType,
     required: definition.required,
+    values: definition.type === "list" ? definition.values.map((value) => ({ value, label: value })) : undefined,
     sortable: true,
     section: CUSTOM_FIELDS_SECTION,
     order: CUSTOM_ORDER_BASE + definition.position,
@@ -66,10 +67,22 @@ export function setCustomFields(next: readonly CustomFieldDefinition[]): void {
   definitions = next;
 }
 
-/** Champs personnalisés d'un objet, dans l'ordre choisi par l'administrateur. */
+/** Définitions d'un objet, dans l'ordre choisi par l'administrateur. */
+function definitionsOf(type: string): CustomFieldDefinition[] {
+  return definitions.filter((definition) => definition.objectType === type).sort((a, b) => a.position - b.position || a.label.localeCompare(b.label));
+}
+
+/** Champs personnalisés qui se saisissent et se filtrent : les champs archivés n'en sont plus. */
 export function customFieldsOf(type: string): readonly FieldDescriptor[] {
-  return definitions
-    .filter((definition) => definition.objectType === type)
-    .sort((a, b) => a.position - b.position || a.label.localeCompare(b.label))
+  return definitionsOf(type)
+    .filter((definition) => !definition.archived)
     .map(toDescriptor);
+}
+
+/**
+ * Tous les champs personnalisés d'un objet, archivés compris : leur valeur reste lisible sur les
+ * fiches qui en portent une, et l'historique nomme leur libellé longtemps après leur archivage.
+ */
+export function allCustomFieldsOf(type: string): readonly FieldDescriptor[] {
+  return definitionsOf(type).map(toDescriptor);
 }
