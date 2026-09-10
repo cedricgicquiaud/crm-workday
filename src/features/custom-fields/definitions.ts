@@ -38,6 +38,17 @@ export async function listDefinitions(objectType?: string): Promise<CustomFieldD
   return rows.map(toDefinition);
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Lit une définition ; un champ inconnu est une ressource inexistante (404), un identifiant mal formé aussi. */
+export async function getDefinition(id: string): Promise<CustomFieldDefinition> {
+  const notFound = new HttpError(404, "champ_introuvable", "Champ introuvable.");
+  if (!UUID.test(id)) throw notFound;
+  const [row] = await db.select().from(customFieldDefinition).where(eq(customFieldDefinition.id, id)).limit(1);
+  if (!row) throw notFound;
+  return toDefinition(row);
+}
+
 /** Rang du prochain champ d'un objet : après le dernier, place laissée pour en glisser un avant. */
 async function nextPosition(objectType: string): Promise<number> {
   const existing = await listDefinitions(objectType);
@@ -86,6 +97,21 @@ export async function archiveDefinition(id: string): Promise<CustomFieldDefiniti
   const [row] = await db
     .update(customFieldDefinition)
     .set({ archivedAt: new Date(), updatedAt: new Date() })
+    .where(eq(customFieldDefinition.id, id))
+    .returning();
+  return toDefinition(row);
+}
+
+/**
+ * Retire une valeur d'une liste : elle passe dans `retired_values`. Les fiches qui la portent la
+ * lisent encore, marquée « retirée » ; personne ne peut la choisir de nouveau. Rien n'est effacé.
+ */
+export async function retireValue(id: string, value: string): Promise<CustomFieldDefinition> {
+  const current = await getDefinition(id);
+  if (!current.values.includes(value)) throw new HttpError(404, "valeur_introuvable", `« ${value} » n'est pas une valeur de « ${current.label} ».`);
+  const [row] = await db
+    .update(customFieldDefinition)
+    .set({ values: current.values.filter((entry) => entry !== value), retiredValues: [...current.retiredValues, value], updatedAt: new Date() })
     .where(eq(customFieldDefinition.id, id))
     .returning();
   return toDefinition(row);

@@ -19,11 +19,19 @@ export const formatDateTime = (value: Date | string): string => DATE_TIME.format
 
 export const EMPTY = "—";
 
-/** Valeur lisible d'un champ : libellé d'une liste, nom d'un utilisateur, texte tel quel, « — » si vide. */
+/**
+ * Valeur lisible d'un champ : libellé d'une liste, nom d'un utilisateur, texte tel quel, « — » si
+ * vide. Une valeur retirée d'une liste (2.4) se lit toujours, marquée : la fiche qui la porte dit
+ * ce qu'elle porte, elle ne l'oublie pas parce que la liste a changé.
+ */
 export function displayValue(field: FieldDescriptor, value: unknown, users: readonly UserOption[]): string {
   if (value === null || value === undefined || value === "") return EMPTY;
   const text = String(value);
-  if (field.type === "list") return field.values?.find((v) => v.value === text)?.label ?? text;
+  if (field.type === "list") {
+    const retired = field.retiredValues?.find((v) => v.value === text);
+    if (retired) return `${retired.label} (retirée)`;
+    return field.values?.find((v) => v.value === text)?.label ?? text;
+  }
   if (field.type === "user") return users.find((u) => u.id === text)?.name ?? text;
   if (field.type === "date") return formatDate(text);
   return text;

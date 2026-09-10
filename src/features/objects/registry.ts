@@ -20,6 +20,8 @@ export type FieldDescriptor = {
   required?: boolean;
   /** valeurs d'une liste fermée (`type: "list"`) */
   values?: readonly ListValue[];
+  /** valeurs retirées de la liste (2.4) : lisibles sur les fiches qui les portent, marquées « retirée », jamais proposées */
+  retiredValues?: readonly ListValue[];
   /** valeur posée à la création quand le champ est absent ; pour un champ `user`, `"actor"` désigne le créateur */
   default?: string;
   /** faux : lecture seule sur la fiche (défaut : vrai) */

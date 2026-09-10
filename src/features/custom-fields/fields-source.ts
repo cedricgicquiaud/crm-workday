@@ -46,6 +46,9 @@ export const CUSTOM_FIELDS_SECTION = "Autres champs";
 /** Les champs personnalisés s'affichent après tous les champs déclarés, quel que soit leur rang. */
 const CUSTOM_ORDER_BASE = 1_000_000;
 
+/** La valeur enregistrée d'une liste personnalisée est son libellé : l'administrateur n'en saisit qu'un. */
+const asListValue = (value: string) => ({ value, label: value });
+
 /** Descripteur de champ d'une définition : à partir d'ici, plus rien ne distingue un champ personnalisé. */
 export function toDescriptor(definition: CustomFieldDefinition): FieldDescriptor {
   return {
@@ -53,7 +56,8 @@ export function toDescriptor(definition: CustomFieldDefinition): FieldDescriptor
     label: definition.label,
     type: definition.type as FieldType,
     required: definition.required,
-    values: definition.type === "list" ? definition.values.map((value) => ({ value, label: value })) : undefined,
+    values: definition.type === "list" ? definition.values.map(asListValue) : undefined,
+    retiredValues: definition.type === "list" ? definition.retiredValues.map(asListValue) : undefined,
     sortable: true,
     /* Archivé : la valeur se lit, elle ne se saisit plus (contrat 19). */
     editable: !definition.archived,
