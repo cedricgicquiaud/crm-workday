@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { activity, auditLog, company, contactProfile, customFieldDefinition, customFieldValue, emailLog, objectRedirect, person, user } from "@/db/schema";
 import { createActivity } from "@/features/activities/activities";
+import { listFeed } from "@/features/activities/feed";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createDefinition } from "@/features/custom-fields/definitions";
 import { customFieldKey } from "@/features/custom-fields/fields-source";
@@ -72,6 +73,17 @@ describe("fusion de deux fiches (CRM-59, contrat 29, D20)", () => {
     const history = await listHistory("company", kept.id);
     expect(history.filter((entry) => entry.action === "creee")).toHaveLength(2);
     expect(history.find((entry) => entry.action === "fusionnee")).toMatchObject({ author: null, newValue: "Banque Solveige SA" });
+  });
+
+  it("nomme l'absorbée dans le fil de la conservée : « Fusionnée avec … », marquée automatique (contrat 29)", async () => {
+    const kept = await newCompany("Tuileries Marchand");
+    const absorbed = await newCompany("Tuileries Marchand SAS");
+
+    await mergeRecords("company", kept.id, absorbed.id, []);
+
+    const feed = (await listFeed("company", kept.id, [])).items;
+    const entry = feed.find((item) => item.text?.startsWith("Fusionnée"));
+    expect(entry).toMatchObject({ text: "Fusionnée avec Tuileries Marchand SAS", author: null });
   });
 
   it("garde champ par champ la valeur de la fiche conservée, sauf pour les champs explicitement pris à l'absorbée", async () => {
