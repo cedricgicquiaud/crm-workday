@@ -70,6 +70,12 @@ test.describe("Paramètres → Champs (CRM-54, contrats 20 et 22)", () => {
     await adminPage.getByRole("button", { name: "Annuler" }).click();
     await expect(adminPage.locator(FIELDS_LIST).getByText(segment)).toHaveCount(1);
 
+    /* Un champ ne se supprime pas : il s'archive depuis sa ligne, et sa ligne le dit. */
+    const ligne = adminPage.locator(FIELDS_LIST).getByRole("listitem").filter({ hasText: effectif });
+    await ligne.getByRole("button", { name: `Archiver le champ ${effectif}` }).click();
+    await expect(ligne.getByText("Archivé", { exact: true })).toBeVisible();
+    await expect(ligne.getByRole("button", { name: `Restaurer le champ ${effectif}` })).toBeVisible();
+
     /* Contrat 20 : un membre est renvoyé vers Accueil, et l'appel serveur répond 403. */
     await memberPage.goto("/parametres/champs");
     await expect(memberPage).toHaveURL(/\/accueil$/);
