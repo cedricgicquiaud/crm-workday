@@ -26,6 +26,23 @@ qu'on ne peut pas interrompre au bon moment. **L'accusé d'arrêt d'un agent qui
 son rapport ne vaut pas une ligne** : cinq « accusé d'arrêt, déjà pris en compte » par
 livraison, c'est du bruit qui cache les vraies transitions.
 
+**Dis comment suivre le run en direct, dans le message de lancement.** Entre deux lignes du
+fil, l'humain ne voit rien : pendant les quarante minutes d'un producteur, la session est
+muette. Un tableau des agents en cours existe, à lancer dans un second terminal — un panneau
+cmux à côté de la session, ou n'importe quel terminal :
+
+```
+python3 .claude/tools/cout-agents/cout-agents.py . --direct --notifier
+```
+
+Une ligne par agent : état (actif, bloqué sur une commande, rapport rendu), minutes actives,
+jetons relus contre son seuil, dernier geste. Rafraîchi toutes les trente secondes ; avec
+`--notifier`, un agent bloqué plus de cinq minutes ou au-dessus de son seuil déclenche une
+notification macOS. Mets cette ligne dans le message de lancement du run, juste sous le plan.
+**Et à chaque fois que tu reprends la parole**, joins l'instantané du moment,
+`--direct --une-fois`, sous ta ligne de transition : l'humain qui n'a pas ouvert de second
+terminal voit quand même où en est chaque agent et ce qu'il a coûté.
+
 1. Pré-requis : feature « Planifiée », `.claude/settings.json` (allowlist) et
    `.pilot/MISSION.template.md` présents, branche principale à jour. Lire `Agents en
    parallèle : n` dans la section Pilot (**défaut 1** : les livraisons se font l'une après
@@ -149,6 +166,21 @@ livraison, c'est du bruit qui cache les vraies transitions.
    Puis `testeur` **relance sa passe sur le seul écran corrigé** — dix secondes, il compare
    les mesures. Un aller-retour, pas plus : si le défaut persiste, la PR s'ouvre quand même,
    marquée **non mergeable** dans son rapport, défauts en tête. Mineur → commentaire.
+
+   **Les écrans dans la PR.** Le testeur a écrit, pour chaque écran, une image légère dans
+   `.pilot/pr/<CODE>/<écran>.jpg` (option `--pr` de l'outil ; sa consigne porte le code de
+   la livraison). Quand l'audit est fini — après la repasse s'il y en a eu une, pour que
+   l'image montre l'état corrigé — commite ces images dans la branche de la livraison et
+   pousse : `git add .pilot/pr && git commit -m "chore: screens for the PR" && git push`.
+   Trois images par livraison au plus, une par écran, autour de 50 Ko chacune : le dépôt ne
+   s'en ressent pas. Elles s'affichent dans le rapport (section « Écrans » ci-dessous) par
+   leur adresse GitHub, qui se construit ainsi :
+
+   ```bash
+   https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/blob/$(git rev-parse HEAD)/.pilot/pr/<CODE>/<écran>.jpg?raw=true
+   ```
+
+   Le dossier `.pilot/pr/` n'est pas ignoré de git, contrairement à `.pilot/recette/`.
 5. **Rapport dans chaque PR** (commentaire), au gabarit fixe ci-dessous. Il est lu par un
    humain qui décide de merger en trente secondes : le verdict d'abord, le fonctionnel
    ensuite, la technique repliée. Jamais de tableau à deux colonnes (il suggère une
@@ -163,6 +195,10 @@ livraison, c'est du bruit qui cache les vraies transitions.
    - <N> tests verts (<n> nouveaux).
    - Audit du code : rien de bloquant ; <n> point(s) important(s) corrigé(s) (<en un mot ce que c'était>).
    - Recette à l'écran : <c> cas sur <t> constatés<, m refusés : …>.
+
+   ### Écrans
+   ![<écran>](<adresse GitHub de .pilot/pr/<CODE>/<écran>.jpg>)
+   <une image par écran livré, trois au plus, l'image après correction s'il y en a eu une>
 
    ### À relire par toi (ce que la boucle ne sait pas juger)
    - <Écran>, <élément> : <ce qu'on voit, en mots d'utilisateur>.        (5 au plus)

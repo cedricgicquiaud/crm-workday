@@ -21,11 +21,15 @@
 //                       L'outil la lance dans son propre groupe de processus, attend que l'URL
 //                       réponde (60 s au plus), fait la passe, puis arrête tout le groupe.
 //                       Si l'URL répond déjà avant le lancement, il ne lance rien et n'arrête rien.
+// L'image pour la PR, celle que l'humain regarde avant de merger :
+//   --pr .pilot/pr/<CODE>/<écran>.jpg  la capture 1280 px en clair, en JPEG, coupée à 2000 px
+//                       de haut : trois à cinq fois plus légère que le PNG, elle est commitée
+//                       dans la branche par le lead et affichée dans le rapport de PR.
 // Sortie : les captures et `mesures.json` dans --out, un résumé lisible sur la sortie standard.
 
 import { chromium } from 'playwright'
 import { mkdir, writeFile, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import { spawn } from 'node:child_process'
 
 const arg = (n, d) => {
@@ -46,6 +50,7 @@ const saisie = arg('saisie')
 const actionFile = arg('action')
 const attendre = arg('attendre')
 const serveur = arg('serveur')
+const imagePr = arg('pr')
 
 // --- le serveur de l'application ----------------------------------------------------
 
@@ -218,6 +223,12 @@ for (const largeur of widths) {
     const fichier = join(out, `${largeur}-${theme === 'dark' ? 'sombre' : 'clair'}.png`)
     await page.screenshot({ path: fichier, fullPage: true })
     captures.push(fichier)
+    if (imagePr && largeur === widths[0] && theme === 'light') {
+      const hauteur = Math.min(await page.evaluate(() => document.documentElement.scrollHeight), 2000)
+      await mkdir(dirname(imagePr), { recursive: true })
+      await page.screenshot({ path: imagePr, type: 'jpeg', quality: 80, fullPage: true,
+        clip: { x: 0, y: 0, width: largeur, height: hauteur } })
+    }
 
     if (theme === 'light') {
       const m = await page.evaluate(mesuresDansLaPage)
@@ -249,7 +260,7 @@ await writeFile(join(out, 'mesures.json'), JSON.stringify(mesures, null, 2))
 // --- résumé lisible ---------------------------------------------------------------
 
 console.log(`\nPasse visuelle — ${url}`)
-console.log(`Captures : ${captures.length} dans ${out}\n`)
+console.log(`Captures : ${captures.length} dans ${out}` + (imagePr ? ` · image pour la PR : ${imagePr}` : '') + '\n')
 for (const [largeur, m] of Object.entries(mesures.largeurs)) {
   console.log(`## ${largeur} px`)
   console.log(m.debordement
