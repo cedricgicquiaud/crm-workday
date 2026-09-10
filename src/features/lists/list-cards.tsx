@@ -1,8 +1,23 @@
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 import { displayValue, EMPTY } from "@/features/objects/labels";
 import type { UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 import type { ObjectRecord } from "@/features/objects/service";
+
+/**
+ * Marque d'une fiche archivée dans une liste (CRM-68) : sans elle, l'interrupteur « Archivées »
+ * allumé, rien ne distingue une fiche rangée d'une fiche vivante — même fond, même texte. Ton
+ * inerte des fondations, et le mot en toutes lettres : aucune information portée par la couleur seule.
+ */
+export function ArchivedBadge({ type }: { type: string }) {
+  const { labels } = getObject(type);
+  return (
+    <Badge variant="outline" className="shrink-0 border-border bg-muted text-muted-foreground">
+      {labels.article === "une" ? "Archivée" : "Archivé"}
+    </Badge>
+  );
+}
 
 type Props = { type: string; records: readonly ObjectRecord[]; columns: readonly FieldDescriptor[]; users: readonly UserOption[] };
 
@@ -21,10 +36,11 @@ export function ListCards({ type, records, columns, users }: Props) {
         const label = displayValue(title, record[title.key], users);
         return (
           <li key={record.id} className="min-w-0 rounded-lg border p-2.5">
-            <h2 className="truncate text-sm font-medium" title={label}>
-              <Link href={definition.href(record.id)} className="hover:underline">
+            <h2 className="flex min-w-0 items-center gap-1.5 text-sm font-medium" title={label}>
+              <Link href={definition.href(record.id)} className="truncate hover:underline">
                 {label}
               </Link>
+              {record.archivedAt != null && <ArchivedBadge type={type} />}
             </h2>
             {columns.length > 0 && (
               <dl className="mt-1 grid min-w-0 grid-cols-[auto_1fr] gap-x-2 text-xs text-muted-foreground">

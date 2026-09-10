@@ -29,16 +29,24 @@ type Entry = { kind: "field"; key: string; field: FieldDescriptor } | { kind: "r
 
 const isSubmitShortcut = (event: KeyboardEvent) => (event.metaKey || event.ctrlKey) && event.key === "Enter";
 
-/** Les entrées du dialogue dans l'ordre de `quickCreate` ; une clé qui n'est ni un champ ni une relation est ignorée. */
+/**
+ * Les entrées du dialogue dans l'ordre de `quickCreate` ; une clé qui n'est ni un champ ni une
+ * relation est ignorée. S'y ajoute tout champ obligatoire sans valeur par défaut que `quickCreate`
+ * ne cite pas — un champ personnalisé rendu obligatoire (2.4) en est un : sans lui dans le
+ * dialogue, la création serait refusée par le serveur sans que rien à l'écran permette d'y répondre.
+ */
 function entriesOf(type: string): Entry[] {
   const definition = getObject(type);
   const fields = fieldsOf(type);
-  return (definition.quickCreate ?? [definition.titleField]).flatMap((key): Entry[] => {
+  const chosen = definition.quickCreate ?? [definition.titleField];
+  const entries = chosen.flatMap((key): Entry[] => {
     const field = fields.find((f) => f.key === key);
     if (field) return [{ kind: "field", key, field }];
     const relation = definition.relations.find((r) => r.prefill === key);
     return relation ? [{ kind: "relation", key, relation }] : [];
   });
+  const required = fields.filter((field) => field.required && field.default === undefined && !chosen.includes(field.key));
+  return [...entries, ...required.map((field): Entry => ({ kind: "field", key: field.key, field }))];
 }
 
 /**

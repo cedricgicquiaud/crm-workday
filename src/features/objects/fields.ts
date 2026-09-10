@@ -1,22 +1,36 @@
 /**
- * Lecture des descripteurs de champs d'un objet. La livraison 2.4 y ajoutera les champs
- * personnalisés définis par un administrateur, sans que les lecteurs changent.
+ * Lecture des descripteurs de champs d'un objet : ceux qu'il déclare au registre, et ceux qu'un
+ * administrateur a définis (2.4). Les lecteurs ne distinguent pas les uns des autres.
  */
+import { allCustomFieldsOf, customFieldsOf } from "@/features/custom-fields/fields-source";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 
-/** Champs d'un objet, dans l'ordre d'affichage (`order` croissant). */
+/** Champs d'un objet, dans l'ordre d'affichage (`order` croissant) ; les champs personnalisés viennent après. */
 export function fieldsOf(type: string): readonly FieldDescriptor[] {
-  return [...getObject(type).fields].sort((a, b) => a.order - b.order);
+  return [...getObject(type).fields, ...customFieldsOf(type)].sort((a, b) => a.order - b.order);
 }
 
 /**
- * Champs dont l'historique d'une fiche peut nommer le libellé : ceux de la fiche, plus ceux que
- * l'objet déclare comme édités ailleurs (`historyFields`). Un champ absent d'ici s'afficherait dans
- * l'historique par sa clé brute (« decisionRole ») au lieu de son libellé.
+ * Champs dont l'historique d'une fiche peut nommer le libellé : ceux de la fiche, ceux que l'objet
+ * déclare comme édités ailleurs (`historyFields`), et les champs personnalisés — archivés compris,
+ * car un changement d'hier se relit après l'archivage du champ. Un champ absent d'ici s'afficherait
+ * dans l'historique par sa clé brute (« decisionRole ») au lieu de son libellé.
  */
 export function historyFieldsOf(type: string): readonly FieldDescriptor[] {
   const definition = getObject(type);
-  return [...definition.fields, ...(definition.historyFields ?? [])].sort((a, b) => a.order - b.order);
+  return [...definition.fields, ...(definition.historyFields ?? []), ...allCustomFieldsOf(type)].sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Champs qu'une fiche affiche : ceux qui se saisissent, plus les champs personnalisés archivés dont
+ * cette fiche porte une valeur (contrat 19). Le champ archivé arrive en lecture seule : sa valeur se
+ * lit comme un texte, elle ne se modifie plus, et une fiche sans valeur ne le montre pas du tout.
+ */
+export function sheetFieldsOf(type: string, record: Record<string, unknown>): readonly FieldDescriptor[] {
+  const shown = fieldsOf(type);
+  const kept = new Set(shown.map((field) => field.key));
+  const archived = allCustomFieldsOf(type).filter((field) => !kept.has(field.key) && !blank(record[field.key]));
+  return [...shown, ...archived].sort((a, b) => a.order - b.order);
 }
 
 /** Valeurs validées : texte pour `text`, `list`, `user` et `date` (jour ISO), nombre pour `number`, `null` pour un champ vidé. */

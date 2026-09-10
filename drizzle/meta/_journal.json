@@ -57,6 +57,13 @@
       "when": 1788880960393,
       "tag": "0007_vues_epinglees",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789047410246,
+      "tag": "0008_champs",
+      "breakpoints": true
     }
   ]
 }

@@ -143,7 +143,7 @@ test.describe("tâche échue et bannière de la fiche (CRM-45, contrat 12)", () 
 
     /* Le signalement est en haut du contenu, au-dessus des champs (fondations « Signalement »). */
     const bannerBox = await banner.boundingBox();
-    const fieldsBox = await memberPage.getByRole("region", { name: "Champs" }).boundingBox();
+    const fieldsBox = await memberPage.getByRole("region", { name: "Champs", exact: true }).boundingBox();
     expect(bannerBox!.y).toBeLessThan(fieldsBox!.y);
 
     await feed.getByRole("checkbox", { name: "Relancer la proposition" }).click();
@@ -182,7 +182,7 @@ test.describe("le fil sous 900 px (CRM-44, D5)", () => {
     await memberPage.setViewportSize({ width: 375, height: 800 });
     await memberPage.goto(`/entreprises/${companyId}`);
     const feed = memberPage.getByRole("region", { name: "Fil d'activité" });
-    const fields = memberPage.getByRole("region", { name: "Champs" });
+    const fields = memberPage.getByRole("region", { name: "Champs", exact: true });
     const tabs = memberPage.getByRole("tablist", { name: "Sections de la fiche" });
 
     const ficheTab = tabs.getByRole("tab", { name: /^Fiche/ });

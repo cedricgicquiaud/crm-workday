@@ -161,7 +161,7 @@ test.describe("thème : échec d'enregistrement (retour du verifier 1.3)", () =>
 });
 
 test.describe("sous-navigation Paramètres (CRM-30, contrat 16)", () => {
-  test("un membre voit Journal seulement, un administrateur les cinq entrées ; l'entrée courante est marquée ; une entrée masquée reste protégée", async ({ memberPage, adminPage }) => {
+  test("un membre voit Journal seulement, un administrateur les six entrées ; l'entrée courante est marquée ; une entrée masquée reste protégée", async ({ memberPage, adminPage }) => {
     await memberPage.goto("/parametres/journal");
     const memberNav = memberPage.getByRole("navigation", { name: "Sections des paramètres" });
     await expect(memberNav.getByRole("link")).toHaveText(["Journal des envois"]);
@@ -174,7 +174,7 @@ test.describe("sous-navigation Paramètres (CRM-30, contrat 16)", () => {
 
     await adminPage.goto("/parametres/modeles");
     const adminNav = adminPage.getByRole("navigation", { name: "Sections des paramètres" });
-    await expect(adminNav.getByRole("link")).toHaveText(["Comptes", "Cabinet", "Modèles d'emails", "Journal des envois", "Envoi de test"]);
+    await expect(adminNav.getByRole("link")).toHaveText(["Comptes", "Cabinet", "Champs", "Modèles d'emails", "Journal des envois", "Envoi de test"]);
     await expect(adminNav.getByRole("link", { name: "Modèles d'emails" })).toHaveAttribute("aria-current", "page");
     await expect(adminNav.getByRole("link", { name: "Comptes" })).not.toHaveAttribute("aria-current", "page");
     await adminPage.goto("/parametres");

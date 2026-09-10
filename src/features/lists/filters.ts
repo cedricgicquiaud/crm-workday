@@ -4,7 +4,7 @@
  * archivé, opérateur qui ne s'applique pas au type, valeur manquante ou illisible — n'est jamais une erreur
  * d'écran : il est écarté et rendu avec son avertissement « filtre inactif ».
  */
-import { fieldsOf, validateValues } from "@/features/objects/fields";
+import { fieldsOf, historyFieldsOf, validateValues } from "@/features/objects/fields";
 import type { FieldDescriptor } from "@/features/objects/registry";
 import { findOperator, isOperatorAllowed, type OperatorKey } from "@/features/lists/operators";
 
@@ -35,9 +35,13 @@ function valueProblem(field: FieldDescriptor, value: string): string | undefined
 }
 
 /** Écarte un filtre inapplicable, ou rend le filtre prêt à être appliqué. */
-function read(fields: readonly FieldDescriptor[], raw: RawFilter): { filter: Filter } | { inactive: InactiveFilter } {
+function read(type: string, fields: readonly FieldDescriptor[], raw: RawFilter): { filter: Filter } | { inactive: InactiveFilter } {
   const field = fields.find((candidate) => candidate.key === raw.field);
-  if (!field) return { inactive: reject(raw, `« ${raw.field} » n'est pas un champ de cette liste.`) };
+  if (!field) {
+    /* Un champ personnalisé archivé a un libellé, lui : l'avertissement le nomme plutôt que sa clé enregistrée. */
+    const gone = historyFieldsOf(type).find((candidate) => candidate.key === raw.field);
+    return { inactive: reject(raw, gone ? `« ${gone.label} » n'est plus un champ de cette liste.` : `« ${raw.field} » n'est pas un champ de cette liste.`) };
+  }
   if (!isOperatorAllowed(field.type, raw.operator)) {
     const operator = findOperator(raw.operator);
     return { inactive: reject(raw, `« ${operator?.label ?? raw.operator} » ne s'applique pas au champ « ${field.label} ».`) };
@@ -55,7 +59,7 @@ export function readFilters(type: string, raw: readonly RawFilter[]): { filters:
   const filters: Filter[] = [];
   const inactive: InactiveFilter[] = [];
   for (const entry of raw) {
-    const outcome = read(fields, entry);
+    const outcome = read(type, fields, entry);
     if ("filter" in outcome) filters.push(outcome.filter);
     else inactive.push(outcome.inactive);
   }

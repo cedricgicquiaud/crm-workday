@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import "@/features/objects/manifest.server";
 import { Badge } from "@/components/ui/badge";
 import { ActivityFeed, SheetPanes } from "@/features/activities/activity-feed";
+import { CustomFieldsSource } from "@/features/custom-fields/custom-fields-section";
+import { loadCustomFields } from "@/features/custom-fields/definitions";
 import { listFeed } from "@/features/activities/feed";
 import { fieldsOf } from "@/features/objects/fields";
 import { FieldsSection } from "@/features/objects/fields-section";
@@ -38,6 +40,8 @@ async function loadPerson(id: string): Promise<PersonRecord> {
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const definition = getObject(TYPE);
+  /* Les champs personnalisés d'abord : la fiche et ses briques les lisent comme des champs déclarés (2.4). */
+  const customFields = await loadCustomFields();
   const [record, users, profile, companies, session] = await Promise.all([loadPerson(id), listUserOptions(), getContactProfile(id), listRecordOptions("company"), requireSession()]);
   /* Les options d'utilisateurs sont lues une fois pour la fiche, puis passées au fil : il ne les relit pas. */
   const feed = await listFeed(TYPE, id, users);
@@ -48,6 +52,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const archived = record.archivedAt != null;
   return (
     <div className="grid gap-6">
+      <CustomFieldsSource definitions={customFields} />
       <header className="grid gap-1">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl font-semibold tracking-tight">{record.name as string}</h1>

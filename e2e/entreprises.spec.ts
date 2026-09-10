@@ -34,7 +34,7 @@ test.describe("créer une entreprise depuis la liste (CRM-35, contrat 1)", () =>
 
     await expect(memberPage).toHaveURL(/\/entreprises\/[0-9a-f-]{36}$/);
     await expect(memberPage.getByRole("heading", { level: 1, name })).toBeVisible();
-    const regions = ["Liens", "Champs", "Fil d'activité"].map((label) => memberPage.getByRole("region", { name: label }));
+    const regions = ["Liens", "Champs", "Fil d'activité"].map((label) => memberPage.getByRole("region", { name: label, exact: true }));
     for (const region of regions) await expect(region).toBeVisible();
     /* Trois colonnes côte à côte à 1280 px (D5) : même haut de page, de gauche à droite. */
     const boxes = await Promise.all(regions.map((r) => r.boundingBox()));
@@ -57,7 +57,7 @@ test.describe("modifier sur la fiche, relire, historique (CRM-36, contrat 2)", (
     expect(created.status()).toBe(201);
     const { id } = (await created.json()) as { id: string };
     await memberPage.goto(`/entreprises/${id}`);
-    const fields = memberPage.getByRole("region", { name: "Champs" });
+    const fields = memberPage.getByRole("region", { name: "Champs", exact: true });
     const address = memberPage.getByRole("region", { name: "Adresse" });
     const history = memberPage.getByRole("region", { name: "Fil d'activité" });
 
@@ -161,7 +161,7 @@ test.describe("téléphone, 375 px (contrat 25 de la feature 1, D9)", () => {
     await memberPage.goto(`/entreprises/${id}`);
     await fitsTheScreen(memberPage, "fiche entreprise");
     await expect(memberPage.getByRole("heading", { level: 1, name })).toBeVisible();
-    for (const region of ["Liens", "Champs"]) await expect(memberPage.getByRole("region", { name: region })).toBeVisible();
+    for (const region of ["Liens", "Champs"]) await expect(memberPage.getByRole("region", { name: region, exact: true })).toBeVisible();
     /* Sous 900 px le fil est le second onglet de la fiche (D5) : il s'affiche quand on l'ouvre. */
     await memberPage.getByRole("tab", { name: /^Fil d'activité/ }).click();
     await expect(memberPage.getByRole("region", { name: "Fil d'activité" })).toBeVisible();

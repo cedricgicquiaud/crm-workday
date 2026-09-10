@@ -2,11 +2,16 @@
  * Service générique des objets (D4) : création et modification de toute fiche déclarée dans le
  * registre. Validation par les descripteurs de champs, colonnes de base, une entrée d'historique
  * par champ modifié (D12), refus d'une fiche archivée (D21). Il ne connaît que la clé d'objet.
+ * Un champ personnalisé (2.4) traverse tout cela comme un champ déclaré : seules l'écriture et la
+ * lecture de sa valeur passent par une autre table.
  */
 import "@/features/objects/manifest.server";
 import { and, asc, desc, eq, getTableColumns, isNull, ne, type SQL } from "drizzle-orm";
+import { loadCustomFields } from "@/features/custom-fields/definitions";
+import { allCustomFieldsOf, isCustomFieldKey } from "@/features/custom-fields/fields-source";
+import { attachCustomValues, splitCustomValues, writeCustomValues } from "@/features/custom-fields/values";
 import { recordHistory } from "@/features/history/history";
-import { serializeValue, validateValues, type FieldValues } from "@/features/objects/fields";
+import { fieldsOf, serializeValue, validateValues, type FieldValues } from "@/features/objects/fields";
 import { userName, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
@@ -51,8 +56,23 @@ async function assertUsersExist(type: string, values: FieldValues): Promise<void
   if (Object.keys(errors).length > 0) throw invalid(errors);
 }
 
+/**
+ * Un champ personnalisé archivé ne se saisit plus (contrat 19) : une clé `cf_` qui en désigne un est
+ * refusée (409), champ par champ, pour que la fiche l'affiche sous le champ. `validateValues` ignore
+ * les clés qu'aucun descripteur ne porte — sans ce refus, l'écriture répondrait 200 sans rien écrire.
+ */
+function assertNotArchived(type: string, input: unknown): void {
+  const raw = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const writable = new Set(fieldsOf(type).map((field) => field.key));
+  const archived = allCustomFieldsOf(type).filter((field) => !writable.has(field.key) && field.key in raw);
+  if (archived.length === 0) return;
+  const errors = Object.fromEntries(archived.map((field) => [field.key, `« ${field.label} » est un champ archivé : il ne se saisit plus.`]));
+  throw new HttpError(409, "champ_archive", Object.values(errors)[0], { fields: errors });
+}
+
 async function validateOrThrow(type: string, input: unknown, options: { partial: boolean }): Promise<FieldValues> {
-  const { values, errors } = validateValues(getObject(type).fields, input, options);
+  assertNotArchived(type, input);
+  const { values, errors } = validateValues(fieldsOf(type), input, options);
   if (Object.keys(errors).length > 0) throw invalid(errors);
   await assertUsersExist(type, values);
   return values;
@@ -86,15 +106,30 @@ async function assertUnique(type: string, values: FieldValues, currentId: string
 
 export async function createObject(type: string, input: unknown, actor: Actor): Promise<ObjectRecord> {
   const { table } = getServerObject(type);
+  await loadCustomFields();
   const values = withDefaults(type, await validateOrThrow(type, input, { partial: false }), actor);
   await assertUnique(type, values, null);
+  const { base, custom } = splitCustomValues(values);
   const [row] = await db
     .insert(table)
-    .values({ ...values, createdBy: actor.id })
+    .values({ ...base, createdBy: actor.id })
     .returning();
   const record = row as ObjectRecord;
+  await writeCustomValues(type, record.id, serializeAll(type, custom));
   await recordHistory([{ objectType: type, objectId: record.id, action: "creee", authorId: actor.id }]);
-  return record;
+  return withCustomValues(type, record);
+}
+
+/** Valeurs personnalisées sous leur forme enregistrée (jour ISO, décimal canonique), comme l'historique les lit. */
+function serializeAll(type: string, values: FieldValues): Record<string, string | null> {
+  const fields = fieldsOf(type);
+  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, serializeValue(fields.find((field) => field.key === key)!, value)]));
+}
+
+/** Une fiche complétée de ses valeurs personnalisées : à partir d'ici elles se lisent comme ses colonnes. */
+async function withCustomValues(type: string, record: ObjectRecord): Promise<ObjectRecord> {
+  const [completed] = await attachCustomValues(type, [record]);
+  return completed;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -108,7 +143,8 @@ export async function getObjectRecord(type: string, id: string): Promise<ObjectR
   const columns = getTableColumns(table);
   const [row] = await db.select().from(table).where(eq(columns.id, id)).limit(1);
   if (!row) throw notFound(type);
-  return row as ObjectRecord;
+  await loadCustomFields();
+  return withCustomValues(type, row as ObjectRecord);
 }
 
 /** Une fiche archivée est en lecture seule : toute écriture répond 409 (D21). */
@@ -125,7 +161,8 @@ export async function listObjectRecords(type: string, { includeArchived = false 
     .from(table)
     .where(includeArchived ? undefined : isNull(columns.archivedAt))
     .orderBy(desc(columns.updatedAt), desc(columns.id));
-  return rows as ObjectRecord[];
+  await loadCustomFields();
+  return attachCustomValues(type, rows as ObjectRecord[]);
 }
 
 /** Fiches proposées par un sélecteur, au plus : un sélecteur ne charge jamais toute la table (2.5a ajoutera la recherche). */
@@ -162,18 +199,22 @@ export async function updateObject(type: string, id: string, patch: unknown, act
   assertWritable(type, current);
   const values = await validateOrThrow(type, patch, { partial: true });
   await assertUnique(type, values, id);
-  const changed = getObject(type)
-    .fields.filter((field) => field.key in values)
+  const changed = fieldsOf(type)
+    .filter((field) => field.key in values)
     .map((field) => ({ field, oldValue: serializeValue(field, current[field.key]), newValue: serializeValue(field, values[field.key]) }))
     .filter((change) => change.oldValue !== change.newValue);
   if (changed.length === 0) return current;
+  /* Les colonnes de la fiche partent dans sa table ; les champs personnalisés dans la leur, déjà sérialisés, comme l'historique les lit. */
+  const columnChanges = changed.filter(({ field }) => !isCustomFieldKey(field.key));
+  const customChanges = changed.filter(({ field }) => isCustomFieldKey(field.key));
   const [row] = await db
     .update(table)
-    .set({ ...Object.fromEntries(changed.map(({ field }) => [field.key, values[field.key]])), updatedAt: new Date() })
+    .set({ ...Object.fromEntries(columnChanges.map(({ field }) => [field.key, values[field.key]])), updatedAt: new Date() })
     .where(eq(columns.id, id))
     .returning();
+  await writeCustomValues(type, id, Object.fromEntries(customChanges.map(({ field, newValue }) => [field.key, newValue])));
   await recordHistory(changed.map(({ field, oldValue, newValue }) => ({ objectType: type, objectId: id, action: "modifiee" as const, field: field.key, oldValue, newValue, authorId: actor.id })));
-  return row as ObjectRecord;
+  return withCustomValues(type, row as ObjectRecord);
 }
 
 /** Utilisateurs actifs ou invités, pour les champs « responsable » (les désactivés ne sont plus proposés). */

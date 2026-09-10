@@ -140,6 +140,12 @@ export function ListCell({ type, id, field, value: initial, users }: Props) {
             {entry.label}
           </option>
         ))}
+        {/* Une valeur retirée de la liste (2.4) reste lisible sur la fiche qui la porte, et ne se choisit plus. */}
+        {field.retiredValues?.some((entry) => entry.value === saved) && (
+          <option value={saved} disabled>
+            {text}
+          </option>
+        )}
       </select>
     );
   }

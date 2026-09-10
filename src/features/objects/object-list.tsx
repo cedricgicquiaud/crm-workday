@@ -2,6 +2,9 @@ import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import Link from "next/link";
 import "@/features/objects/manifest.server";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ArchivedBadge } from "@/features/lists/list-cards";
+import { CustomFieldsSource } from "@/features/custom-fields/custom-fields-section";
+import { loadCustomFields } from "@/features/custom-fields/definitions";
 import { listForState } from "@/features/lists/apply-filters";
 import { ColumnMenu } from "@/features/lists/column-menu";
 import { columnsOf } from "@/features/lists/columns";
@@ -56,6 +59,8 @@ function ColumnHeader({ type, state, field, label, className }: { type: string; 
  * Un filtre que la liste ne sait pas appliquer est signalé « filtre inactif », jamais une erreur.
  */
 export async function ObjectList({ type, query }: { type: string; query?: ListQuery }) {
+  /* Les champs personnalisés avant de lire l'URL : un filtre, un tri ou une colonne posés sur l'un d'eux se lisent comme un champ déclaré (2.4). */
+  const customFields = await loadCustomFields();
   const state = await listStateWithView(type, searchParamsOf(query));
   const [{ user }, records, users, views] = await Promise.all([requireSession(), listObjectRecords(type, { includeArchived: state.includeArchived }), listUserOptions(), listViews(type)]);
   const pinned = await listPinnedViews(user.id);
@@ -67,6 +72,7 @@ export async function ObjectList({ type, query }: { type: string; query?: ListQu
   const count = shown.length;
   return (
     <div className="grid gap-4">
+      <CustomFieldsSource definitions={customFields} />
       <header className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">{definition.labels.plural}</h1>
         <QuickCreateDialog type={type} users={users} currentUserId={user.id} />
@@ -111,10 +117,14 @@ export async function ObjectList({ type, query }: { type: string; query?: ListQu
                   const label = displayValue(title, record[title.key], users);
                   return (
                     <TableRow key={record.id} className="h-8">
-                      <TableCell className="truncate py-1 font-medium" title={label}>
-                        <Link href={definition.href(record.id)} className="hover:underline focus-visible:rounded-sm">
-                          {label}
-                        </Link>
+                      <TableCell className="py-1 font-medium" title={label}>
+                        {/* La fiche archivée porte sa marque en toutes lettres : la couleur seule ne dit rien (CRM-68, fondations « Signalement »). */}
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <Link href={definition.href(record.id)} className="truncate hover:underline focus-visible:rounded-sm">
+                            {label}
+                          </Link>
+                          {record.archivedAt != null && <ArchivedBadge type={type} />}
+                        </span>
                       </TableCell>
                       {columns.map((column) =>
                         /* La colonne de base ne se saisit pas : la liste la rend elle-même, en date courte alignée à droite. */

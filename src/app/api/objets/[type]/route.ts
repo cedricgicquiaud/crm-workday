@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { loadCustomFields } from "@/features/custom-fields/definitions";
 import { listForState } from "@/features/lists/apply-filters";
 import { getServerObject } from "@/features/objects/registry.server";
 import { listObjectRecords, listUserOptions, serializeRecord } from "@/features/objects/service";
@@ -21,6 +22,8 @@ export const GET = withApi(async (request: Request, { params }: Context) => {
   const { type } = await params;
   /* Le registre serveur d'abord : une clé inconnue est une ressource inexistante (404), pas une panne. */
   getServerObject(type);
+  /* Les champs personnalisés avant de lire l'URL : un filtre ou un tri posé sur l'un d'eux se lit comme un champ déclaré (2.4). */
+  await loadCustomFields();
   const state = await listStateWithView(type, new URL(request.url).searchParams);
   const [records, users] = await Promise.all([listObjectRecords(type, { includeArchived: state.includeArchived }), listUserOptions()]);
   const shown = listForState(type, records, state, users);
