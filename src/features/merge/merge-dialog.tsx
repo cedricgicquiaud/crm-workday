@@ -116,7 +116,9 @@ export function MergeDialog({ type, id, title, other, open, onOpenChange }: Prop
 
   return (
     <Dialog open={open} onOpenChange={change}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      {/* Seuls les champs à trancher défilent : le compte de ce qui sera déplacé et les deux boutons
+          restent sous les yeux, sinon on confirmerait un geste irréversible sans avoir vu son prix. */}
+      <DialogContent className="flex max-h-[85vh] flex-col">
         <DialogHeader>
           <DialogTitle>Fusionner deux fiches</DialogTitle>
           <DialogDescription>
@@ -127,19 +129,21 @@ export function MergeDialog({ type, id, title, other, open, onOpenChange }: Prop
         {nothingToMerge && <p className="text-sm text-muted-foreground">{`Aucun doublon probable pour cette ${definition.labels.singular.toLowerCase()}.`}</p>}
 
         {otherId && (
-          <div className="grid gap-4">
-            <Choice label="Fiche conservée" value={keep} options={[{ value: "this" as Side, label: title }, { value: "other" as Side, label: otherTitle }]} onChange={setKeep} />
-            {plan?.fields.map((field) => (
-              <Choice
-                key={field.key}
-                label={field.label}
-                value={taken[field.key] ?? "this"}
-                options={[{ value: "this" as Side, label: field.kept }, { value: "other" as Side, label: field.absorbed }]}
-                onChange={(side) => setTaken((current) => ({ ...current, [field.key]: side }))}
-              />
-            ))}
+          <>
+            <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto">
+              <Choice label="Fiche conservée" value={keep} options={[{ value: "this" as Side, label: title }, { value: "other" as Side, label: otherTitle }]} onChange={setKeep} />
+              {plan?.fields.map((field) => (
+                <Choice
+                  key={field.key}
+                  label={field.label}
+                  value={taken[field.key] ?? "this"}
+                  options={[{ value: "this" as Side, label: field.kept }, { value: "other" as Side, label: field.absorbed }]}
+                  onChange={(side) => setTaken((current) => ({ ...current, [field.key]: side }))}
+                />
+              ))}
+            </div>
             <Moved fields={plan?.moved ?? []} />
-          </div>
+          </>
         )}
 
         {failure && (
