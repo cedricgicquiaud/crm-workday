@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { expect, seedAccounts, test } from "./fixtures/auth";
 import { resetCustomFields } from "./fixtures/champs";
 import { resetObjects } from "./fixtures/objets";
+import { resetPersons } from "./fixtures/personnes";
 
 /* Champs et fiches finissent par « (e2e) » : les fixtures les effacent, et rien d'autre. */
 const FIELD_FORM = '[data-slot="field-form"]';
@@ -17,8 +18,10 @@ async function createField(page: Page, body: Record<string, unknown>): Promise<s
   return `cf_${field.id}`;
 }
 
+/* Les personnes d'abord : leur historique retient les comptes de test, effacés ensuite par l'amorce. */
 function resetAll() {
   resetCustomFields();
+  resetPersons();
   resetObjects();
 }
 
