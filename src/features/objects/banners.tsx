@@ -1,18 +1,24 @@
+import Link from "next/link";
 import { cn } from "cn";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { overdueTasks } from "@/features/activities/overdue";
+import { duplicatesOfRecord } from "@/features/duplicates/duplicates";
+import { duplicateMessage, MERGE_PARAM } from "@/features/duplicates/normalize";
 import { getObject } from "@/features/objects/registry";
 import { getObjectRecord } from "@/features/objects/service";
 
 /** Familles de teinte des signalements (fondations « Signalement ») : une par gravité, jamais une par valeur. */
 export type BannerTone = "danger" | "warning" | "info";
 
-export type Banner = { rank: string; tone: BannerTone; message: string };
+/** Ce que la bannière propose de faire ; le lien reste sur la fiche et porte de quoi ouvrir le geste. */
+export type BannerAction = { label: string; href: string };
+
+export type Banner = { rank: string; tone: BannerTone; message: string; action?: BannerAction };
 
 /**
- * Rangs de signalement d'une fiche (D5), du plus grave au moins grave. La livraison 2.3 n'en alimente
- * qu'un — la tâche échue ; 2.6a (doublon probable) et 2.6b (fiche archivée) ajoutent leur source à
- * `SOURCES` sans toucher au reste. L'ordre est déclaré, il ne dépend jamais de l'ordre des imports.
+ * Rangs de signalement d'une fiche (D5), du plus grave au moins grave : fiche archivée, doublon
+ * probable, tâche échue. Chaque livraison ajoute sa source à `SOURCES` sans toucher au reste.
+ * L'ordre est déclaré, il ne dépend jamais de l'ordre des imports.
  */
 export const BANNER_RANKS: readonly { key: string; order: number }[] = [
   { key: "archivee", order: 10 },
@@ -46,8 +52,20 @@ async function archivedBanner(type: string, id: string): Promise<Banner[]> {
   return [{ rank: "archivee", tone: "info", message: `${getObject(type).labels.singular} archivée : la fiche est en lecture seule.` }];
 }
 
+/**
+ * « Doublon probable : « ACME SAS » porte un nom très proche. » (D19, contrat 28). Le signal est
+ * porté par les deux fiches, et son lien ramène sur la fiche courante en ouvrant la fusion : c'est
+ * elle qu'on garde par défaut. Plusieurs jumelles se comptent — les nommer toutes ferait un pavé.
+ */
+async function duplicateBanner(type: string, id: string): Promise<Banner[]> {
+  const duplicates = await duplicatesOfRecord(type, id);
+  if (duplicates.length === 0) return [];
+  const message = duplicateMessage(duplicates.map((duplicate) => duplicate.title));
+  return [{ rank: "doublon", tone: "warning", message, action: { label: "Fusionner…", href: `${getObject(type).href(id)}?${MERGE_PARAM}=${duplicates[0].id}` } }];
+}
+
 /** Une ligne par source ; les livraisons suivantes ajoutent la leur ici. */
-const SOURCES: readonly BannerSource[] = [archivedBanner, overdueTasksBanner];
+const SOURCES: readonly BannerSource[] = [archivedBanner, duplicateBanner, overdueTasksBanner];
 
 /** Tous les signalements d'une fiche, du plus grave au moins grave. */
 export async function collectBanners(type: string, id: string): Promise<Banner[]> {
@@ -65,15 +83,29 @@ const TONES: Record<BannerTone, string> = {
  * Bannière en haut du contenu d'une fiche (D5, fondations « Signalement ») : **une seule à la fois**,
  * la plus grave, bordure gauche de 3 px à la teinte de sa famille ; les autres sont comptées à côté.
  * Sans signalement, rien ne s'affiche. Elle informe, elle n'interrompt pas : `role="status"`.
+ *
+ * `showAction` : le geste que propose la bannière n'est pas ouvert à tous (la fusion est réservée à
+ * un administrateur, contrat 31). La page qui rend la fiche connaît le rôle et le dit ici ; sans
+ * elle, le lien mènerait à un écran qui ne s'ouvre pas.
  */
-export async function SheetBanners({ type, id }: { type: string; id: string }) {
+export async function SheetBanners({ type, id, showAction = false }: { type: string; id: string; showAction?: boolean }) {
   const banners = await collectBanners(type, id);
   if (banners.length === 0) return null;
   const [first, ...others] = banners;
+  const action = showAction ? first.action : undefined;
   return (
     <Alert role="status" className={cn("border-l-[3px]", TONES[first.tone])}>
       <AlertTitle>{first.message}</AlertTitle>
-      {others.length > 0 && <AlertDescription>{`et ${others.length} autre signalement${others.length > 1 ? "s" : ""}`}</AlertDescription>}
+      {(action || others.length > 0) && (
+        <AlertDescription>
+          {action && (
+            <Link href={action.href} className="font-medium underline underline-offset-2">
+              {action.label}
+            </Link>
+          )}
+          {others.length > 0 && <span>{`et ${others.length} autre signalement${others.length > 1 ? "s" : ""}`}</span>}
+        </AlertDescription>
+      )}
     </Alert>
   );
 }

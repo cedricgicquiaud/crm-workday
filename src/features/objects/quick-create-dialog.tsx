@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DuplicateWarning, type DuplicateHint } from "@/features/duplicates/duplicate-warning";
 import { fieldsOf, validateValues, type FieldErrors } from "@/features/objects/fields";
 import { createLabel, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor, type Relation } from "@/features/objects/registry";
@@ -28,6 +29,9 @@ export type RelationOption = { id: string; name: string };
 type Entry = { kind: "field"; key: string; field: FieldDescriptor } | { kind: "relation"; key: string; relation: Relation };
 
 const isSubmitShortcut = (event: KeyboardEvent) => (event.metaKey || event.ctrlKey) && event.key === "Enter";
+
+/** Délai avant d'interroger le serveur sur les doublons : une frappe par lettre ferait une requête par lettre. */
+const DUPLICATE_DELAY_MS = 300;
 
 /**
  * Les entrées du dialogue dans l'ordre de `quickCreate` ; une clé qui n'est ni un champ ni une
@@ -67,7 +71,9 @@ async function loadRelationOptions(objectKey: string): Promise<RelationOption[]>
  * cinq au plus ; libellé au-dessus, erreur sous le champ ; ⌘↵ crée, Échap ferme. À la création,
  * la fiche s'ouvre. Les règles sont celles des descripteurs, les mêmes que côté serveur. Une relation
  * déclarée dans `quickCreate` (par son `prefill`) se choisit dans un sélecteur, pré-rempli quand le
- * dialogue s'ouvre depuis une fiche liée (« ajouter un contact »).
+ * dialogue s'ouvre depuis une fiche liée (« ajouter un contact »). Un nom qui ressemble à celui
+ * d'une fiche existante fait apparaître l'avertissement « doublon probable » (D19), qui nomme la
+ * fiche et propose de l'ouvrir sans jamais empêcher la création.
  */
 export function QuickCreateDialog({ type, users, currentUserId, prefill, trigger }: Props) {
   const router = useRouter();
@@ -81,8 +87,11 @@ export function QuickCreateDialog({ type, users, currentUserId, prefill, trigger
   const [failure, setFailure] = useState<Failure | null>(null);
   const [pending, setPending] = useState(false);
   const [options, setOptions] = useState<Record<string, RelationOption[]>>({});
+  const [duplicates, setDuplicates] = useState<DuplicateHint[]>([]);
   const title = createLabel(definition.labels);
   const relatedKeys = relations.map(({ relation }) => relation.to).join(",");
+  /* Les valeurs saisies, sous une forme stable : le signal se relit quand elles changent, pas à chaque rendu. */
+  const candidate = fields.map((field) => `${encodeURIComponent(field.key)}=${encodeURIComponent(values[field.key] ?? "")}`).join("&");
 
   /* Les fiches proposées par un sélecteur de relation se chargent à l'ouverture ; un échec s'affiche sous le champ. */
   useEffect(() => {
@@ -98,12 +107,33 @@ export function QuickCreateDialog({ type, users, currentUserId, prefill, trigger
     };
   }, [open, type, relatedKeys]);
 
+  /**
+   * Doublons probables de ce qu'on est en train de saisir (D19, contrat 28). La lecture est
+   * différée puis annulée si la frappe continue. Un échec laisse le signal muet et s'arrête là :
+   * c'est une aide à la saisie, elle ne doit jamais empêcher une création.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/objets/${encodeURIComponent(type)}/doublons?${candidate}`, { signal: controller.signal })
+        .then((res) => (res.ok ? (res.json() as Promise<{ duplicates: DuplicateHint[] }>) : { duplicates: [] }))
+        .then((body) => setDuplicates(body.duplicates))
+        .catch(() => undefined);
+    }, DUPLICATE_DELAY_MS);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [open, type, candidate]);
+
   function reset(next: boolean) {
     setOpen(next);
     if (!next) {
       setValues(prefill ?? {});
       setErrors({});
       setFailure(null);
+      setDuplicates([]);
     }
   }
 
@@ -152,6 +182,7 @@ export function QuickCreateDialog({ type, users, currentUserId, prefill, trigger
               </Field>
             ),
           )}
+          <DuplicateWarning type={type} duplicates={duplicates} />
           {failure && (
             <Alert variant="destructive">
               <AlertDescription>
