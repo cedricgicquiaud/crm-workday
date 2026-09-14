@@ -206,6 +206,9 @@ Ne jamais dire « projet » pour un Project Linear : c'est une feature.
   (`initiativeDelete`) quand on retire un projet. Nommer les initiatives sans ambiguïté entre
   projets d'un même workspace (préfixer du nom du produit si besoin).
 - **Historique GitHub** : `gh` (`gh pr list`, `gh pr view`, `gh pr create`).
+- **Verrou git** : le hook `tools/verrou-git/verrou-git.py` refuse avant exécution tout push
+  vers `main`/`master`/`release`, tout push forcé et tout `gh pr merge`. Un refus n'est pas
+  une panne : pousse ta branche par son nom et ouvre une PR.
 - **Benchmark** : `scripts/benchmark.py`.
 
 ## Statuts

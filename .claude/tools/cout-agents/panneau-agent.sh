@@ -16,6 +16,8 @@ session=$(lire session_id); transcript=$(lire transcript_path); agent=$(lire age
 journal="$(dirname "$transcript")/$session/subagents/agent-$agent.jsonl"
 outil="$cwd/.claude/tools/cout-agents/cout-agents.py"
 [ -f "$outil" ] || outil="$(dirname "$0")/cout-agents.py"
+# la couleur : le suivi la lit dans le fichier de métadonnées de l'agent ; ceci n'est qu'un secours
+# (agent_type est le nom donné à l'agent, pas celui de sa fiche)
 couleur=$(sed -n 's/^color: *//p' "$cwd/.claude/agents/$type.md" 2>/dev/null | head -1)
 
 # le dernier panneau d'agent ouvert dans cet espace de travail, s'il vit encore

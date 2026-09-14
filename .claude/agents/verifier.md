@@ -89,6 +89,13 @@ redevient verte, le produit reste faux. Regarde le diff des fichiers de tests :
 `MISSION.md` donne les numéros du contrat de validation dont cette livraison est responsable.
 Pour chacun, dis quel test le couvre. Un numéro sans test est un manque, pas un détail.
 
+### Vérifie que les décisions produit sont appliquées
+
+`MISSION.md` porte aussi les décisions produit déjà prises. Pour chacune, dis où le code
+l'applique — fichier et ligne — ou qu'il ne l'applique pas. Une décision contredite en
+silence est un point important : le producteur n'avait pas à la rediscuter, et personne ne le
+verra plus une fois la PR mergée.
+
 ## 2. La sécurité
 
 Uniquement des failles réellement exploitables dans ce code. Si tu hésites, tu ne remontes pas :

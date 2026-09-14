@@ -240,9 +240,13 @@ les suivantes. Moins de 200 caractères, ce qu'il doit faire en premier.
    python3 .claude/tools/cout-agents/cout-agents.py . --seuils
    ```
 
-   Colle son tableau dans la réponse finale, sous la chronologie, et reporte sa dernière
-   ligne (heures d'agents, heures d'attente, échanges, jetons) dans `.pilot/calibration.md`
-   à côté de la feature. **Si un agent ressort au-dessus des seuils, dis-le en clair** : quel
+   Colle son tableau dans la réponse finale, sous la chronologie. **Le chiffre qui compte est
+   la ligne « Par livraison »** : ce qu'a coûté un résultat accepté, tous agents confondus,
+   corrections et repasses comprises — minutes actives, jetons relus, tours de correction.
+   Reporte cette ligne dans `.pilot/calibration.md` à côté de la livraison. La ligne « Le
+   lead » dit ce que la coordination a coûté sur ce run, en part des jetons : entre 15 et
+   25 % sur crm-workday ; si elle monte quand on ajoute un producteur, c'est la loi de Brooks
+   qui parle, et un producteur de plus ne paie pas. **Si un agent ressort au-dessus des seuils, dis-le en clair** : quel
    agent, quel écart, et ce qu'il faisait — un agent qui dérape est un symptôme (consigne
    floue, test qui résiste, écran introuvable), pas une fatalité. C'est la seule occasion où
    la dépense est visible : après, plus personne ne regarde.
