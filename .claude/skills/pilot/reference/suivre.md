@@ -2,6 +2,7 @@
 
 _Détail des commandes de suivi : savoir où on en est, traiter une tâche isolée,_
 _réconcilier après un merge, produire le barème initial._
+_Règles communes : `fiches.md` (priorités, dates, vérification à l'échelle), `git.md` (la PR)._
 
 ---
 
@@ -36,7 +37,11 @@ suivante. On peut le taper à tout moment, y compris après une semaine d'absenc
    « À faire », sans feature. Une seule phrase d'annonce, pas de squelette.
 2. Branche `fix/<CODE>-<n>-<slug>` (ou `chore/…`). Bug : d'abord le test qui reproduit
    (rouge), puis la correction (vert). Chore sans comportement : pas de test exigé.
-3. PR titrée `<CODE>-<n> <titre>`, description `Closes <CODE>-<n>`. S'arrêter.
+   Bug qui ne se reproduit pas du premier essai, intermittent, ou lenteur : appelle la skill
+   `diagnosing-bugs` (Skill tool) avant d'écrire quoi que ce soit ; sa phase 1 construit la
+   boucle qui passe au rouge sur ce bug, et c'est elle qui devient le test.
+3. PR titrée `<CODE>-<n> <titre>`, description au gabarit de `git.md`, dernière ligne
+   `Closes <CODE>-<n>`. S'arrêter.
 4. Suite proposée : « merge, puis `next` ». **La tâche reste « À faire » jusqu'au merge** :
    c'est l'intégration GitHub qui la ferme, et `sync` qui contrôle qu'elle l'a fait.
 
@@ -77,8 +82,19 @@ une couleur, un ordre de colonnes — devient de la même façon une ligne de la
 d'interface », à côté. Le premier écran d'un projet est moyen ; le dixième ressemble au produit
 parce que ces lignes se sont accumulées. Un retour visuel qu'on ne grave pas se refait à chaque
 livraison ; chaque décision tranchée au merge est gravée dans la section
-« Décisions produit » de la fiche feature ; les idées hors périmètre deviennent des tâches
-isolées. Feature → « Rétro faite ». Supprimer les worktrees de la feature
+« Décisions produit » de la fiche feature, et devient en plus une ADR (`docs/adr/`, format
+et trois conditions dans `domaine.md`) quand elle est dure à inverser, surprenante sans
+contexte et issue d'un vrai arbitrage ; les idées hors périmètre deviennent des tâches
+isolées.
+Pour ne pas se limiter aux fautes de code, relire les rapports avec sept questions (reprises
+de la skill `retro`) : l'agent a-t-il mis longtemps à **trouver** un fichier (un repère de
+navigation manque dans `CLAUDE.md`) ; une faute aurait-elle été **attrapée par un outil**
+(lint, typeur, test, à ajouter plutôt qu'une consigne) ; le `verifier` a-t-il **laissé
+passer** quelque chose (un idiome à ajouter ou à clarifier) ; une consigne du `CLAUDE.md`
+**ne change-t-elle rien** au comportement (à retirer) ; un appel d'outil a-t-il **coûté**
+disproportionnément (à raccourcir) ; une **information** a-t-elle manqué à l'agent (journal
+du serveur, accès en lecture à un service) ; une décision a-t-elle été **réinventée** faute
+d'ADR. Feature → « Rétro faite ». Supprimer les worktrees de la feature
 (`git worktree remove`).
 **Les tâches isolées aussi.** `sync` ne regarde pas que les features : lister les tâches de la
 team sans feature, encore ouvertes, et chercher leur PR (`gh pr list --search "<CODE>-<n>"`).

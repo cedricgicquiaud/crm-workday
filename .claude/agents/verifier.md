@@ -80,6 +80,8 @@ redevient verte, le produit reste faux. Regarde le diff des fichiers de tests :
 - un cas de test supprimé, ou renommé sans raison visible ;
 - un `skip`, `xit`, `@Ignore`, `pytest.skip` : un test éteint ;
 - un `.only`, qui n'exécute plus que ce test et masque tous les autres ;
+- un test tautologique : la valeur attendue recalculée comme le code la calcule, si bien que
+  le test passe par construction (grille : `.claude/skills/pilot/reference/tests.md`) ;
 - un faux objet qui remplace la chose même que le test devait vérifier ;
 - un `try`/`catch` qui avale l'erreur, ou un délai d'attente allongé jusqu'à ce que ça passe ;
 - une valeur écrite en dur dans le code, qui fait passer le test sans rien calculer.
@@ -126,6 +128,11 @@ quelqu'un qui te contredit ? Sinon, tu ne la remontes pas.
 - les constantes qui ressemblent à des secrets sans en être.
 
 ## 3. Le code
+
+D'abord les points ci-dessous, propres à cette méthode. Ensuite la liste des douze odeurs de
+`.claude/skills/pilot/reference/smells.md`, avec ses deux règles : les idiomes du projet
+priment, et une odeur est un jugement (« possible Feature Envy », fichier et ligne), jamais
+une faute.
 
 - Du code copié à trois endroits, ou un utilitaire réécrit alors qu'un équivalent existe déjà.
 - Une fonction de plus de cinquante lignes, ou imbriquée sur plus de trois niveaux.
