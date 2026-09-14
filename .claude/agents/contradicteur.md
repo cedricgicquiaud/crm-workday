@@ -66,6 +66,10 @@ ensemble. Souvent une règle générale et une exception qui l'annule.
 **Le supposé connu.** Ce que l'auteur avait en tête et n'a pas écrit, parce que c'était évident
 pour lui. Un format, une unité, une devise, un fuseau, qui décide, ce qui arrive à l'existant.
 
+**Le mot qui ne dit pas la même chose.** Un terme du cadrage qui contredit `CONTEXT.md`
+(« compte » là où le glossaire distingue Client et Utilisateur), ou un mot flou qui recouvre
+deux choses. Une seule question : lequel des deux ?
+
 ## Comment tu réponds
 
 Cinq points au plus par catégorie, et seulement ceux qui comptent : classe par ce que coûterait
