@@ -68,6 +68,16 @@ _Fautes déjà commises sur ce dépôt et attrapées à l'audit ou au merge. Le 
 - Une action déclenchée depuis un journal ou une liste (renvoyer, relancer) vérifie l'état de sa cible (compte existant, actif) avant d'appeler un service tiers, et répond 404 / 409 sinon : jamais un 200 pour une action qui n'a rien fait.
 - Aucune écriture serveur avalée en silence (`.catch(() => null)` sans suite) : un échec produit un message visible (`role="alert"` sous l'élément, ou toast) et remet l'écran dans l'état enregistré.
 - Dans un test d'écran, un `role="alert"` se cible par son conteneur (`[data-slot="sidebar"]`, le formulaire) : Next.js pose un annonceur de route vide avec le même rôle dans le `body`.
+- Plusieurs écritures qui n'ont de sens qu'ensemble (une fiche et son profil, un réordonnancement, une suppression et son historique, une fusion) tiennent dans une seule `db.transaction` : un échec au milieu laisserait la base à moitié rangée (attrapé hors transaction en 2.2, 2.5b, 2.4).
+- Toute entrée est validée contre le registre avant la première requête : un corps d'un autre type que le champ répond 400 par champ, un identifiant mal formé répond 404, un paramètre d'URL invalide (champ, opérateur, valeur, vue) est écarté avec un avertissement visible ; jamais un 500 de Postgres ni un silence (2.1a, 2.5a, 2.5b).
+- Une fixture de test efface tout ce qu'elle a créé, enfants avant parents (les clés étrangères sont sans cascade), et chaque suite d'écran purge dans `beforeEach` ce que ses tests posent : un test qui laisse une donnée derrière lui rend la suite rouge dans l'ordre normal (bloquant 2.4, oublis 2.6b et 2.6a).
+- Toute lecture qui alimente un écran est bornée et annonce le reste (« et N autres ») : sélecteur 200, colonne des liens 20, fil 50 ; jamais « toutes les fiches » (2.2 chargeait toutes les entreprises).
+- Une donnée chargée par la page (fiche, options d'utilisateurs, épingles, définitions) se passe aux briques en paramètre ou se mémorise par requête (`cache` de React) ; aucune brique ne la recharge pour son compte (double appels en 2.3, 2.5b, 2.6b, 2.4).
+- Ce qui désigne une fiche (relations, activités, emails, valeurs personnalisées, adresses, profil) se parcourt par déclaration du manifeste (`relations`, `dependents`), jamais par une liste écrite à la main dans un mécanisme : la suppression avait oublié les valeurs personnalisées (2.4), la fusion les adresses et le profil (2.6a).
+- Une action irréversible rejouée avec les mêmes paramètres refuse (400 ou 409) au lieu de s'exécuter une seconde fois : les identifiants se comparent après résolution des redirections, et une redirection en base ne se suit que d'un saut (bloquant 2.6a : rejouer une fusion détruisait la fiche conservée).
+- Une règle de date « à partir du lendemain » se compare sur le jour civil Europe/Paris (chaîne AAAA-MM-JJ), jamais sur minuit UTC (2.3).
+- Avant les tests d'écran, aucun `next dev` d'un autre dossier n'occupe le port du poste : Playwright réutilise le serveur trouvé et testerait le code de `main` (2.5a).
+- Dans un test d'écran, un libellé contenu dans un autre se cible avec `exact: true` (« Champs » / « Autres champs »), et deux écritures successives attendent chacune leur réponse (`waitForResponse`) : deux clics enchaînés rendent le test instable (2.4, 2.5b).
 
 ## Idiomes d'interface
 
@@ -79,6 +89,12 @@ _Fautes déjà commises sur ce dépôt et attrapées à l'audit ou au merge. Le 
 - Sous-navigation par onglets : l'entrée courante porte `aria-current="page"` et un marquage visible ; les entrées réservées aux administrateurs sont filtrées côté serveur, les pages restent protégées par `requireAdmin()`.
 - Les composants shadcn qui gardent un texte `sr-only` permanent (`SidebarTrigger`, `CommandDialog`) font échouer le contrôle de débordement à 375 px : les recomposer avec un `aria-label` sur le bouton et un `DialogTitle` dans le dialogue.
 - Un élément masqué par `opacity-0` reste cliquable et recouvre ses voisins : lui poser aussi `pointer-events-none` (le libellé de groupe de la barre latérale repliée avalait les clics sur « Mon profil », CRM-64).
+- Une valeur en lecture seule (champ dérivé, fiche archivée) se rend en texte lié par `aria-labelledby`, jamais par un contrôle `disabled` dont l'opacité la rend illisible (« Contact » à 3,3:1 en 2.2) ; une case à cocher inerte prend `readOnly` (2.6b).
+- Un dialogue de formulaire n'a pas de croix (`showCloseButton={false}`) : deux boutons « Annuler » / « Créer » ; un dialogue long garde en-tête et pied fixes, seule la zone centrale défile, et le bouton de confirmation reste visible à 375 px (2.1a, 2.6a).
+- Un texte saisi par l'utilisateur (nom de vue, libellé de champ) affiché dans une ligne flex ou un menu porte `min-w-0` et une troncature, et son conteneur borne sa largeur à l'écran ; sinon les badges et boutons voisins l'écrasent (2.4, 2.5b).
+- Les hauteurs viennent des tokens (`--control-h`, `--row-h`, `--header-h`), pas d'un `h-7` / `h-8` en dur : le même contrôle est sorti à 32 px dans un dialogue et 28 px sur la fiche (2.1a, 2.2 ; parent de CRM-31).
+- Une commande à icône seule (croix de puce, flèche, épingle) peint son icône à 20 px, étend sa zone de clic à 28 px par un pseudo-élément transparent et porte un `title` identique à son nom accessible (2.5a, 2.5b).
+- Le `CommandInput` de shadcn supprime le contour de focus (`outline-hidden`) : le repasser par `className` (2.1b).
 - Le bloc `nextjs-agent-rules` en fin de ce fichier est réécrit par `next dev` : on le commite tel quel, on n'y touche pas.
 
 <!-- BEGIN:nextjs-agent-rules -->
