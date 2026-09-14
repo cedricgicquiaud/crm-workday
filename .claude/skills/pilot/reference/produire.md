@@ -2,6 +2,7 @@
 
 _Détail de la boucle de production : worktrees, `MISSION.md`, `tdd-writer`, audit par_
 `verifier` et `testeur`, correction, PR. La seule commande qui tourne sans l'humain._
+_Règles communes : `git.md` (branches, PR, verrou), `fiches.md` (le moule)._
 
 ---
 
@@ -74,7 +75,10 @@ les suivantes. Moins de 200 caractères, ce qu'il doit faire en premier.
    découpage a peut-être laissé un point de contact : deux livraisons qui ajoutent chacune une
    ligne au même fichier partagé. Créer leurs deux worktrees d'avance les fait partir du même
    `main`, et les deux lignes se retrouvent au même endroit au merge. Le découpage indique ces
-   contacts ; en série, la livraison suivante part après le merge de la précédente. Y écrire
+   contacts ; en série, la livraison suivante part après le merge de la précédente. Si un
+   conflit apparaît quand même au merge, l'humain demande sa résolution : la skill
+   `resolving-merge-conflicts` la fait par intention (pourquoi chaque côté a changé), jamais
+   en choisissant des lignes. Y écrire
    `MISSION.md` depuis le gabarit. **Il ne porte que le variable** : tâches (codes), fichiers
    modifiables (ceux du jalon), décisions produit recopiées de la fiche feature, **le texte des
    phrases du contrat** affectées à cette livraison (le numéro seul ne dit pas ce qu'il faut
@@ -138,7 +142,7 @@ les suivantes. Moins de 200 caractères, ce qu'il doit faire en premier.
    session est un Claude ordinaire et n'a aucune des règles de la boucle.
    Chaque producteur : cycles test rouge → code → vert, un commit par transition, tâches
    → « Terminée » au fil de l'eau, `UAT.md` (sa section : une case par « Terminé quand »,
-   avec sa donnée et son refus, **non cochée**), push, PR au gabarit, stop.
+   avec sa donnée et son refus, **non cochée**), push, PR au gabarit de `git.md`, stop.
 4. **Audit et recette**, en parallèle sur chaque PR, par deux agents qui n'ont pas écrit le
    code :
    - `verifier` sur `git diff main...HEAD` : sécurité, idiomes, couverture des numéros de

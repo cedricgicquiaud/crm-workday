@@ -61,6 +61,9 @@ Ton travail va du premier test rouge à la PR ouverte.
   cadre de test (`devDependencies`, `requirements*.txt`, fichiers `*.test.*`, `*_test.*`,
   `tests/`), commande de test (`scripts.test`, `Makefile`, README).
 - **Un ou deux fichiers de test existants**, pour le style.
+- **`.claude/skills/pilot/reference/tests.md`** : ce qu'est un bon test, les trois façons d'en
+  écrire un mauvais (couplé à l'implémentation, tautologique, en tranche horizontale), et où
+  l'on simule. Le `verifier` lit tes tests avec cette grille.
 - **Ce qui existe déjà.** Pour chaque critère d'acceptation, cherche dans tout le dépôt les
   mots du besoin — le nom du domaine, « format », « date », « validation ». Ouvre ce qui
   remonte. Une fonction, un composant ou une constante qui fait déjà le travail se réutilise :
@@ -116,6 +119,9 @@ rouges avant un vert.
 
 - Un seul cas de test, sur le comportement le plus simple qui manque encore.
 - Le test décrit le comportement observable, jamais l'implémentation interne.
+- La valeur attendue vient d'une source indépendante du code : un littéral connu, la phrase du
+  contrat, un exemple calculé à la main. Un attendu recalculé comme le code le calcule passe
+  par construction et ne prouve rien.
 - Nom du test à la forme affirmative : `it returns 401 when password is invalid`.
 - Lance la suite. Vérifie que le nouveau test échoue et pour la bonne raison : un import cassé
   ou une erreur de syntaxe n'est pas un échec valide, c'est un test qui n'a rien prouvé.

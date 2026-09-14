@@ -2,6 +2,8 @@
 
 _Détail des trois commandes de cadrage. Chacune s'arrête sur une validation humaine :_
 _le PRD, la liste des features, le contrat de validation, le découpage._
+_Règles communes : `entretien.md` (comment poser les questions), `fiches.md` (le moule,_
+_tailles, priorités, dates), `linear.md` (l'outil), `git.md` (branches, PR)._
 
 ---
 
@@ -21,12 +23,12 @@ sur ce workspace ; intégration GitHub activée dans ce workspace (Settings → 
    encore rien, et une supposition posée là se paie sur toute la roadmap.
    **Puis l'entretien**, informé par ce qu'on a trouvé : à qui ça sert, le problème, ce
    que l'utilisateur pourra faire, ce qui est hors périmètre, les contraintes (stack,
-   échéance, environnements), les versions ou thèmes s'il y en a. Poser les questions par
-   petits lots, pas un questionnaire. Écrire le résultat dans `.pilot/PRD.md` (une page :
+   échéance, environnements), les versions ou thèmes s'il y en a. Mener l'entretien selon
+   `entretien.md` : la frontière des questions par rounds numérotés, chacune avec une
+   réponse recommandée. Écrire le résultat dans `.pilot/PRD.md` (une page :
    utilisateurs, problème, périmètre V1, hors périmètre, contraintes, grandes fonctionnalités
-   pressenties). Annoncer d'emblée le nombre de lots (trois, en général : utilisateurs et
-   problème ; périmètre et hors périmètre ; contraintes et versions). **S'arrêter : l'humain
-   valide le PRD.** Si un cadrage existe déjà, le lire et passer à l'étape 1.
+   pressenties). Trois rounds, en général : utilisateurs et problème ; périmètre et hors
+   périmètre ; contraintes et versions. **S'arrêter : l'humain valide le PRD.** Si un cadrage existe déjà, le lire et passer à l'étape 1.
 
 0 bis. **La direction visuelle**, si le produit a des écrans. Sans elle, les agents rendront
    l'interface que le modèle produit par défaut — et personne ne pourra dire qu'elle est fausse,
@@ -54,7 +56,9 @@ sur ce workspace ; intégration GitHub activée dans ce workspace (Settings → 
 4. Créer `.pilot/` à la racine avec `calibration.md` (copie du barème global
    `~/.config/pilot/calibration.md` s'il existe, sinon un barème vide et une note
    « lancer `/pilot benchmark` »). Le dossier contient déjà `PRD.md` et `recherche.md`
-   depuis l'étape 0.
+   depuis l'étape 0. Créer aussi `CONTEXT.md` à la racine, au format de `domaine.md`, avec
+   les termes que le PRD vient de fixer (un mot par concept, les synonymes à éviter) ; pas
+   de `docs/adr/` avant la première ADR.
 4 bis. **Projet à plusieurs** (dès qu'un second membre est prévu) : écrire `.mcp.json` à la
    racine,
    `{"mcpServers": {"<connexion>": {"type": "http", "url": "https://mcp.linear.app/mcp"}}}`.
@@ -65,7 +69,7 @@ sur ce workspace ; intégration GitHub activée dans ce workspace (Settings → 
    l'utilisateur de confirmer que l'organisation du dépôt apparaît dans Linear → Settings →
    Integrations → GitHub → Connected organizations. Sinon lui indiquer le bouton « + ».
 6. Poser les gabarits GitHub du dépôt :
-   - `.github/PULL_REQUEST_TEMPLATE.md` au gabarit de PR (codes du projet), s'il manque ;
+   - `.github/PULL_REQUEST_TEMPLATE.md` au gabarit de PR de `git.md` (codes du projet), s'il manque ;
    - `.github/ISSUE_TEMPLATE/config.yml` qui neutralise les issues GitHub et renvoie vers
      Linear :
      `blank_issues_enabled: false` + `contact_links: [{name: "Les tâches se suivent dans
@@ -104,10 +108,10 @@ sur ce workspace ; intégration GitHub activée dans ce workspace (Settings → 
    capable le temps de la poser. Une roadmap est un dialogue : elle ne se délègue pas à un
    agent, mais le modèle qui la tient peut être choisi.
 4. Créer chaque feature (`save_project`) : team du projet, statut « À cadrer », description au
-   template Feature (avec la liste des livraisons), label `Taille`, priorité selon la règle,
+   template Feature (avec la liste des livraisons), label `Taille`, priorité selon `fiches.md`,
    dans l'ordre ; puis ses livraisons (`save_milestone`, ou API `projectMilestoneCreate`,
    `sortOrder` = rang). Initiatives seulement si le cadrage définit des versions. Icône et
-   couleur par initiative (règle « Icônes et couleurs »). **Aucune tâche.**
+   couleur par initiative (`linear.md` § Icônes et couleurs). **Aucune tâche.**
 5. Dates : `python3 .claude/skills/pilot/scripts/schedule.py --calibration
    .pilot/calibration.md --start <prochain jour actif> "Livraison:S" "Livraison:M" …`
    sur **les livraisons** dans l'ordre validé (non terminées seulement, feature en cours
@@ -149,12 +153,20 @@ fabrique et dans quel fichier.
 
 **Temps 1 — cadrer.**
 1. Retrouver la feature dans Linear (titre proche, statut « À cadrer ») ou en créer une
-   nouvelle (après validation, comme `roadmap`). Lire sa fiche, le PRD, le code concerné.
-2. Poser les questions qui restent (par petits lots) et proposer, sans rien créer :
+   nouvelle (après validation, comme `roadmap`). Lire sa fiche, le PRD, `CONTEXT.md`, le
+   code concerné. Pendant le cadrage, un mot de l'humain qui contredit le glossaire, un mot
+   flou qui recouvre deux choses, ou un code qui contredit ce qu'il affirme se tranchent
+   sur-le-champ et `CONTEXT.md` se met à jour aussitôt (`domaine.md`).
+2. Poser les questions qui restent, selon `entretien.md` (rounds numérotés, réponse
+   recommandée, les faits cherchés dans le code avant de demander), puis proposer, sans rien
+   créer :
    - les **décisions produit** (choix tranchés, avec l'option retenue) ;
    - le **contrat de validation** : 10 à 30 phrases « ce qui devra être vrai », observables
      par l'utilisateur, dont au moins un tiers de refus (ce qui doit être impossible ou
      rejeté). Pas de formule générique valable pour n'importe quelle feature.
+   Une question que seul le client (ou un tiers absent) peut trancher ne se devine pas :
+   `/to-questionnaire` écrit le document à lui envoyer, et la feature reste « À cadrer »
+   jusqu'à la réponse.
    Avant de présenter, lance l'agent `contradicteur` sur ce que tu viens d'écrire : il rend
    les cas non prévus, les phrases invérifiables, les règles qui se contredisent et le supposé
    connu. Présente ses questions à l'humain **avec** ta proposition, sans y répondre à sa
@@ -187,5 +199,5 @@ fabrique et dans quel fichier.
    des tâches**, `sortOrder` = rang (API `issueUpdate`). Dans la description de chaque jalon :
    ses fichiers et ses numéros de contrat (c'est ce que `run` recopie dans les `MISSION.md`).
    Passer la feature « Planifiée ». Mettre le lien recette (`UAT.md#<slug>` ou Notion).
-7. Compter : annoncé / créé. Sonder une fiche au hasard contre le moule.
+7. Compter : annoncé / créé. Sonder une fiche au hasard contre le moule (`fiches.md`).
 8. Suite proposée : `run <feature>`.
