@@ -155,6 +155,34 @@ def transcripts(projet):
                 fichiers.append(f)
     return fichiers
 
+def livraison_de(nom):
+    """producteur-2-4-champs -> 2-4 ; testeur-25a -> 25a ; correcteur-2-6b -> 2-6b ; sinon None."""
+    m = re.match(r"^[a-z]+-((?:\d+-)?\d+[a-z]?)(?:-|$)", nom)
+    return m.group(1) if m else None
+
+def lead_de(chemin_agent, debut, fin):
+    """Le journal de la session qui a lancé cet agent, lu entre debut et fin : le coût du lead."""
+    sess = os.path.dirname(os.path.dirname(chemin_agent))  # .../<slug>/<session>
+    journal = sess + ".jsonl"
+    r = dict(requetes=0, ecrits=0, relus=0, sortis=0, actif=0.0)
+    if not os.path.exists(journal): return None
+    prev = None
+    for ligne in open(journal, errors="replace"):
+        try: d = json.loads(ligne)
+        except Exception: continue
+        t = ts(d.get("timestamp", ""))
+        if not t or t < debut or t > fin: continue
+        u = (d.get("message") or {}).get("usage") or {}
+        if u:
+            r["requetes"] += 1
+            r["ecrits"] += (u.get("input_tokens") or 0) + (u.get("cache_creation_input_tokens") or 0)
+            r["relus"] += u.get("cache_read_input_tokens") or 0
+            r["sortis"] += u.get("output_tokens") or 0
+        if prev and (t - prev).total_seconds() <= TROU: r["actif"] += (t - prev).total_seconds()
+        prev = t
+    r["actif"] /= 60
+    return r
+
 def nom_agent(chemin):
     """agent-aproducteur-2-5b-vues-0e36c710776937e4.jsonl -> producteur-2-5b-vues"""
     n = os.path.basename(chemin)[:-len(".jsonl")]
@@ -254,10 +282,13 @@ def etapes(chemin):
                     out.append((t, "… " + premiere[:110]))
             elif it.get("type") == "tool_use":
                 inp = it.get("input") or {}; cmd = str(inp.get("command", ""))
-                mc = re.search(r'git commit[^"]*-m\s+"([^"]+)"', cmd) or re.search(r"git commit[^']*-m\s+'([^']+)'", cmd)
+                mc = None
+                if "git commit" in cmd:
+                    mh = re.search(r"<<\s*'?EOF'?\s*\n(.+)", cmd)
+                    mc = mh or re.search(r'git commit[^"]*-m\s+"([^"\n]+)', cmd) or re.search(r"git commit[^']*-m\s+'([^'\n]+)", cmd)
                 if mc:
-                    msg = mc.group(1); genre = msg.split(":")[0].strip()
-                    out.append((t, f"commit : {'test' if genre == 'test' else 'code' if genre in ('feat', 'fix', 'refactor') else genre} — {msg[:80]}"))
+                    msg = mc.group(1).strip(); genre = msg.split(":")[0].strip()
+                    out.append((t, f"commit {'test' if genre == 'test' else 'code' if genre in ('feat', 'fix', 'refactor') else genre} — {msg.split(':', 1)[-1].strip()[:80]}"))
                 elif "gh pr create" in cmd: out.append((t, "PR ouverte"))
                 elif re.search(r"vitest|playwright test|node --test|pytest|npm test|npm run test", cmd): attendus[it.get("id")] = t
             elif it.get("type") == "tool_result" and it.get("tool_use_id") in attendus:
@@ -266,7 +297,9 @@ def etapes(chemin):
                 mp2 = re.search(r"ℹ pass (\d+)", s_ or ""); mf2 = re.search(r"ℹ fail (\d+)", s_ or "")
                 verts = (mp and mp.group(1)) or (mp2 and mp2.group(1)); rouges = (mf and mf.group(1)) or (mf2 and mf2.group(1))
                 if verts or rouges:
-                    out.append((t, f"tests : {verts or 0} verts" + (f", {rouges} rouges" if rouges and rouges != "0" else "")))
+                    ligne = f"tests : {verts or 0} verts" + (f", {rouges} rouges" if rouges and rouges != "0" else "")
+                    if out and out[-1][1].startswith("tests :"): out[-1] = (t, ligne)
+                    else: out.append((t, ligne))
                 del attendus[it.get("tool_use_id")]
     return out, fini
 
@@ -275,8 +308,6 @@ ANSI = {"green": "32", "orange": "38;5;208", "yellow": "33", "red": "31", "blue"
 def suivre(projet, nom, depuis, journal=None, couleur=""):
     import time, shutil, subprocess
     vus = {}
-    code = ANSI.get(couleur, "")
-    teinte = (lambda x: f"\033[{code}m{x}\033[0m") if code else (lambda x: x)
     if journal:
         # lancé par le hook au démarrage de l'agent : le fichier peut mettre quelques secondes à exister
         for _ in range(60):
@@ -284,13 +315,16 @@ def suivre(projet, nom, depuis, journal=None, couleur=""):
             time.sleep(1)
         else: print(f"journal jamais apparu : {journal}"); return 1
         nom = nom_agent(journal)
-        try:  # le nom donné à l'agent, quand le fichier ne le porte pas
+        try:  # le nom donné à l'agent et la couleur de sa fiche : Claude Code les écrit à côté du journal
             meta = json.load(open(journal[:-len(".jsonl")] + ".meta.json"))
             if meta.get("name"): nom = meta["name"]
+            if meta.get("color"): couleur = meta["color"]
         except Exception: pass
         if shutil.which("cmux") and os.environ.get("CMUX_SURFACE_ID"):
             subprocess.run(["cmux", "rename-tab", "--surface", os.environ["CMUX_SURFACE_ID"], nom],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    code = ANSI.get(couleur, "")
+    teinte = (lambda x: f"\033[{code}m{x}\033[0m") if code else (lambda x: x)
     while True:
         maintenant = datetime.datetime.now(datetime.timezone.utc)
         fichiers = [journal] if journal else [f for f in transcripts(projet)
@@ -299,9 +333,13 @@ def suivre(projet, nom, depuis, journal=None, couleur=""):
             if not fichiers:
                 print(f"aucun agent « {nom} » en cours (journal bougé depuis {depuis} min)"); return 1
             f = fichiers[0]; lignes, fini = etapes(f)
-            if f not in vus: print(teinte(nom) + "\n", flush=True)
-            deja = vus.get(f, 0)
-            for t, x in lignes[deja:]: print(f"  {t.astimezone().strftime('%H:%M')}  {teinte(x)}", flush=True)
+            if vus.get(f) != len(lignes):
+                # le panneau dit « ça avance », pas « voilà tout » : les cinq dernières étapes, une ligne chacune
+                larg = shutil.get_terminal_size((80, 24)).columns
+                print("\033[2J\033[H" + teinte(nom) + "\n", flush=True)
+                for t, x in lignes[-5:]:
+                    x = x.replace("\n", " ").replace("**", "")
+                    print(f"  {t.astimezone().strftime('%H:%M')}  {teinte(x[:max(10, larg - 10)])}", flush=True)
             vus[f] = len(lignes)
             # l'agent a rendu : son dernier événement est un texte sans appel d'outil, et rien depuis 60 s
             x = lire(f)
@@ -362,7 +400,7 @@ def main():
     par_agent = collections.defaultdict(list)
     for f in fichiers:
         agent = type_agent(f)
-        r = lire(f); r["fichier"] = os.path.basename(f); par_agent[agent].append(r)
+        r = lire(f); r["fichier"] = os.path.basename(f); r["chemin"] = f; par_agent[agent].append(r)
 
     print(f"\nCoût des sous-agents — {os.path.basename(projet)}  ({len(fichiers)} agents)\n")
     print(f"{'agent':10} {'n':>3} {'horloge':>8} {'actif':>6} {'attente':>8} {'échanges':>9} "
@@ -382,6 +420,45 @@ def main():
     print(f"\nTotal : {tot['actif']/60:.1f} h de travail d'agents, {bloque/60:.1f} h bloqué sur une commande, "
           f"{tot['veille']/60:.1f} h de veille après rapport, "
           f"{tot['requetes']} échanges, {tot['ecrits']/1e6:.1f} M jetons écrits, {tot['relus']/1e6:.0f} M relus.")
+
+    # --- par livraison : le chiffre qui compte, un résultat accepté et ce qu'il a coûté, reprises comprises
+    par_liv = collections.defaultdict(list)
+    for agent, L in par_agent.items():
+        for x in L:
+            code = livraison_de(nom_agent(x["chemin"]))
+            if code: par_liv[code].append((agent, x))
+    if par_liv:
+        print(f"\nPar livraison (tous les agents de la livraison, corrections et repasses comprises) :")
+        print(f"{'livraison':10} {'agents':>6} {'actif':>7} {'relus':>8} {'corrections':>12} {'passes test.':>13} {'horloge':>9}")
+        for code in sorted(par_liv, key=lambda c: min(x["premier"] for _, x in par_liv[c] if x["premier"]) or datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)):
+            L = par_liv[code]
+            actif = sum(x["actif"] for _, x in L); relus = sum(x["relus"] for _, x in L)
+            corr = sum(1 for a, _ in L if a == "fix"); tests = sum(1 for a, _ in L if a == "test")
+            debuts = [x["premier"] for _, x in L if x["premier"]]; fins = [x["dernier"] for _, x in L if x["dernier"]]
+            horloge = (max(fins) - min(debuts)).total_seconds() / 60 if debuts and fins else 0
+            print(f"{code:10} {len(L):6} {duree(actif):>7} {relus/1e6:6.0f} M {corr:12} {tests:13} {duree(horloge):>9}")
+        print("  actif = minutes de travail d'agents ; corrections = tours de correcteur ; horloge = du premier agent au dernier rapport.")
+
+    # --- le lead : la taxe de coordination, par run (agents regroupés à moins de 30 min d'écart)
+    tous = sorted((x for L in par_agent.values() for x in L if x["premier"]), key=lambda x: x["premier"])
+    runs = []
+    for x in tous:
+        if runs and (x["premier"] - runs[-1]["fin"]).total_seconds() < 1800:
+            runs[-1]["fin"] = max(runs[-1]["fin"], x["dernier"]); runs[-1]["agents"].append(x)
+        else: runs.append({"debut": x["premier"], "fin": x["dernier"], "agents": [x]})
+    print(f"\nLe lead, par run (sa session, entre le premier agent lancé et le dernier rapport) :")
+    for r in runs[-6:]:
+        marge = datetime.timedelta(minutes=3)
+        lead = lead_de(r["agents"][0]["chemin"], r["debut"] - marge, r["fin"] + marge)
+        quand = r["debut"].astimezone().strftime("%d/%m %H:%M")
+        codes = sorted({livraison_de(nom_agent(x["chemin"])) or "?" for x in r["agents"]})
+        agents_relus = sum(x["relus"] for x in r["agents"]) / 1e6
+        if lead:
+            part = 100 * lead["relus"] / 1e6 / (lead["relus"] / 1e6 + agents_relus) if (lead["relus"] + agents_relus) else 0
+            print(f"  {quand}  livraisons {', '.join(codes):12} lead : {duree(lead['actif']):>7}, {lead['requetes']:3} échanges, "
+                  f"{lead['relus']/1e6:4.0f} M relus — {part:.0f} % des jetons du run")
+        else:
+            print(f"  {quand}  livraisons {', '.join(codes):12} lead : journal de session introuvable")
 
     attentes = [x for L in par_agent.values() for x in L if x["attente"] > ATTENTE_MIN]
     print(f"\nAttentes de plus de {ATTENTE_MIN} min :")

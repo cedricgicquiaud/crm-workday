@@ -47,7 +47,8 @@ Pour chaque feature « En revue » de la team : retrouver la PR de sa livraison 
 terminées → jalon terminé (ses tâches le sont) ; s'il reste des livraisons → feature
 « En développement » ; sinon → feature « Terminée ». Dans
 `.pilot/calibration.md`, compléter la ligne d'historique (mergée, heures réelles = colonne
-« actif » du relevé `cout-agents.py`, jamais l'horloge : l'horloge contient les attentes de
+« actif » de la ligne « Par livraison » du relevé `cout-agents.py`, qui additionne tous les
+agents de la livraison, corrections comprises ; jamais l'horloge : l'horloge contient les attentes de
 permission et les agents en veille, et le 05/09 elle a fait passer une livraison de 81 minutes
 pour 6 heures). Une durée que l'outil n'a pas mesurée s'écrit « estimée » et n'entre pas dans
 la médiane. Puis recalculer `feature_hours_<T>` du projet = médiane
