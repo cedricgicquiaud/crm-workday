@@ -17,6 +17,8 @@ registerObject({
   apiBase: "/api/personnes",
   titleField: "name",
   fields: PERSON_FIELDS,
+  /** « Profils : Contact » en badge de tête : la casquette de la personne se lit avant ses champs (D8). */
+  headerFields: ["profiles"],
   /** Entreprise et rôle s'éditent dans « Profil contact » : l'historique de la personne les nomme quand même. */
   historyFields: CONTACT_PROFILE_HISTORY_FIELDS,
   /** D7 : cinq champs ; `companyId` est le `prefill` de la relation, rendu par le dialogue comme un sélecteur ; le rôle se règle sur la fiche. */

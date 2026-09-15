@@ -6,6 +6,7 @@
  */
 import type { PgTable } from "drizzle-orm/pg-core";
 import type { ReactNode } from "react";
+import type { ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 
 /** Résultat de recherche (palette Cmd+K, 2.1b) : la fiche, son titre et un sous-titre facultatif. */
@@ -66,6 +67,12 @@ export type ServerObjectDefinition = {
   dependents?: readonly DependentTable[];
   /** sections propres à l'objet, rendues par la fiche sous « Champs » (D20) ; absentes, la fiche n'en montre aucune */
   sections?: readonly ObjectSection[];
+  /**
+   * Lecture d'une fiche pour son écran, quand elle ne se résume pas aux colonnes de sa table : la
+   * personne y joint ses autres adresses et le poste de son profil contact. Absent, la fiche est lue
+   * par la lecture générique du service.
+   */
+  loadRecord?: (id: string) => Promise<ObjectRecord>;
 };
 
 const objects = new Map<string, ServerObjectDefinition>();
