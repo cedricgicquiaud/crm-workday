@@ -52,6 +52,20 @@ const SELECTS: readonly FieldControlKind[] = ["list", "record"];
 const INPUT_TYPE: Partial<Record<FieldControlKind, string>> = { number: "number", date: "date" };
 
 /**
+ * Ce qu'une touche fait dans un champ : enregistrer le brouillon, le remettre à la valeur
+ * enregistrée, ou rien — et c'est le cas de tout ce qui est saisi dans un dialogue. Là, la valeur
+ * appartient au formulaire : intercepter Entrée lui retirerait la soumission implicite du
+ * navigateur, celle qui crée la personne depuis n'importe quel champ (défaut d'audit 3.0). Sur une
+ * fiche, le champ s'édite en place et n'a pas de formulaire autour de lui : Entrée enregistre, Échap
+ * annule, sauf dans un texte long où Entrée reste un retour à la ligne.
+ */
+export function fieldKeyAction(placement: FieldPlacement, kind: FieldControlKind, key: string): "commit" | "cancel" | null {
+  if (placement !== "sheet") return null;
+  if (key === "Escape") return "cancel";
+  return key === "Enter" && kind !== "multiline" ? "commit" : null;
+}
+
+/**
  * Le champ, rendu une seule fois pour tout le CRM (CRM-78) : libellé au-dessus (12 px / 500),
  * contrôle selon son type, refus en dessous (11 px, `role="alert"`), désigné par le contrôle. La
  * section « Champs » d'une fiche, le dialogue de création rapide et les sections propres à un objet
@@ -83,13 +97,12 @@ export function FieldControl({ id, label, placement, kind, value: saved, options
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
-    if (event.key === "Escape") {
-      setDraft(saved);
-      event.currentTarget.blur();
-    } else if (event.key === "Enter" && kind !== "multiline") {
-      event.preventDefault();
-      event.currentTarget.blur();
-    }
+    const action = fieldKeyAction(placement, kind, event.key);
+    if (!action) return;
+    if (action === "cancel") setDraft(saved);
+    /* Entrée sort du champ, ce qui enregistre par `onBlur` ; l'empêcher évite qu'elle soumette au passage. */
+    if (action === "commit") event.preventDefault();
+    event.currentTarget.blur();
   }
 
   function choose(next: string) {
