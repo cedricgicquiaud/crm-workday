@@ -3,7 +3,7 @@ import { pgTable, text, uuid } from "drizzle-orm/pg-core";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { FieldControl, type FieldControlProps } from "@/features/objects/field-control";
+import { FieldControl, fieldKeyAction, type FieldControlProps } from "@/features/objects/field-control";
 import { defineSection, getServerObject, registerServerObject, sectionsOf, type ObjectSection } from "@/features/objects/registry.server";
 
 /**
@@ -109,5 +109,27 @@ describe("un seul composant rend un champ (CRM-78)", () => {
       expect(code, path).not.toContain("<Label");
       expect(code, path).not.toContain('role="alert"');
     }
+  });
+});
+
+/**
+ * Ce que les touches font dans un champ, décidé en un seul endroit (CRM-78). Sur une fiche, le champ
+ * s'édite en place : Entrée enregistre, Échap annule. Dans un dialogue, la valeur appartient au
+ * formulaire : aucune touche n'est interceptée, sans quoi Entrée ne soumettrait plus « Nouvelle
+ * personne » — la soumission implicite du navigateur, que le dialogue avait avant `FieldControl`.
+ */
+describe("touches d'un champ selon son placement (CRM-78)", () => {
+  it("n'intercepte aucune touche dans un dialogue : Entrée soumet le formulaire, Échap le ferme", () => {
+    expect(fieldKeyAction("dialog", "text", "Enter")).toBeNull();
+    expect(fieldKeyAction("dialog", "text", "Escape")).toBeNull();
+    expect(fieldKeyAction("dialog", "multiline", "Enter")).toBeNull();
+  });
+
+  it("sur une fiche, Entrée enregistre et Échap remet la valeur enregistrée ; un texte long garde son retour à la ligne", () => {
+    expect(fieldKeyAction("sheet", "text", "Enter")).toBe("commit");
+    expect(fieldKeyAction("sheet", "date", "Escape")).toBe("cancel");
+    expect(fieldKeyAction("sheet", "multiline", "Enter")).toBeNull();
+    expect(fieldKeyAction("sheet", "multiline", "Escape")).toBe("cancel");
+    expect(fieldKeyAction("sheet", "text", "a")).toBeNull();
   });
 });
