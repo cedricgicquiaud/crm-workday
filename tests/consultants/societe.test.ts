@@ -84,7 +84,7 @@ describe("société de facturation d'un consultant (CRM-81, D4)", () => {
 
   it("ne propose au sélecteur que les entreprises du type imposé par le statut, et aucune pour un salarié", async () => {
     expect((await listBillingCompanyOptions("freelance")).map((option) => option.name)).toEqual(["Dupont Conseil"]);
-    expect((await listBillingCompanyOptions("portage")).map((option) => option.name)).toEqual(["Portage Atlantique"]);
+    expect((await listBillingCompanyOptions("portage")).map((option) => option.id)).toEqual([portageId]);
     expect(await listBillingCompanyOptions("salarie")).toEqual([]);
   });
 

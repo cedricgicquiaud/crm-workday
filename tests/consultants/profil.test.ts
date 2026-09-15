@@ -12,7 +12,6 @@ import { jsonRequest, sessionCookie } from "../helpers/auth";
 
 const MEMBER = { email: "membre-profil-consultant@exemple.fr", firstName: "Awa", lastName: "Diop", password: "MotDePasse-Consultant-1", role: "membre" as const };
 
-let memberId: string;
 let memberCookie: string;
 
 const byId = (id: string) => ({ params: Promise.resolve({ id }) });
@@ -52,7 +51,7 @@ async function cleanup() {
 beforeAll(async () => {
   await cleanup();
   await db.delete(user).where(eq(user.email, MEMBER.email));
-  memberId = (await createUserWithPassword(MEMBER)).id;
+  await createUserWithPassword(MEMBER);
   memberCookie = await sessionCookie(MEMBER.email, MEMBER.password);
 });
 

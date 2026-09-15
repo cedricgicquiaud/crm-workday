@@ -151,12 +151,9 @@ export async function attachConsultantProfiles(records: readonly ObjectRecord[])
   const rows = await profileRows(records.map((record) => record.id));
   const modules = await modulesOf(rows.map((row) => row.id));
   const byPerson = new Map(rows.map((row) => [row.personId, toProfile(row, modules.get(row.id))]));
-  return records.map((record) => {
-    const profile = byPerson.get(record.id);
-    if (!profile) return { ...record, ...EMPTY_COMPLEMENT };
-    const { personId: _personId, billingCompanyArchived: _archived, billingCompanyName, ...fields } = profile;
-    return { ...record, ...fields, billingCompanyName };
-  });
+  /* La fiche reçoit les champs du profil, pas ses clés techniques : « personId » est déjà son identifiant. */
+  const complement = (profile: ConsultantProfile) => Object.fromEntries(Object.entries(profile).filter(([key]) => key in EMPTY_COMPLEMENT));
+  return records.map((record) => ({ ...record, ...EMPTY_COMPLEMENT, ...(byPerson.has(record.id) ? complement(byPerson.get(record.id)!) : {}) }));
 }
 
 /** Le profil consultant compte dans « Profils » (D8), après le contact : la personne le porte dès qu'une ligne existe. */
@@ -287,10 +284,10 @@ async function writeModules(exec: Executor, profileId: string, resolved: Resolve
   const rows = await exec.select({ id: consultantModule.id, module: consultantModule.module, certified: consultantModule.certified }).from(consultantModule).where(eq(consultantModule.profileId, profileId));
   const dropped = rows.filter((row) => !resolved.modules.includes(row.module)).map((row) => row.id);
   if (dropped.length > 0) await exec.delete(consultantModule).where(inArray(consultantModule.id, dropped));
-  for (const module of resolved.modules) {
-    const certified = resolved.certifiedModules.includes(module);
-    const row = rows.find((candidate) => candidate.module === module);
-    if (!row) await exec.insert(consultantModule).values({ profileId, module, certified });
+  for (const key of resolved.modules) {
+    const certified = resolved.certifiedModules.includes(key);
+    const row = rows.find((candidate) => candidate.module === key);
+    if (!row) await exec.insert(consultantModule).values({ profileId, module: key, certified });
     else if (row.certified !== certified) await exec.update(consultantModule).set({ certified }).where(eq(consultantModule.id, row.id));
   }
 }

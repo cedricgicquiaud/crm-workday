@@ -8,7 +8,9 @@ import { and, desc, eq, exists, ilike, isNull, or } from "drizzle-orm";
 import { createElement } from "react";
 import { company, consultantProfile, contactProfile, person, personEmail } from "@/db/schema";
 import { normalizeName } from "@/features/duplicates/normalize";
-import { attachConsultantProfiles, consultantSubtitles, describeConsultantProfile } from "@/features/consultants/consultant-profile";
+import type { BillingCompanyOption } from "@/features/consultants/billing-company-picker";
+import { attachConsultantProfiles, consultantSubtitles, describeConsultantProfile, getConsultantProfile, listBillingCompanyOptions, type ConsultantProfile } from "@/features/consultants/consultant-profile";
+import { ConsultantProfileSection } from "@/features/consultants/consultant-profile-section";
 import { defineSection, registerServerObject, type DependentTable, type SearchHit } from "@/features/objects/registry.server";
 import { listRecordOptions } from "@/features/objects/service";
 import { db } from "@/lib/db";
@@ -79,6 +81,25 @@ const contactProfileSection = defineSection<ContactProfileData>({
   render: ({ id, data, readOnly }) => createElement(ContactProfileSection, { personId: id, profile: data.profile, companies: data.companies, readOnly }),
 });
 
+/** Ce que la section « Profil consultant » lit d'un coup : le profil, et les sociétés que son statut permet. */
+type ConsultantProfileData = { profile: ConsultantProfile | null; companies: readonly BillingCompanyOption[] };
+
+/**
+ * Section « Profil consultant » de la fiche personne (D9, D20), sous « Profil contact ». Son chargeur
+ * lit le profil et les sociétés proposées pour le statut enregistré : la section les reçoit, elle ne
+ * les relit pas pour son compte. Sans profil, aucune société n'est à proposer — le statut est choisi
+ * d'abord, et c'est lui qui dit quel type de société convient (D4).
+ */
+const consultantProfileSection = defineSection<ConsultantProfileData>({
+  key: "profil-consultant",
+  order: 20,
+  load: async (id) => {
+    const profile = await getConsultantProfile(id);
+    return { profile, companies: profile ? await listBillingCompanyOptions(profile.status) : [] };
+  },
+  render: ({ id, data, readOnly }) => createElement(ConsultantProfileSection, { personId: id, profile: data.profile, companies: data.companies, readOnly }),
+});
+
 registerServerObject({
   key: "person",
   table: person,
@@ -91,5 +112,5 @@ registerServerObject({
   attach: attachConsultantProfiles,
   /* « Profils » se déduit des profils présents : après une fusion, la conservée le recalcule (D8). */
   recompute: (id, exec) => recomputeProfiles(id, exec).then(() => undefined),
-  sections: [contactProfileSection],
+  sections: [contactProfileSection, consultantProfileSection],
 });

@@ -74,7 +74,7 @@ describe("libellés des champs édités hors de la section « Champs » (CRM-42,
 /**
  * D20 : ce que la fiche générique montre d'une personne vient de sa déclaration — le badge de tête,
  * le chargeur de la fiche (le poste et les autres adresses viennent d'ailleurs que de ses colonnes)
- * et la section « Profil contact » avec son chargeur.
+ * et ses sections avec leur chargeur.
  */
 describe("composition déclarée de la fiche personne (CRM-73, D20)", () => {
   it("déclare le badge de tête « Profils », un chargeur de fiche qui rend le poste et les autres adresses, et la section « Profil contact » au rang 10 dont le chargeur rend le profil et les entreprises proposées", async () => {
@@ -87,7 +87,11 @@ describe("composition déclarée de la fiche personne (CRM-73, D20)", () => {
     expect(record).toMatchObject({ id: claire.id, jobTitle: "DSI", otherEmails: "c.noel@perso.fr" });
 
     const sections = sectionsOf("person");
-    expect(sections.map((section) => [section.key, section.order])).toEqual([["profil-contact", 10]]);
+    /* « Profil consultant » prend le rang suivant (3.1, D9) : il se rend sous « Profil contact ». */
+    expect(sections.map((section) => [section.key, section.order])).toEqual([
+      ["profil-contact", 10],
+      ["profil-consultant", 20],
+    ]);
     const data = (await sections[0].load(claire.id)) as { profile: { companyId: string; companyName: string; jobTitle: string | null } | null; companies: readonly { id: string; name: string }[] };
     expect(data.profile).toMatchObject({ companyId: acme.id, companyName: "Cabinet Acme", jobTitle: "DSI" });
     expect(data.companies).toContainEqual({ id: acme.id, name: "Cabinet Acme" });

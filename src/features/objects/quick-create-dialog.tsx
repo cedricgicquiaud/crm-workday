@@ -102,7 +102,7 @@ export function QuickCreateDialog({ type, create, users, currentUserId, prefill,
   useEffect(() => {
     if (!open || relatedKeys === "") return;
     let cancelled = false;
-    for (const { key, relation } of entries.flatMap((entry) => (entry.kind === "relation" ? [entry] : []))) {
+    for (const { key, relation } of entriesOf(type, create).flatMap((entry) => (entry.kind === "relation" ? [entry] : []))) {
       loadRelationOptions(relation.to)
         .then((loaded) => !cancelled && setOptions((current) => ({ ...current, [key]: loaded })))
         .catch((error: Error) => !cancelled && setErrors((current) => ({ ...current, [key]: error.message })));
@@ -110,6 +110,8 @@ export function QuickCreateDialog({ type, create, users, currentUserId, prefill,
     return () => {
       cancelled = true;
     };
+    /* `create` est une déclaration du registre, stable pour une liste donnée : la relire ne change rien. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, type, relatedKeys]);
 
   /**
