@@ -42,6 +42,13 @@ describe("section mal déclarée (CRM-73, D20)", () => {
     expect(() => getServerObject("test_section_sans_chargeur")).toThrow("Aucun objet");
   });
 
+  /* Deux sections de même clé se rendraient dans un ordre arbitraire, sous la même clé React : la fiche en perdrait une sans rien dire. */
+  it("refuse à l'enregistrement, en la nommant, une clé de section déclarée deux fois", () => {
+    const twice = [defineSection({ key: "profil-contact", order: 10, load: async () => null, render: () => null }), defineSection({ key: "profil-contact", order: 20, load: async () => null, render: () => null })];
+    expect(() => registerServerObject({ ...base, key: "test_section_en_double", sections: twice })).toThrow("Objet « test_section_en_double » : la section « profil-contact » est déclarée deux fois.");
+    expect(() => getServerObject("test_section_en_double")).toThrow("Aucun objet");
+  });
+
   it("refuse à l'enregistrement, en la nommant, une section sans rendu", () => {
     expect(() => registerServerObject({ ...base, key: "test_section_sans_rendu", sections: [withoutRender] })).toThrow("Objet « test_section_sans_rendu » : la section « profil-contact » n'a pas de rendu.");
     expect(() => getServerObject("test_section_sans_rendu")).toThrow("Aucun objet");
