@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DuplicateWarning, type DuplicateHint } from "@/features/duplicates/duplicate-warning";
 import { FieldControl } from "@/features/objects/field-control";
-import { fieldsOf, validateValues, type FieldErrors } from "@/features/objects/fields";
+import { validateValues, writableFieldsOf, type FieldErrors } from "@/features/objects/fields";
 import { createLabel, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor, type Relation } from "@/features/objects/registry";
 
@@ -39,7 +39,8 @@ const DUPLICATE_DELAY_MS = 300;
  */
 function entriesOf(type: string): Entry[] {
   const definition = getObject(type);
-  const fields = fieldsOf(type);
+  /* Les champs d'un profil ne se saisissent pas dans le dialogue de l'objet (D19) : l'API de l'objet les refuserait. */
+  const fields = writableFieldsOf(type);
   const chosen = definition.quickCreate ?? [definition.titleField];
   const entries = chosen.flatMap((key): Entry[] => {
     const field = fields.find((f) => f.key === key);

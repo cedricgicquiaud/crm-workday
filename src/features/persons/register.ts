@@ -5,6 +5,7 @@
  */
 import { UsersIcon } from "lucide-react";
 import { registerObject } from "@/features/objects/registry";
+import { CONSULTANT_PROFILE_HISTORY_FIELDS } from "@/features/consultants/schema";
 import { CONTACT_PROFILE_HISTORY_FIELDS, PERSON_FIELDS } from "./schema";
 
 registerObject({
@@ -20,11 +21,15 @@ registerObject({
   /** « Profils : Contact » en badge de tête : la casquette de la personne se lit avant ses champs (D8). */
   headerFields: ["profiles"],
   /** Entreprise et rôle s'éditent dans « Profil contact » : l'historique de la personne les nomme quand même. */
-  historyFields: CONTACT_PROFILE_HISTORY_FIELDS,
+  historyFields: [...CONTACT_PROFILE_HISTORY_FIELDS, ...CONSULTANT_PROFILE_HISTORY_FIELDS],
   /** D7 : cinq champs ; `companyId` est le `prefill` de la relation, rendu par le dialogue comme un sélecteur ; le rôle se règle sur la fiche. */
   quickCreate: ["firstName", "lastName", "email", "companyId", "jobTitle"],
   /** colonnes minimales ; l'entreprise attend une colonne de relation (2.5a) */
   listColumns: ["profiles", "ownerId"],
-  relations: [{ to: "company", fkColumn: "companyId", label: "Entreprise", inverseLabel: "Contacts", prefill: "companyId" }],
+  relations: [
+    { to: "company", fkColumn: "companyId", label: "Entreprise", inverseLabel: "Contacts", prefill: "companyId" },
+    /* La société de facturation est une entreprise liée (D4) : sa fiche liste ses consultants, et la fusion comme la suppression suivent la relation d'elles-mêmes. Aucun `prefill` : on n'ajoute pas un consultant depuis une entreprise. */
+    { to: "company", fkColumn: "billingCompanyId", label: "Société de facturation", inverseLabel: "Consultants facturés" },
+  ],
   feedParent: "company",
 });

@@ -24,6 +24,13 @@ export const db: Db = new Proxy({} as Db, {
   },
 });
 
+/**
+ * De quoi lire et écrire : le client partagé, ou la transaction en cours. Les services qui doivent
+ * pouvoir s'enchaîner dans une même transaction (une personne et son profil, D12) reçoivent ceci
+ * plutôt que d'appeler `db` directement ; sans argument, ils écrivent hors transaction comme avant.
+ */
+export type Executor = Pick<Db, "select" | "insert" | "update" | "delete">;
+
 /** Client SQL brut, pour les migrations et les remises à zéro de test. */
 export function rawSql() {
   return connect().sql;

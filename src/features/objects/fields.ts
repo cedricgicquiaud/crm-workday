@@ -22,12 +22,22 @@ export function historyFieldsOf(type: string): readonly FieldDescriptor[] {
 }
 
 /**
+ * Champs que l'objet écrit lui-même : les siens, moins ceux qui appartiennent à un profil (D19). Un
+ * champ de profil reste un champ de l'objet — colonne, filtre, tri, historique — mais il se règle par
+ * l'API de son profil, où son caractère obligatoire s'entend ; l'API de l'objet le refuse.
+ */
+export function writableFieldsOf(type: string): readonly FieldDescriptor[] {
+  return fieldsOf(type).filter((field) => field.profile === undefined);
+}
+
+/**
  * Champs qu'une fiche affiche : ceux qui se saisissent, plus les champs personnalisés archivés dont
  * cette fiche porte une valeur (contrat 19). Le champ archivé arrive en lecture seule : sa valeur se
  * lit comme un texte, elle ne se modifie plus, et une fiche sans valeur ne le montre pas du tout.
  */
 export function sheetFieldsOf(type: string, record: Record<string, unknown>): readonly FieldDescriptor[] {
-  const shown = fieldsOf(type);
+  /* Les champs d'un profil se rendent dans la section de leur profil, jamais sous « Champs » (D9). */
+  const shown = writableFieldsOf(type);
   const kept = new Set(shown.map((field) => field.key));
   const archived = allCustomFieldsOf(type).filter((field) => !kept.has(field.key) && !blank(record[field.key]));
   return [...shown, ...archived].sort((a, b) => a.order - b.order);

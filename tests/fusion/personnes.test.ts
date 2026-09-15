@@ -64,7 +64,7 @@ describe("fusion de deux personnes (CRM-59, D20)", () => {
     await mergeRecords("person", kept.id, absorbed.id, []);
 
     expect(await getContactProfile(kept.id)).toMatchObject({ companyId: acme.id, companyName: "Acme", jobTitle: "Directeur des achats" });
-    expect((await getObjectRecord("person", kept.id)).profiles).toBe("contact");
+    expect((await getObjectRecord("person", kept.id)).profiles).toEqual(["contact"]);
   });
 
   it("garde le profil contact de la conservée quand les deux en ont un, et consigne celui de l'absorbée dans l'entrée de fusion", async () => {

@@ -42,13 +42,17 @@ describe("déclaration de la personne dans le registre (CRM-41, D4)", () => {
     expect(definition.listHref).toBe("/personnes");
     expect(definition.apiBase).toBe("/api/personnes");
     expect(definition.titleField).toBe("name");
-    expect(definition.relations).toEqual([{ to: "company", fkColumn: "companyId", label: "Entreprise", inverseLabel: "Contacts", prefill: "companyId" }]);
+    expect(definition.relations).toEqual([
+      { to: "company", fkColumn: "companyId", label: "Entreprise", inverseLabel: "Contacts", prefill: "companyId" },
+      /* La société de facturation du profil consultant (3.1, D4) : la fiche de l'entreprise liste ses consultants facturés, et on n'en crée pas un depuis là (aucun `prefill`). */
+      { to: "company", fkColumn: "billingCompanyId", label: "Société de facturation", inverseLabel: "Consultants facturés" },
+    ]);
     expect(definition.feedParent).toBe("company");
     expect(definition.listColumns).toContain("profiles");
     /* D7 : cinq champs, l'entreprise est la relation déclarée (son `prefill`), le rôle se règle sur la fiche. */
     expect(definition.quickCreate).toEqual(["firstName", "lastName", "email", "companyId", "jobTitle"]);
     expect(definition.fields.find((f) => f.key === "jobTitle")).toMatchObject({ label: "Poste", type: "text", maxLength: 120 });
-    expect(definition.fields.find((f) => f.key === "profiles")).toMatchObject({ type: "list", editable: false });
+    expect(definition.fields.find((f) => f.key === "profiles")).toMatchObject({ type: "multilist", editable: false });
     expect(definition.fields.find((f) => f.key === "name")).toMatchObject({ editable: false });
   });
 });

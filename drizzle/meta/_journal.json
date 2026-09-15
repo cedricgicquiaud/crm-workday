@@ -71,6 +71,13 @@
       "when": 1789057933882,
       "tag": "0009_fusions",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789503638869,
+      "tag": "0010_consultants",
+      "breakpoints": true
     }
   ]
 }

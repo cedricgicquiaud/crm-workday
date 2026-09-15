@@ -12,7 +12,7 @@ import { loadCustomFields } from "@/features/custom-fields/definitions";
 import { allCustomFieldsOf, isCustomFieldKey } from "@/features/custom-fields/fields-source";
 import { attachCustomValues, splitCustomValues, writeCustomValues } from "@/features/custom-fields/values";
 import { recordHistory } from "@/features/history/history";
-import { fieldsOf, serializeValue, validateValues, type FieldValues } from "@/features/objects/fields";
+import { fieldsOf, serializeValue, validateValues, writableFieldsOf, type FieldValues } from "@/features/objects/fields";
 import { userName, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
@@ -35,7 +35,7 @@ export type ObjectRecord = {
 /** Valeurs par défaut des champs absents à la création ; `"actor"` sur un champ utilisateur désigne l'acteur. */
 function withDefaults(type: string, values: FieldValues, actor: Actor): FieldValues {
   const filled = { ...values };
-  for (const field of getObject(type).fields) {
+  for (const field of writableFieldsOf(type)) {
     if (filled[field.key] != null || field.default === undefined) continue;
     filled[field.key] = field.type === "user" && field.default === "actor" ? actor.id : field.default;
   }
@@ -48,7 +48,7 @@ const invalid = (errors: Record<string, string>) => new HttpError(400, "donnees_
 /** Un champ `user` doit désigner un utilisateur existant : la clé étrangère ne suffit pas, il faut un 400 rattaché au champ. */
 async function assertUsersExist(type: string, values: FieldValues): Promise<void> {
   const errors: Record<string, string> = {};
-  for (const field of getObject(type).fields) {
+  for (const field of writableFieldsOf(type)) {
     const value = values[field.key];
     if (field.type !== "user" || typeof value !== "string") continue;
     const [found] = await db.select({ id: user.id }).from(user).where(eq(user.id, value)).limit(1);
@@ -71,9 +71,23 @@ function assertNotArchived(type: string, input: unknown): void {
   throw new HttpError(409, "champ_archive", Object.values(errors)[0], { fields: errors });
 }
 
+/**
+ * Un champ qui appartient à un profil de la fiche ne se règle pas par l'API de l'objet (D19) : le
+ * refus le dit champ par champ et nomme le profil où il se règle. Sans lui, la clé serait validée
+ * comme une colonne de la table — qu'elle n'est pas — ou ignorée en silence.
+ */
+function assertNotProfileField(type: string, input: unknown): void {
+  const raw = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const claimed = fieldsOf(type).filter((field) => field.profile !== undefined && field.key in raw);
+  if (claimed.length === 0) return;
+  const errors = Object.fromEntries(claimed.map((field) => [field.key, `« ${field.label} » se règle sur le ${field.profile!.label}.`]));
+  throw new HttpError(400, "champ_de_profil", Object.values(errors)[0], { fields: errors });
+}
+
 async function validateOrThrow(type: string, input: unknown, options: { partial: boolean }): Promise<FieldValues> {
   assertNotArchived(type, input);
-  const { values, errors } = validateValues(fieldsOf(type), input, options);
+  assertNotProfileField(type, input);
+  const { values, errors } = validateValues(writableFieldsOf(type), input, options);
   if (Object.keys(errors).length > 0) throw invalid(errors);
   await assertUsersExist(type, values);
   return values;
@@ -87,7 +101,7 @@ async function assertUnique(type: string, values: FieldValues, currentId: string
   const definition = getObject(type);
   const { table } = getServerObject(type);
   const columns = getTableColumns(table);
-  for (const field of definition.fields) {
+  for (const field of writableFieldsOf(type)) {
     const value = values[field.key];
     if (!field.unique || typeof value !== "string") continue;
     const conditions: SQL[] = [eq(columns[field.key], value)];
@@ -235,7 +249,7 @@ export async function updateObject(type: string, id: string, patch: unknown, act
   assertWritable(type, current);
   const values = await validateOrThrow(type, patch, { partial: true });
   await assertUnique(type, values, id);
-  const changed = fieldsOf(type)
+  const changed = writableFieldsOf(type)
     .filter((field) => field.key in values)
     .map((field) => ({ field, oldValue: serializeValue(field, current[field.key]), newValue: serializeValue(field, values[field.key]) }))
     .filter((change) => change.oldValue !== change.newValue);

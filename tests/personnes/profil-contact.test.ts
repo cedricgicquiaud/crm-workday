@@ -56,7 +56,7 @@ describe("profil contact — ajout sur une personne (CRM-40, CRM-41, D3, contrat
     const none = await getProfile(jsonRequest("GET", `/api/personnes/${id}/profil-contact`, undefined, memberCookie), byId(id));
     expect(none.status).toBe(200);
     expect(await none.json()).toBeNull();
-    expect(await readPerson(id)).toMatchObject({ profiles: "aucun", companyId: null });
+    expect(await readPerson(id)).toMatchObject({ profiles: [], companyId: null });
 
     const added = await patchProfile(jsonRequest("PATCH", `/api/personnes/${id}/profil-contact`, { companyId: solveigeId, jobTitle: "DSI" }, memberCookie), byId(id));
     expect(added.status).toBe(200);
@@ -64,26 +64,26 @@ describe("profil contact — ajout sur une personne (CRM-40, CRM-41, D3, contrat
     const read = await getProfile(jsonRequest("GET", `/api/personnes/${id}/profil-contact`, undefined, memberCookie), byId(id));
     expect(await read.json()).toMatchObject({ companyId: solveigeId, jobTitle: "DSI", decisionRole: "non_precise" });
 
-    expect(await readPerson(id)).toMatchObject({ profiles: "contact", companyId: solveigeId });
+    expect(await readPerson(id)).toMatchObject({ profiles: ["contact"], companyId: solveigeId });
     const list = await listPersons(jsonRequest("GET", "/api/personnes", undefined, memberCookie));
-    const { persons } = (await list.json()) as { persons: { id: string; profiles: string; companyId: string | null }[] };
-    expect(persons.find((p) => p.id === id)).toMatchObject({ profiles: "contact", companyId: solveigeId });
+    const { persons } = (await list.json()) as { persons: { id: string; profiles: string[]; companyId: string | null }[] };
+    expect(persons.find((p) => p.id === id)).toMatchObject({ profiles: ["contact"], companyId: solveigeId });
 
     expect(await changesOf(id)).toEqual([
       ["companyId", null, "Banque Solveige"],
       ["decisionRole", null, "Non précisé"],
       ["jobTitle", null, "DSI"],
-      ["profiles", "aucun", "contact"],
+      ["profiles", "Aucun", "Contact"],
     ]);
   });
 
   it("le poste se lit sur la personne (GET) et s'édite par le PATCH de la personne comme les autres clés du profil ; des valeurs vides du profil à la création sont ignorées (dialogue à cinq champs sans entreprise choisie)", async () => {
     const id = await createPerson({ firstName: "Vide", lastName: "Profil", companyId: "", jobTitle: "" });
-    expect(await readPerson(id)).toMatchObject({ profiles: "aucun", companyId: null, jobTitle: null });
+    expect(await readPerson(id)).toMatchObject({ profiles: [], companyId: null, jobTitle: null });
 
     const attached = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { companyId: solveigeId, jobTitle: "DSI" }, memberCookie), byId(id));
     expect(attached.status).toBe(200);
-    expect(await attached.json()).toMatchObject({ profiles: "contact", companyId: solveigeId, jobTitle: "DSI" });
+    expect(await attached.json()).toMatchObject({ profiles: ["contact"], companyId: solveigeId, jobTitle: "DSI" });
     const renamed = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { jobTitle: "DAF", phone: "01 02" }, memberCookie), byId(id));
     expect(renamed.status).toBe(200);
     expect(await renamed.json()).toMatchObject({ jobTitle: "DAF", phone: "01 02" });
@@ -95,7 +95,7 @@ describe("profil contact — ajout sur une personne (CRM-40, CRM-41, D3, contrat
 
   it("la création d'une personne accepte l'entreprise, le poste et le rôle dans le même appel (contrat 6 par l'API) ; une même personne ne porte qu'un profil", async () => {
     const id = await createPerson({ firstName: "Nadia", lastName: "Kessler", email: "nadia.kessler@solveige.fr", companyId: solveigeId, jobTitle: "Acheteuse", decisionRole: "acheteur" });
-    expect(await readPerson(id)).toMatchObject({ name: "Nadia Kessler", email: "nadia.kessler@solveige.fr", profiles: "contact", companyId: solveigeId });
+    expect(await readPerson(id)).toMatchObject({ name: "Nadia Kessler", email: "nadia.kessler@solveige.fr", profiles: ["contact"], companyId: solveigeId });
     const profile = await getProfile(jsonRequest("GET", `/api/personnes/${id}/profil-contact`, undefined, memberCookie), byId(id));
     expect(await profile.json()).toMatchObject({ companyId: solveigeId, jobTitle: "Acheteuse", decisionRole: "acheteur" });
     expect((await listHistory("person", id)).map((e) => e.action)).toContain("creee");
@@ -104,7 +104,7 @@ describe("profil contact — ajout sur une personne (CRM-40, CRM-41, D3, contrat
     const again = await patchProfile(jsonRequest("PATCH", `/api/personnes/${id}/profil-contact`, { jobTitle: "Directrice des achats" }, memberCookie), byId(id));
     expect(again.status).toBe(200);
     expect(await again.json()).toMatchObject({ companyId: solveigeId, jobTitle: "Directrice des achats", decisionRole: "acheteur" });
-    expect((await changesOf(id)).filter(([field]) => field === "profiles")).toEqual([["profiles", "aucun", "contact"]]);
+    expect((await changesOf(id)).filter(([field]) => field === "profiles")).toEqual([["profiles", "Aucun", "Contact"]]);
     expect(await changesOf(id)).toContainEqual(["jobTitle", "Acheteuse", "Directrice des achats"]);
   });
 });
@@ -119,7 +119,7 @@ describe("profil contact — écriture tout ou rien (CRM-40, contrat 10)", () =>
     await expect(writeContactProfile(id, prepared, { id: memberId })).rejects.toThrow();
 
     expect(await db.select({ id: contactProfile.id }).from(contactProfile).where(eq(contactProfile.personId, id))).toEqual([]);
-    expect(await readPerson(id)).toMatchObject({ profiles: "aucun", companyId: null });
+    expect(await readPerson(id)).toMatchObject({ profiles: [], companyId: null });
     expect(await changesOf(id)).toEqual([]);
   });
 
@@ -162,14 +162,14 @@ describe("profil contact — refus (CRM-40, CRM-41, contrat 10, D21)", () => {
     expect(await role.json()).toMatchObject({ fields: { decisionRole: "Valeur hors liste pour « Rôle dans la décision »." } });
 
     expect((await db.select({ id: person.id }).from(person)).length).toBe(before);
-    expect(await readPerson(id)).toMatchObject({ profiles: "aucun", companyId: null });
+    expect(await readPerson(id)).toMatchObject({ profiles: [], companyId: null });
     expect(await changesOf(id)).toEqual([]);
 
     /* Les clés du profil sur le PATCH de la personne suivent la même règle : sans entreprise, rien n'est créé. */
     const jobOnly = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { jobTitle: "DSI" }, memberCookie), byId(id));
     expect(jobOnly.status).toBe(400);
     expect(await jobOnly.json()).toMatchObject({ fields: { companyId: "« Entreprise » est obligatoire." } });
-    expect(await readPerson(id)).toMatchObject({ profiles: "aucun", jobTitle: null });
+    expect(await readPerson(id)).toMatchObject({ profiles: [], jobTitle: null });
 
     const unknown = "00000000-0000-4000-8000-000000000000";
     expect((await getProfile(jsonRequest("GET", `/api/personnes/${unknown}/profil-contact`, undefined, memberCookie), byId(unknown))).status).toBe(404);
@@ -190,7 +190,7 @@ describe("profil contact — rôle et changement d'entreprise (CRM-41, CRM-42, c
     const moved = await patchProfile(jsonRequest("PATCH", `/api/personnes/${id}/profil-contact`, { companyId: ferrandiId }, memberCookie), byId(id));
     expect(moved.status).toBe(200);
     expect(await moved.json()).toMatchObject({ companyId: ferrandiId, companyName: "Groupe Ferrandi", jobTitle: "DAF", decisionRole: "decideur" });
-    expect(await readPerson(id)).toMatchObject({ companyId: ferrandiId, profiles: "contact" });
+    expect(await readPerson(id)).toMatchObject({ companyId: ferrandiId, profiles: ["contact"] });
     expect(await changesOf(id)).toContainEqual(["companyId", "Banque Solveige", "Groupe Ferrandi"]);
 
     const count = (await changesOf(id)).length;

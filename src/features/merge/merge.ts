@@ -15,7 +15,7 @@ import type { PgTable } from "drizzle-orm/pg-core";
 import { activity, auditLog, customFieldValue, emailLog, objectRedirect } from "@/db/schema";
 import { deleteBlockers } from "@/features/archive/delete";
 import { customFieldKey, isCustomFieldKey } from "@/features/custom-fields/fields-source";
-import { fieldsOf, serializeValue } from "@/features/objects/fields";
+import { serializeValue, writableFieldsOf } from "@/features/objects/fields";
 import { displayValue } from "@/features/objects/labels";
 import { getObject, listObjects } from "@/features/objects/registry";
 import { getServerObject, type DependentTable } from "@/features/objects/registry.server";
@@ -110,7 +110,8 @@ export async function planMerge(type: string, keptId: string, absorbedId: string
  */
 async function differingFields(type: string, kept: ObjectRecord, absorbed: ObjectRecord): Promise<MergeField[]> {
   const users = await listUserOptions();
-  return fieldsOf(type)
+  /* Un champ de profil ne se tranche pas ici : il suit son profil, qui est une famille à part (D20). */
+  return writableFieldsOf(type)
     .filter((field) => field.editable !== false)
     .filter((field) => serializeValue(field, kept[field.key]) !== serializeValue(field, absorbed[field.key]))
     .map((field) => ({ key: field.key, label: field.label, kept: displayValue(field, kept[field.key], users), absorbed: displayValue(field, absorbed[field.key], users) }));
@@ -193,7 +194,7 @@ async function carriedColumns(type: string, absorbed: ObjectRecord, dropped: rea
  * déplacement de leurs valeurs, pas par cette mise à jour.
  */
 function chosenColumns(type: string, absorbed: ObjectRecord, taken: readonly string[]): Record<string, unknown> {
-  const writable = fieldsOf(type).filter((field) => field.editable !== false && !isCustomFieldKey(field.key));
+  const writable = writableFieldsOf(type).filter((field) => field.editable !== false && !isCustomFieldKey(field.key));
   return Object.fromEntries(writable.filter((field) => taken.includes(field.key)).map((field) => [field.key, absorbed[field.key] ?? null]));
 }
 
