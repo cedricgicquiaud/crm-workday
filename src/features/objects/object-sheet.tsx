@@ -55,6 +55,7 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
   /* Fiche archivée : elle se lit, elle ne s'écrit plus (D21) — champs en texte, composeur et créations rapides retirés. */
   const archived = record.archivedAt != null;
   const isAdmin = session.user.role === "administrateur";
+  const fieldsSection = <FieldsSection type={type} record={serializeRecord(record)} users={users} readOnly={archived} />;
   return (
     <div className="grid gap-6">
       <CustomFieldsSource definitions={customFields} />
@@ -82,10 +83,10 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
         main={
           /* Sans section déclarée, la colonne centrale est la section des champs : pas d'enveloppe pour rien. */
           sections.length === 0 ? (
-            <FieldsSection type={type} record={serializeRecord(record)} users={users} readOnly={archived} />
+            fieldsSection
           ) : (
             <div className="grid min-w-0 content-start gap-6">
-              <FieldsSection type={type} record={serializeRecord(record)} users={users} readOnly={archived} />
+              {fieldsSection}
               {sections.map((section, index) => (
                 <Fragment key={section.key}>{section.render({ id, data: sectionData[index], readOnly: archived })}</Fragment>
               ))}
