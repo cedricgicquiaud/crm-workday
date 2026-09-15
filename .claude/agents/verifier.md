@@ -53,6 +53,13 @@ rapport donne le résultat de **ton** exécution, pas celui que le producteur an
 fichiers que la suite crée (couverture, captures, cache) restent où ils sont : tu ne commites
 rien.
 
+**La suite courte seulement.** Tu relances les tests unitaires, avec la commande de
+`MISSION.md`. La suite d'écran, quand le projet en a une (Playwright, Cypress), n'est pas à
+toi : elle dure des minutes, elle lance un serveur sur le poste que le testeur occupe au même
+moment, et deux serveurs sur un port se tuent l'un l'autre (15/09 : deux suites perdues, un
+audit de 38 min pour six minutes de correction). La CI de la branche la joue ; tu lis son
+verdict (`gh pr checks`) et tu le cites dans « Prouvé », sans le refaire.
+
 **Vérifie que chaque test précède son code.** L'historique doit le montrer : un commit
 `test:`, puis un commit `feat:`. Deux cas détruisent cette preuve, et les deux sont
 bloquants : un `feat:` sans `test:` avant lui (le code est arrivé le premier) ; un `test:`
