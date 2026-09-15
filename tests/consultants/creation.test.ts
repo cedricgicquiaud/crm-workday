@@ -105,6 +105,30 @@ describe("création d'un consultant (CRM-84, D12)", () => {
     expect(await countPersons()).toBe(before);
   });
 
+  /*
+   * Le dialogue « Nouveau consultant » déclare cinq champs (D12) : prénom, nom, email, statut, coût.
+   * Une clé de plus n'a pas de place où aller — elle était jusqu'ici passée à la personne, qui
+   * l'ignorait : « jobTitle » répondait 201 sans que le poste soit enregistré nulle part.
+   */
+  it("refuse (400) par champ une clé que le dialogue ne déclare pas, et n'écrit rien", async () => {
+    const before = await countPersons();
+
+    const withJobTitle = await create({ firstName: "Chef", lastName: "Information", status: "salarie", jobTitle: "DSI" });
+    expect(withJobTitle.status).toBe(400);
+    expect(await withJobTitle.json()).toMatchObject({ fields: { jobTitle: "« Poste » ne se saisit pas à la création d'un consultant : il se règle sur sa fiche." } });
+
+    const withOtherEmails = await create({ firstName: "Autres", lastName: "Adresses", status: "salarie", otherEmails: "autre@exemple.fr" });
+    expect(withOtherEmails.status).toBe(400);
+    expect(await withOtherEmails.json()).toMatchObject({ fields: { otherEmails: "« Autres emails » ne se saisit pas à la création d'un consultant : il se règle sur sa fiche." } });
+
+    /* Une clé du profil qui n'est pas au dialogue est refusée comme les autres : elle se règle sur la fiche. */
+    const withLanguages = await create({ firstName: "Poly", lastName: "Glotte", status: "salarie", languages: "français" });
+    expect(withLanguages.status).toBe(400);
+    expect(await withLanguages.json()).toMatchObject({ fields: { languages: "« Langues » ne se saisit pas à la création d'un consultant : il se règle sur sa fiche." } });
+
+    expect(await countPersons()).toBe(before);
+  });
+
   it("refuse (401) une création sans session", async () => {
     expect((await postConsultant(jsonRequest("POST", "/api/consultants", { firstName: "Ano", lastName: "Nyme", status: "salarie" }))).status).toBe(401);
   });
