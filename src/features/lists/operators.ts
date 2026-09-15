@@ -20,8 +20,8 @@ export type OperatorDescriptor = {
 };
 
 const OPERATORS: readonly OperatorDescriptor[] = [
-  { key: "contient", label: "contient", types: ["text"], needsValue: true, order: 10 },
-  { key: "ne_contient_pas", label: "ne contient pas", types: ["text"], needsValue: true, order: 20 },
+  { key: "contient", label: "contient", types: ["text", "multilist"], needsValue: true, order: 10 },
+  { key: "ne_contient_pas", label: "ne contient pas", types: ["text", "multilist"], needsValue: true, order: 20 },
   { key: "est", label: "est", types: ["text", "list", "user"], needsValue: true, order: 30 },
   { key: "n_est_pas", label: "n'est pas", types: ["list", "user"], needsValue: true, order: 40 },
   { key: "avant", label: "avant", types: ["date"], needsValue: true, order: 50 },
@@ -29,7 +29,7 @@ const OPERATORS: readonly OperatorDescriptor[] = [
   { key: "egal", label: "égal", types: ["number"], needsValue: true, order: 70 },
   { key: "plus_grand", label: "plus grand", types: ["number"], needsValue: true, order: 80 },
   { key: "plus_petit", label: "plus petit", types: ["number"], needsValue: true, order: 85 },
-  { key: "est_vide", label: "est vide", types: ["text", "list", "user", "date", "number"], needsValue: false, order: 90 },
+  { key: "est_vide", label: "est vide", types: ["text", "list", "user", "date", "number", "multilist"], needsValue: false, order: 90 },
 ];
 
 /** Opérateurs applicables à un type de champ, par rang croissant (D16). */

@@ -25,7 +25,9 @@ const filterableFields = (type: string) => fieldsOf(type).filter((field) => oper
 /** « Type est Client » : la puce se lit comme une phrase, et son bouton de retrait la nomme. */
 function chipLabel(field: FieldDescriptor, filter: Filter, users: readonly UserOption[]): string {
   const operator = findOperator(filter.operator);
-  const value = operator?.needsValue ? ` ${displayValue(field, filter.value, users)}` : "";
+  /* La valeur de la puce est une clé, pas l'ensemble de la fiche : un `multilist` se lit par le libellé de cette clé seule. */
+  const shown = field.type === "multilist" ? displayValue({ ...field, type: "list" }, filter.value, users) : displayValue(field, filter.value, users);
+  const value = operator?.needsValue ? ` ${shown}` : "";
   return `${field.label} ${operator?.label ?? filter.operator}${value}`;
 }
 
@@ -92,7 +94,8 @@ function AddFilterForm({ fields, users, onAdd }: FormProps) {
     setValue("");
   }
 
-  const options = field.type === "list" ? (field.values ?? []).map((entry) => ({ value: entry.value, label: entry.label })) : field.type === "user" ? users.map((entry) => ({ value: entry.id, label: entry.name })) : null;
+  /* Une liste fermée et un ensemble se choisissent dans les mêmes valeurs : on cherche ce que le champ sait porter, jamais une saisie libre. */
+  const options = field.type === "list" || field.type === "multilist" ? (field.values ?? []).map((entry) => ({ value: entry.value, label: entry.label })) : field.type === "user" ? users.map((entry) => ({ value: entry.id, label: entry.name })) : null;
   const incomplete = operator.needsValue && value.trim() === "";
 
   return (

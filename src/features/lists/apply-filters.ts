@@ -6,11 +6,19 @@
 import type { Filter } from "@/features/lists/filters";
 import { sortRecords, type Sort } from "@/features/lists/sort";
 import { fieldsOf } from "@/features/objects/fields";
+import type { FieldDescriptor } from "@/features/objects/registry";
 import type { UserOption } from "@/features/objects/labels";
 import type { ObjectRecord } from "@/features/objects/service";
 import { normalizeQuery } from "@/features/search/normalize";
 
-const isBlank = (value: unknown) => value === null || value === undefined || String(value).trim() === "";
+const isBlank = (value: unknown) => (Array.isArray(value) ? value.length === 0 : value === null || value === undefined || String(value).trim() === "");
+
+/**
+ * Un ensemble « contient » une valeur quand il la porte, entière (D11) : comparé en sous-chaîne,
+ * « Client » ramènerait « Client final », et le filtre rendrait des fiches qui ne portent pas ce
+ * qu'on cherche.
+ */
+const holds = (value: unknown, wanted: string) => Array.isArray(value) && value.some((entry) => text(entry) === text(wanted));
 
 /** Comparaison des textes comme la recherche : minuscules, accents retirés (D8). */
 const text = (value: unknown) => normalizeQuery(String(value ?? ""));
@@ -18,9 +26,10 @@ const text = (value: unknown) => normalizeQuery(String(value ?? ""));
 /** Jour `AAAA-MM-JJ` d'une date, qu'elle arrive en `Date` (base) ou en chaîne (API). */
 const day = (value: unknown) => (value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10));
 
-function matches(record: ObjectRecord, filter: Filter): boolean {
+function matches(record: ObjectRecord, filter: Filter, field?: FieldDescriptor): boolean {
   const value = record[filter.field];
   if (filter.operator === "est_vide") return isBlank(value);
+  if (field?.type === "multilist") return filter.operator === "contient" ? holds(value, filter.value) : !holds(value, filter.value);
   /* Un champ vide « ne contient pas » ce qu'on cherche et « n'est pas » la valeur : les fiches sans valeur restent dans un refus. */
   if (filter.operator === "ne_contient_pas") return !text(value).includes(text(filter.value));
   if (filter.operator === "n_est_pas") return text(value) !== text(filter.value);
@@ -48,9 +57,12 @@ function matches(record: ObjectRecord, filter: Filter): boolean {
 
 /** Fiches qui satisfont tous les filtres, dans l'ordre reçu ; un filtre sur un champ non déclaré ne passe jamais par ici (voir `readFilters`). */
 export function applyFilters(type: string, records: readonly ObjectRecord[], filters: readonly Filter[]): ObjectRecord[] {
-  const known = new Set(fieldsOf(type).map((field) => field.key));
-  const applicable = filters.filter((filter) => known.has(filter.field));
-  return records.filter((record) => applicable.every((filter) => matches(record, filter)));
+  const fields = fieldsOf(type);
+  const applicable = filters.flatMap((filter) => {
+    const field = fields.find((candidate) => candidate.key === filter.field);
+    return field ? [{ filter, field }] : [];
+  });
+  return records.filter((record) => applicable.every(({ filter, field }) => matches(record, filter, field)));
 }
 
 /**
