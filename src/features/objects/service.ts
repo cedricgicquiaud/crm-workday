@@ -141,10 +141,21 @@ function serializeAll(type: string, values: FieldValues): Record<string, string 
   return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, serializeValue(fields.find((field) => field.key === key)!, value)]));
 }
 
-/** Une fiche complétée de ses valeurs personnalisées : à partir d'ici elles se lisent comme ses colonnes. */
+/**
+ * Des fiches complétées : leurs valeurs personnalisées, puis les compléments que l'objet déclare
+ * (`attach`). À partir d'ici, tout se lit comme une colonne de la fiche — la liste, les filtres, le
+ * tri et l'historique ne distinguent pas ce qui vient de la table de ce qui vient d'ailleurs.
+ */
+async function completed(type: string, records: ObjectRecord[]): Promise<ObjectRecord[]> {
+  const withValues = await attachCustomValues(type, records);
+  const attach = getServerObject(type).attach;
+  return attach ? attach(withValues) : withValues;
+}
+
+/** Une fiche complétée : à partir d'ici, ses valeurs personnalisées et ses compléments se lisent comme ses colonnes. */
 async function withCustomValues(type: string, record: ObjectRecord): Promise<ObjectRecord> {
-  const [completed] = await attachCustomValues(type, [record]);
-  return completed;
+  const [record_] = await completed(type, [record]);
+  return record_;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -212,7 +223,7 @@ export async function listObjectRecords(type: string, { includeArchived = false 
     .where(includeArchived ? undefined : isNull(columns.archivedAt))
     .orderBy(desc(columns.updatedAt), desc(columns.id));
   await loadCustomFields();
-  return attachCustomValues(type, rows as ObjectRecord[]);
+  return completed(type, rows as ObjectRecord[]);
 }
 
 /** Fiches proposées par un sélecteur, au plus : un sélecteur ne charge jamais toute la table (2.5a ajoutera la recherche). */

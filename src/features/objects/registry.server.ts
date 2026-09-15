@@ -73,6 +73,13 @@ export type ServerObjectDefinition = {
    * par la lecture générique du service.
    */
   loadRecord?: (id: string) => Promise<ObjectRecord>;
+  /**
+   * Compléments d'une fiche que sa table ne porte pas : les champs d'un profil, ses modules, le nom
+   * d'une fiche liée (D19). Le service l'appelle à **chaque** lecture — une fiche, une liste — et lui
+   * passe toutes les fiches d'un coup : un complément se lit en une requête, pas une par ligne.
+   * Absent, une fiche se résume aux colonnes de sa table et à ses valeurs personnalisées.
+   */
+  attach?: (records: readonly ObjectRecord[]) => Promise<ObjectRecord[]>;
 };
 
 const objects = new Map<string, ServerObjectDefinition>();
