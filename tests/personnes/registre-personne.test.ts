@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import "@/features/objects/manifest.server";
 import { eq } from "drizzle-orm";
@@ -86,6 +87,22 @@ describe("composition déclarée de la fiche personne (CRM-73, D20)", () => {
     const data = (await sections[0].load(claire.id)) as { profile: { companyId: string; companyName: string; jobTitle: string | null } | null; companies: readonly { id: string; name: string }[] };
     expect(data.profile).toMatchObject({ companyId: acme.id, companyName: "Cabinet Acme", jobTitle: "DSI" });
     expect(data.companies).toContainEqual({ id: acme.id, name: "Cabinet Acme" });
+  });
+});
+
+/**
+ * Une ouverture de fiche lit le profil contact une fois, pas deux : le chargeur de la fiche
+ * (`loadRecord`, pour le poste) et celui de la section « Profil contact » le demandent chacun, et
+ * `cache` de React les réunit en une lecture pour la durée de la requête. La mémorisation elle-même
+ * ne s'observe pas ici — hors requête Next, `cache` relit à chaque appel — d'où une garde sur la
+ * déclaration, comme pour la page mince. L'écriture, elle, relit sans mémoire : mémorisée, elle
+ * rendrait le profil d'avant l'enregistrement à qui vient de l'enregistrer.
+ */
+describe("lecture du profil contact par ouverture de fiche (CRM-73, D20)", () => {
+  it("mémorise la lecture du profil par requête et laisse l'écriture relire sans mémoire", () => {
+    const code = readFileSync("src/features/persons/contact-profile.ts", "utf8");
+    expect(code).toMatch(/export const getContactProfile = cache\(readContactProfile\)/);
+    expect(code).not.toMatch(/\bgetContactProfile\(/);
   });
 });
 
