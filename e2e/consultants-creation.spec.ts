@@ -49,7 +49,12 @@ test.describe("« Nouveau consultant » depuis la liste et la palette (CRM-83, C
     await expect(memberPage.getByText("Profils : Consultant")).toBeVisible();
     const section = memberPage.getByRole("region", { name: "Profil consultant" });
     await expect(section.getByRole("combobox", { name: "Statut" })).toContainText("Freelance");
-    await expect(section.getByLabel("Coût journalier")).toHaveValue("650");
+    /* Hors saisie, le montant se lit comme partout ailleurs, avec son unité et ses décimales (contrat 2). */
+    const cost = section.getByLabel("Coût journalier");
+    await expect(cost).toHaveValue("650,00 €");
+    /* La valeur brute revient au focus : c'est elle qui se saisit. */
+    await cost.focus();
+    await expect(cost).toHaveValue("650");
 
     await memberPage.goto("/consultants");
     const table = memberPage.getByRole("table", { name: "Consultants" });
