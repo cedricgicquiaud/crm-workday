@@ -160,7 +160,7 @@ export function ConsultantProfileSection({ personId, profile: initial, companies
           <div className="grid gap-1">
             <label className="flex w-fit items-center gap-2 text-sm leading-none font-medium">
               {/* Case inerte sur une fiche archivée (`readOnly`) : éteinte, sa valeur ne se lirait plus. */}
-              <Checkbox aria-label="Indisponible" checked={profile.unavailable === "oui"} disabled={readOnly} readOnly={readOnly} onCheckedChange={(checked) => !readOnly && void one("unavailable", checked ? "oui" : "non")} />
+              <Checkbox aria-label="Indisponible" checked={profile.unavailable === "oui"} readOnly={readOnly} onCheckedChange={(checked) => !readOnly && void one("unavailable", checked ? "oui" : "non")} />
               Indisponible
             </label>
             {errors.unavailable && (
@@ -178,6 +178,7 @@ export function ConsultantProfileSection({ personId, profile: initial, companies
               placement="sheet"
               kind="text"
               value={profile.unavailableReason ?? ""}
+              display={shown("unavailableReason", profile.unavailableReason)}
               error={errors.unavailableReason}
               readOnly={readOnly}
               onSave={(next) => one("unavailableReason", next === "" ? null : next)}
@@ -196,9 +197,9 @@ export function ConsultantProfileSection({ personId, profile: initial, companies
             onSave={(next) => one("yearsExperience", asNumber(next))}
           />
 
-          <FieldControl id={id("languages")} label="Langues" placement="sheet" kind="text" value={profile.languages ?? ""} error={errors.languages} readOnly={readOnly} onSave={(next) => one("languages", next === "" ? null : next)} />
+          <FieldControl id={id("languages")} label="Langues" placement="sheet" kind="text" value={profile.languages ?? ""} display={shown("languages", profile.languages)} error={errors.languages} readOnly={readOnly} onSave={(next) => one("languages", next === "" ? null : next)} />
 
-          <FieldControl id={id("cvUrl")} label="CV" placement="sheet" kind="text" value={profile.cvUrl ?? ""} error={errors.cvUrl} readOnly={readOnly} onSave={(next) => one("cvUrl", next === "" ? null : next)} />
+          <FieldControl id={id("cvUrl")} label="CV" placement="sheet" kind="text" value={profile.cvUrl ?? ""} display={shown("cvUrl", profile.cvUrl)} error={errors.cvUrl} readOnly={readOnly} onSave={(next) => one("cvUrl", next === "" ? null : next)} />
         </div>
       )}
     </section>

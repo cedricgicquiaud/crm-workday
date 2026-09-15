@@ -55,7 +55,8 @@ export function ModuleChecklist({ modules, certified, values, retired = [], erro
                 aria-label={label}
                 checked={checked}
                 /* Une valeur retirée ne se coche plus ; cochée, elle reste lisible et se décoche (D3). */
-                disabled={readOnly || (entry.retired && !checked)}
+                disabled={entry.retired && !checked}
+                /* Fiche archivée : la case est inerte, jamais éteinte — grisée, sa valeur ne se lirait plus. */
                 readOnly={readOnly}
                 onCheckedChange={() => !readOnly && void toggleModule(entry.value)}
               />
@@ -64,7 +65,7 @@ export function ModuleChecklist({ modules, certified, values, retired = [], erro
               </span>
               {checked && (
                 <label className="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                  <Checkbox aria-label={`${entry.label} ${CERTIFIED}`} checked={certified.includes(entry.value)} disabled={readOnly} readOnly={readOnly} onCheckedChange={() => !readOnly && void toggleCertified(entry.value)} />
+                  <Checkbox aria-label={`${entry.label} ${CERTIFIED}`} checked={certified.includes(entry.value)} readOnly={readOnly} onCheckedChange={() => !readOnly && void toggleCertified(entry.value)} />
                   {CERTIFIED}
                 </label>
               )}
