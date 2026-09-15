@@ -18,7 +18,7 @@ import { getObject } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
 import { objectRedirect, user } from "@/db/schema";
 import { HttpError } from "@/lib/auth/session";
-import { db } from "@/lib/db";
+import { db, type Executor } from "@/lib/db";
 
 export type Actor = { id: string };
 
@@ -119,20 +119,25 @@ async function assertUnique(type: string, values: FieldValues, currentId: string
   }
 }
 
-export async function createObject(type: string, input: unknown, actor: Actor): Promise<ObjectRecord> {
+/**
+ * Crée une fiche. `exec` reçoit la transaction en cours quand cette création n'a de sens qu'avec une
+ * autre écriture (une fiche et son profil, D12) : les deux aboutissent, ou aucune.
+ */
+export async function createObject(type: string, input: unknown, actor: Actor, exec: Executor = db): Promise<ObjectRecord> {
   const { table } = getServerObject(type);
   await loadCustomFields();
   const values = withDefaults(type, await validateOrThrow(type, input, { partial: false }), actor);
   await assertUnique(type, values, null);
   const { base, custom } = splitCustomValues(values);
-  const [row] = await db
+  const [row] = await exec
     .insert(table)
     .values({ ...base, createdBy: actor.id })
     .returning();
   const record = row as ObjectRecord;
-  await writeCustomValues(type, record.id, serializeAll(type, custom));
-  await recordHistory([{ objectType: type, objectId: record.id, action: "creee", authorId: actor.id }]);
-  return withCustomValues(type, record);
+  await writeCustomValues(type, record.id, serializeAll(type, custom), exec);
+  await recordHistory([{ objectType: type, objectId: record.id, action: "creee", authorId: actor.id }], exec);
+  /* Dans une transaction, la fiche n'est pas encore visible des lectures complémentaires : l'appelant la relira une fois l'ensemble écrit. */
+  return exec === db ? withCustomValues(type, record) : record;
 }
 
 /** Valeurs personnalisées sous leur forme enregistrée (jour ISO, décimal canonique), comme l'historique les lit. */

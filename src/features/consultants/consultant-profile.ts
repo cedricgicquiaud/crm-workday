@@ -324,6 +324,24 @@ function fieldChanges(existing: ConsultantProfile | null, values: FieldValues): 
     .filter((change) => change.oldValue !== change.newValue);
 }
 
+/**
+ * Écrit un profil neuf et ses modules dans l'exécuteur donné, et rend les lignes d'historique à
+ * consigner. Le chemin de la création composite (une personne et son profil, D12) passe par ici :
+ * il n'a rien à relire — la personne vient d'être créée, elle est modifiable et n'a pas de profil.
+ */
+export async function insertConsultantProfile(exec: Executor, personId: string, prepared: PreparedConsultantProfile, actor: Actor): Promise<void> {
+  const { values } = prepared;
+  const resolved = resolveModules(null, values);
+  const billing = await resolveBillingCompany(null, values);
+  const effective: FieldValues = { ...values, ...resolved, ...resolveAvailability(null, values) };
+  const changes = fieldChanges(null, effective);
+  if (billing?.id) changes.push({ field: BILLING_COMPANY_FIELD.key, oldValue: null, newValue: billing.name });
+  const [row] = await exec.insert(consultantProfile).values({ personId, status: String(effective.status), ...rowPatch(effective) }).returning({ id: consultantProfile.id });
+  await writeModules(exec, row.id, resolved);
+  if (billing) await exec.update(person).set({ billingCompanyId: billing.id }).where(eq(person.id, personId));
+  await recordHistory(changes.map((change) => ({ objectType: TYPE, objectId: personId, action: "modifiee" as const, ...change, authorId: actor.id })), exec);
+}
+
 /** Écrit un profil validé (création ou modification), ses modules, sa société et « Profils », d'un bloc. */
 export async function writeConsultantProfile(personId: string, prepared: PreparedConsultantProfile, actor: Actor): Promise<ConsultantProfile> {
   const current = await getObjectRecord(TYPE, personId);
