@@ -1,7 +1,8 @@
 import { CircleDashedIcon } from "lucide-react";
 import { describe, expect, it } from "vitest";
-import { fieldsOf } from "@/features/objects/fields";
-import { getObject, listObjects, registerObject } from "@/features/objects/registry";
+import { fieldsOf, validateValues } from "@/features/objects/fields";
+import { displayValue } from "@/features/objects/labels";
+import { getObject, listObjects, registerObject, type FieldDescriptor, type ListValue } from "@/features/objects/registry";
 
 /**
  * D4 (règle de branchement), CRM-33 : ce fichier est un « module de test » qui déclare un objet
@@ -68,5 +69,73 @@ describe("objet mal déclaré (CRM-33, D4)", () => {
   it("accepte un champ de tête qui correspond à un champ déclaré", () => {
     registerObject({ ...base, key: "test_tete_presente", titleField: "name", headerFields: ["name"] });
     expect(getObject("test_tete_presente").headerFields).toEqual(["name"]);
+  });
+});
+
+/**
+ * Types de champ de la feature 3 (D19) : un champ à plusieurs valeurs (`multilist`) et les
+ * précisions d'un nombre (`unit`, `decimals`, `integer`, bornes). Les descripteurs sont écrits ici,
+ * comme les écrirait n'importe quel objet : la validation est celle des mécanismes, pas celle d'un
+ * objet en particulier.
+ */
+describe("champ à plusieurs valeurs et bornes d'un nombre (CRM-80, D19)", () => {
+  const MODULES: readonly ListValue[] = [
+    { value: "hcm", label: "HCM" },
+    { value: "integration", label: "Integration" },
+  ];
+  const FIELDS: readonly FieldDescriptor[] = [
+    { key: "modules", label: "Modules", type: "multilist", values: MODULES, retiredValues: [{ value: "student", label: "Student" }], order: 10 },
+    { key: "dailyCost", label: "Coût journalier", type: "number", unit: "€", decimals: 2, min: 0, max: 10_000, order: 20 },
+    { key: "yearsExperience", label: "Années d'expérience", type: "number", integer: true, min: 0, max: 40, order: 30 },
+  ];
+  const check = (input: Record<string, unknown>) => validateValues(FIELDS, input, { partial: true });
+
+  it("accepte un tableau de valeurs de la liste et le rend tel quel", () => {
+    const { values, errors } = check({ modules: ["hcm", "integration"] });
+    expect(errors).toEqual({});
+    expect(values.modules).toEqual(["hcm", "integration"]);
+  });
+
+  it("accepte un tableau vide : un ensemble vide est une valeur, pas une absence", () => {
+    expect(check({ modules: [] })).toEqual({ values: { modules: [] }, errors: {} });
+  });
+
+  it("refuse une chaîne là où un ensemble est attendu", () => {
+    expect(check({ modules: "hcm" }).errors.modules).toBe("« Modules » attend une liste de valeurs.");
+  });
+
+  it("refuse une valeur hors liste, une valeur retirée comprise", () => {
+    expect(check({ modules: ["hcm", "inconnu"] }).errors.modules).toBe("Valeur hors liste pour « Modules ».");
+    expect(check({ modules: ["student"] }).errors.modules).toBe("Valeur hors liste pour « Modules ».");
+  });
+
+  it("refuse un nombre à plus de décimales que le champ n'en prend", () => {
+    expect(check({ dailyCost: 650.123 }).errors.dailyCost).toBe("« Coût journalier » ne prend pas plus de 2 décimales.");
+    expect(check({ dailyCost: 650.5 }).errors).toEqual({});
+  });
+
+  it("refuse un nombre hors des bornes du champ", () => {
+    expect(check({ dailyCost: -1 }).errors.dailyCost).toBe("« Coût journalier » doit être compris entre 0 et 10 000.");
+    expect(check({ dailyCost: 10_001 }).errors.dailyCost).toBe("« Coût journalier » doit être compris entre 0 et 10 000.");
+    expect(check({ yearsExperience: 41 }).errors.yearsExperience).toBe("« Années d'expérience » doit être compris entre 0 et 40.");
+  });
+
+  it("refuse un nombre à virgule sur un champ entier", () => {
+    expect(check({ yearsExperience: 6.5 }).errors.yearsExperience).toBe("« Années d'expérience » doit être un nombre entier.");
+    expect(check({ yearsExperience: 6 }).errors).toEqual({});
+  });
+
+  it("écrit un ensemble par ses libellés joints et son unité après un nombre", () => {
+    const modules = FIELDS[0];
+    const cost = FIELDS[1];
+    expect(displayValue(modules, ["hcm", "integration"], [])).toBe("HCM, Integration");
+    expect(displayValue(modules, ["student"], [])).toBe("Student (retirée)");
+    expect(displayValue(cost, 650, [])).toBe("650,00 €");
+  });
+
+  it("affiche l'étiquette déclarée pour un ensemble vide, et « — » sans étiquette", () => {
+    const modules = FIELDS[0];
+    expect(displayValue(modules, [], [])).toBe("—");
+    expect(displayValue({ ...modules, emptyLabel: "Aucun" }, [], [])).toBe("Aucun");
   });
 });
