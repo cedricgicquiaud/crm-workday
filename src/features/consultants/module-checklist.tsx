@@ -81,7 +81,8 @@ export function ModuleChecklist({ modules, certified, values, retired = [], erro
       <span id="profil-consultant-modules-label" className="text-sm leading-none font-medium select-none">
         Modules
       </span>
-      <ul aria-labelledby="profil-consultant-modules-label" className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
+      {/* Une seule colonne : à deux, la moitié de la largeur ne tient pas un libellé entier et sa case « certifié » (« Integr… » à 1280 px). */}
+      <ul aria-labelledby="profil-consultant-modules-label" className="grid grid-cols-1 gap-y-1">
         {shown.map((entry) => {
           const checked = held.has(entry.value);
           const label = entry.retired ? `${entry.label} (retiré)` : entry.label;
@@ -96,9 +97,8 @@ export function ModuleChecklist({ modules, certified, values, retired = [], erro
                 readOnly={readOnly}
                 onCheckedChange={() => !readOnly && toggleModule(entry.value)}
               />
-              <span className="min-w-0 truncate" title={label}>
-                {label}
-              </span>
+              {/* Le libellé garde sa place entière : la case « certifié » tient la colonne de droite, elle ne le rogne pas. */}
+              <span className="min-w-0">{label}</span>
               {checked && (
                 <label className="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                   <Checkbox aria-label={`${entry.label} ${CERTIFIED}`} checked={draft.certified.includes(entry.value)} readOnly={readOnly} onCheckedChange={() => !readOnly && toggleCertified(entry.value)} />
