@@ -20,15 +20,26 @@ export const formatDateTime = (value: Date | string): string => DATE_TIME.format
 
 export const EMPTY = "—";
 
+/** Les entrées d'un ensemble écrit en texte (« hcm,integration ») ; rien pour une valeur absente. */
+const splitSet = (value: unknown): string[] =>
+  String(value ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== "");
+
 /**
  * Valeur lisible d'un champ : libellé d'une liste, nom d'un utilisateur, texte tel quel, « — » si
  * vide. Une valeur retirée d'une liste (2.4) se lit toujours, marquée : la fiche qui la porte dit
  * ce qu'elle porte, elle ne l'oublie pas parce que la liste a changé.
  */
 export function displayValue(field: FieldDescriptor, value: unknown, users: readonly UserOption[]): string {
-  /* Un ensemble s'écrit par ses libellés joints ; vide, il porte l'étiquette déclarée (« Aucun », D8). */
+  /*
+   * Un ensemble s'écrit par ses libellés joints ; vide, il porte l'étiquette déclarée (« Aucun », D8).
+   * Il arrive en tableau depuis une fiche, et en clés jointes par des virgules depuis l'historique,
+   * qui n'enregistre que du texte ; une entrée qu'aucune valeur ne nomme se lit telle quelle.
+   */
   if (field.type === "multilist") {
-    const entries = Array.isArray(value) ? value : [];
+    const entries = Array.isArray(value) ? value : splitSet(value);
     return entries.length === 0 ? field.emptyLabel ?? EMPTY : setLabels(field, entries).join(", ");
   }
   if (value === null || value === undefined || value === "") return EMPTY;

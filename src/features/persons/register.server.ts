@@ -8,6 +8,7 @@ import { and, desc, eq, exists, ilike, isNull, or } from "drizzle-orm";
 import { createElement } from "react";
 import { company, contactProfile, person, personEmail } from "@/db/schema";
 import { normalizeName } from "@/features/duplicates/normalize";
+import { attachConsultantProfiles } from "@/features/consultants/consultant-profile";
 import { defineSection, registerServerObject, type DependentTable, type SearchHit } from "@/features/objects/registry.server";
 import { listRecordOptions } from "@/features/objects/service";
 import { db } from "@/lib/db";
@@ -82,5 +83,7 @@ registerServerObject({
   dependents,
   /* La fiche montre les autres adresses et le poste du profil : ni l'une ni l'autre n'est une colonne de `person`. */
   loadRecord: (id) => getPerson(id),
+  /* Les champs du profil consultant ne sont pas des colonnes de `person` : le service les joint à chaque lecture (D19). */
+  attach: attachConsultantProfiles,
   sections: [contactProfileSection],
 });

@@ -107,8 +107,8 @@ function parseValue(field: FieldDescriptor, raw: unknown): { value: FieldValue }
  * (« 12.50 » et 12.5 s'écrivent « 12.5 »), texte tel quel sinon ; une valeur vide est `null`.
  */
 export function serializeValue(field: FieldDescriptor, value: unknown): string | null {
-  /* Un ensemble se compare et s'historise par ses libellés joints (« HCM, Integration », D13). */
-  if (field.type === "multilist") return Array.isArray(value) && value.length > 0 ? setLabels(field, value).join(", ") : null;
+  /* Un ensemble se compare et s'historise par ses clés jointes ; l'historique les rend lisibles à la lecture, comme il le fait d'une liste fermée. Vide, il n'a pas de valeur : l'historique l'écrit « vide » (D24). */
+  if (field.type === "multilist") return Array.isArray(value) && value.length > 0 ? value.join(",") : null;
   if (blank(value)) return null;
   if (field.type === "date") return value instanceof Date ? isoDay(value) : String(value);
   if (field.type === "number") {

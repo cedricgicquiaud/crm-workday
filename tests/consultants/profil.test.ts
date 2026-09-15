@@ -5,6 +5,7 @@ import { GET as getPerson } from "@/app/api/personnes/[id]/route";
 import { GET as listPersons, POST as postPerson } from "@/app/api/personnes/route";
 import { auditLog, company, consultantModule, consultantProfile, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { listFeed } from "@/features/activities/feed";
 import { listHistory } from "@/features/history/history";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
@@ -26,12 +27,18 @@ const patchProfile = (id: string, input: Record<string, unknown>) => patchConsul
 const getProfile = (id: string) => readConsultant(jsonRequest("GET", `/api/personnes/${id}/profil-consultant`, undefined, memberCookie), byId(id));
 const readPerson = async (id: string) => (await getPerson(jsonRequest("GET", `/api/personnes/${id}`, undefined, memberCookie), byId(id))).json();
 
-/** Entrées « modifiée » de l'historique d'une personne : [champ, ancienne, nouvelle], triées. */
-const changesOf = async (id: string) =>
-  (await listHistory("person", id))
-    .filter((entry) => entry.action === "modifiee")
-    .map((entry) => [entry.field, entry.oldValue, entry.newValue])
+/**
+ * L'historique tel qu'un lecteur le lit dans le fil de la personne : « Statut : vide → Freelance ».
+ * On vérifie la phrase affichée, pas la forme enregistrée — c'est elle que D13 décrit.
+ */
+const historyOf = async (id: string) =>
+  (await listFeed("person", id, [])).items
+    .filter((item) => item.kind === "changement" && (item.text ?? "").includes(" : "))
+    .map((item) => item.text)
     .sort();
+
+/** Nombre d'entrées « modifiée » de l'historique : ce qu'un PATCH sans changement ne doit pas faire grandir. */
+const changeCount = async (id: string) => (await listHistory("person", id)).filter((entry) => entry.action === "modifiee").length;
 
 /** Les enfants avant les parents : les clés étrangères de ces tables sont sans cascade côté personne. */
 async function cleanup() {
@@ -72,10 +79,7 @@ describe("profil consultant — création au premier statut (CRM-81, D1, D2, D13
     expect(await created.json()).toMatchObject({ personId: id, status: "freelance", modules: [], certifiedModules: [], billingCompanyId: null, dailyCost: null, unavailable: "non" });
 
     expect(await (await getProfile(id)).json()).toMatchObject({ status: "freelance" });
-    expect(await changesOf(id)).toEqual([
-      ["profiles", "Aucun", "Consultant"],
-      ["status", null, "Freelance"],
-    ]);
+    expect(await historyOf(id)).toEqual(["Profils : Aucun → Consultant", "Statut : vide → Freelance"]);
   });
 
   it("relit les champs du profil sur la personne et dans sa liste : ils se lisent comme ses propres colonnes", async () => {
@@ -105,20 +109,20 @@ describe("profil consultant — création au premier statut (CRM-81, D1, D2, D13
 
     const rows = await db.select({ id: consultantProfile.id }).from(consultantProfile).where(eq(consultantProfile.personId, id));
     expect(rows).toHaveLength(1);
-    expect(await changesOf(id)).toEqual([
-      ["dailyCost", null, "500"],
-      ["dailyCost", "500", "620"],
-      ["profiles", "Aucun", "Consultant"],
-      ["status", null, "Portage"],
-      ["status", "Portage", "Salarié"],
+    expect(await historyOf(id)).toEqual([
+      "Coût journalier : 500,00 € → 620,00 €",
+      "Coût journalier : vide → 500,00 €",
+      "Profils : Aucun → Consultant",
+      "Statut : Portage → Salarié",
+      "Statut : vide → Portage",
     ]);
   });
 
   it("n'écrit rien quand le PATCH ne change rien : aucune ligne d'historique de plus", async () => {
     const id = await createPerson({ firstName: "Paul", lastName: "Etienne" });
     await patchProfile(id, { status: "freelance", languages: "français" });
-    const before = (await changesOf(id)).length;
+    const before = await changeCount(id);
     expect((await patchProfile(id, { status: "freelance", languages: "français" })).status).toBe(200);
-    expect(await changesOf(id)).toHaveLength(before);
+    expect(await changeCount(id)).toBe(before);
   });
 });
