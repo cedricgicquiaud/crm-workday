@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { pgTable, text, uuid } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 import { defineSection, getServerObject, registerServerObject, sectionsOf, type ObjectSection } from "@/features/objects/registry.server";
@@ -41,5 +42,22 @@ describe("section mal déclarée (CRM-73, D20)", () => {
   it("refuse à l'enregistrement, en la nommant, une section sans rendu", () => {
     expect(() => registerServerObject({ ...base, key: "test_section_sans_rendu", sections: [withoutRender] })).toThrow("Objet « test_section_sans_rendu » : la section « profil-contact » n'a pas de rendu.");
     expect(() => getServerObject("test_section_sans_rendu")).toThrow("Aucun objet");
+  });
+});
+
+/**
+ * Une page de fiche est mince parce que la composition est déclarée, pas parce qu'elle a déménagé :
+ * la page personne ne sait rien de la personne, comme la page entreprise ne sait rien de
+ * l'entreprise. Chaque page qui recopierait la fiche rouvrirait à la livraison suivante (2.2, 2.6a).
+ */
+describe("page d'une fiche (CRM-73, D20)", () => {
+  const source = (path: string) => readFileSync(path, "utf8");
+
+  it("ne fait qu'appeler la fiche générique avec la clé de l'objet, sans rien importer de l'objet lui-même", () => {
+    const page = source("src/app/(app)/personnes/[id]/page.tsx");
+    expect(page).toContain('<ObjectSheet type="person"');
+    expect(page).not.toMatch(/@\/features\/persons\//);
+    /* Même forme que la page entreprise : à la ligne d'import et à la clé près, les deux pages sont le même fichier. */
+    expect(page.split("\n").length).toBeLessThanOrEqual(source("src/app/(app)/entreprises/[id]/page.tsx").split("\n").length + 2);
   });
 });
