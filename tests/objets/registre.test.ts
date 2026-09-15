@@ -58,4 +58,15 @@ describe("objet mal déclaré (CRM-33, D4)", () => {
     expect(() => registerObject({ ...base, key: "test_colonne_absente", titleField: "name", listColumns: ["name", "ville"] })).toThrow("Objet « test_colonne_absente » : la colonne de liste « ville » n'est pas déclarée dans ses champs.");
     expect(() => getObject("test_colonne_absente")).toThrow("Objet inconnu");
   });
+
+  /* Les badges de tête de la fiche (« Profils : Contact ») sont des champs déclarés : une clé inconnue ne doit pas attendre le rendu pour se voir. */
+  it("refuse à l'enregistrement un champ de tête qui ne correspond à aucun champ déclaré", () => {
+    expect(() => registerObject({ ...base, key: "test_tete_absente", titleField: "name", headerFields: ["statut"] })).toThrow("Objet « test_tete_absente » : le champ de tête « statut » n'est pas déclaré dans ses champs.");
+    expect(() => getObject("test_tete_absente")).toThrow("Objet inconnu");
+  });
+
+  it("accepte un champ de tête qui correspond à un champ déclaré", () => {
+    registerObject({ ...base, key: "test_tete_presente", titleField: "name", headerFields: ["name"] });
+    expect(getObject("test_tete_presente").headerFields).toEqual(["name"]);
+  });
 });
