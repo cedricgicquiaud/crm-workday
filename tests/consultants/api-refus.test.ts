@@ -64,7 +64,7 @@ describe("disponibilité d'un consultant (CRM-81, D6)", () => {
     expect(saved.status).toBe(200);
     expect(await saved.json()).toMatchObject({ availableFrom: "2026-11-02", unavailable: "oui", unavailableReason: "Congé sabbatique" });
     expect(await historyOf(id)).toEqual(
-      expect.arrayContaining(["Disponible à partir du : vide → 2 nov. 2026", "Indisponible : vide → Oui", "Motif d'indisponibilité : vide → Congé sabbatique"]),
+      expect.arrayContaining(["Disponible à partir du : vide → 2 nov. 2026", "Indisponible : Non → Oui", "Motif d'indisponibilité : vide → Congé sabbatique"]),
     );
   });
 
@@ -90,7 +90,7 @@ describe("disponibilité d'un consultant (CRM-81, D6)", () => {
 describe("refus de l'API du profil consultant (CRM-81, D1, D19, D21)", () => {
   it("refuse (405) le retrait d'un profil consultant : il part avec la personne, pas avant", async () => {
     const id = await createConsultant("Malo", "Gauthier");
-    const refused = await deleteConsultant(jsonRequest("DELETE", `/api/personnes/${id}/profil-consultant`, undefined, memberCookie), byId(id));
+    const refused = await deleteConsultant(jsonRequest("DELETE", `/api/personnes/${id}/profil-consultant`, undefined, memberCookie));
     expect(refused.status).toBe(405);
     expect(await refused.json()).toMatchObject({ error: "retrait_impossible" });
     expect(await readPerson(id)).toMatchObject({ profiles: ["consultant"] });

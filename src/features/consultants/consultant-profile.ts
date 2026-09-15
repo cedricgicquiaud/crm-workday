@@ -294,6 +294,22 @@ async function writeModules(exec: Executor, profileId: string, resolved: Resolve
   }
 }
 
+/**
+ * La disponibilité après ce PATCH (D6). Un motif sans la case n'a pas de sens : il est refusé, pas
+ * enregistré en silence. Décocher la case efface le motif — il ne reste pas sur un consultant
+ * redevenu disponible. Rend `null` quand le PATCH ne parle ni de la case ni du motif.
+ */
+function resolveAvailability(existing: ConsultantProfile | null, values: FieldValues): FieldValues | null {
+  const givenReason = "unavailableReason" in values;
+  if (!("unavailable" in values) && !givenReason) return null;
+  const unavailable = (values.unavailable as string | undefined) ?? existing?.unavailable ?? "non";
+  if (unavailable !== "oui") {
+    if (givenReason && values.unavailableReason !== null) throw invalid({ unavailableReason: `« ${descriptor("unavailableReason").label} » ne se renseigne que si « ${descriptor("unavailable").label} » est coché.` });
+    return { unavailable, unavailableReason: null };
+  }
+  return { unavailable, unavailableReason: givenReason ? values.unavailableReason : existing?.unavailableReason ?? null };
+}
+
 type Change = { field: string; oldValue: string | null; newValue: string | null };
 
 /** Ce qui change entre le profil enregistré et les valeurs reçues, écrit comme un lecteur le lit (D13). */
@@ -315,9 +331,13 @@ export async function writeConsultantProfile(personId: string, prepared: Prepare
   const { values } = prepared;
   const resolved = resolveModules(existing, values);
   const billing = await resolveBillingCompany(existing, values);
+  /* Les valeurs telles qu'elles seront enregistrées : celles reçues, complétées de ce que les règles en déduisent. */
+  const effective: FieldValues = { ...values, ...resolved, ...resolveAvailability(existing, values) };
   /* Les modules se comparent toujours : retirer un module retire sa certification, même quand le PATCH ne parle pas d'elle. */
-  const changes = fieldChanges(existing, { ...values, ...resolved });
-  const patch = rowPatch(values);
+  const changes = fieldChanges(existing, effective);
+  const changed = new Set(changes.map((change) => change.field));
+  /* En modification, seules les colonnes qui changent sont écrites : un PATCH qui ne change rien n'écrit rien. */
+  const patch = rowPatch(existing ? Object.fromEntries(Object.entries(effective).filter(([key]) => changed.has(key))) : effective);
   const movedModules = changes.some((change) => change.field === "modules" || change.field === "certifiedModules");
   /* La société s'historise par son nom : un identifiant ne se lit pas (D13). */
   if (billing && billing.id !== (existing?.billingCompanyId ?? null)) changes.push({ field: BILLING_COMPANY_FIELD.key, oldValue: existing?.billingCompanyName ?? null, newValue: billing.name });
@@ -327,7 +347,7 @@ export async function writeConsultantProfile(personId: string, prepared: Prepare
     const before = profilesLabel((current.profiles as string[] | undefined) ?? []);
     let after: string[] = [];
     await db.transaction(async (tx) => {
-      const [row] = await tx.insert(consultantProfile).values({ personId, status: String(values.status), ...patch }).returning({ id: consultantProfile.id });
+      const [row] = await tx.insert(consultantProfile).values({ personId, status: String(effective.status), ...patch }).returning({ id: consultantProfile.id });
       await writeModules(tx, row.id, resolved);
       await tx.update(person).set({ ...(billing ? { billingCompanyId: billing.id } : {}), updatedAt: now }).where(eq(person.id, personId));
       after = await recomputeProfiles(personId, tx);
