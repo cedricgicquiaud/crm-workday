@@ -26,6 +26,17 @@ export function registerTestObject(): void {
       { key: "signedOn", label: "Signée le", type: "date", order: 40 },
       { key: "amount", label: "Montant", type: "number", order: 50 },
       { key: "ownerId", label: "Responsable", type: "user", sortable: true, order: 60 },
+      /* Champ à plusieurs valeurs (D19) : « Alerte » porte la clé « zzz » ici aussi, et « Ancien » est une valeur retirée. */
+      {
+        key: "tags",
+        label: "Étiquettes",
+        type: "multilist",
+        values: [{ value: "client", label: "Client" }, { value: "client_final", label: "Client final" }, { value: "vip", label: "VIP" }, { value: "zzz", label: "Alerte" }],
+        retiredValues: [{ value: "ancien", label: "Ancien" }],
+        emptyLabel: "Aucune",
+        sortable: true,
+        order: 70,
+      },
     ],
     relations: [],
     listColumns: ["kind", "city"],

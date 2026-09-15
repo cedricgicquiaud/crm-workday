@@ -59,3 +59,32 @@ describe("filtrage d'une liste sur les autres types de champ (CRM-47, D16)", () 
     expect(names(applyFilters(TEST_TYPE, RECORDS, [{ field: "amount", operator: "plus_petit", value: "250" }]))).toEqual(["Alpha"]);
   });
 });
+
+/**
+ * Champ à plusieurs valeurs (D11) : on cherche ce qu'un ensemble contient. « est » ne s'y applique
+ * pas, et un ensemble vide se trouve par « est vide » — c'est ainsi qu'on retrouve une personne
+ * sans profil (D8).
+ */
+describe("filtrage d'une liste sur un champ à plusieurs valeurs (CRM-80, D11)", () => {
+  const SETS = [
+    record({ name: "Alpha", tags: ["client", "vip"] }),
+    record({ name: "Bravo", tags: ["vip"] }),
+    record({ name: "Charlie", tags: [] }),
+    /* « client_final » commence par « client » : une comparaison en sous-chaîne le confondrait avec lui. */
+    record({ name: "Delta", tags: ["client_final"] }),
+  ];
+
+  it("garde les fiches dont l'ensemble porte la valeur cherchée", () => {
+    expect(names(applyFilters(TEST_TYPE, SETS, [{ field: "tags", operator: "contient", value: "client" }]))).toEqual(["Alpha"]);
+    expect(names(applyFilters(TEST_TYPE, SETS, [{ field: "tags", operator: "contient", value: "client_final" }]))).toEqual(["Delta"]);
+    expect(names(applyFilters(TEST_TYPE, SETS, [{ field: "tags", operator: "contient", value: "vip" }]))).toEqual(["Alpha", "Bravo"]);
+  });
+
+  it("écarte les fiches dont l'ensemble porte la valeur, celles qui n'en portent aucune comprises", () => {
+    expect(names(applyFilters(TEST_TYPE, SETS, [{ field: "tags", operator: "ne_contient_pas", value: "client" }]))).toEqual(["Bravo", "Charlie", "Delta"]);
+  });
+
+  it("trouve par « est vide » les fiches dont l'ensemble est vide", () => {
+    expect(names(applyFilters(TEST_TYPE, SETS, [{ field: "tags", operator: "est_vide", value: "" }]))).toEqual(["Charlie"]);
+  });
+});

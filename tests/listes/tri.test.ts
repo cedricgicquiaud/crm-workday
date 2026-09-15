@@ -41,3 +41,19 @@ describe("tri d'une liste (CRM-48, D6)", () => {
     expect(names(sortRecords(TEST_TYPE, records, { field: "ownerId", direction: "asc" }, users))).toEqual(["Seconde", "Première"]);
   });
 });
+
+/** Un ensemble se trie sur ses libellés joints (D11) ; sans valeur, la fiche passe en dernier. */
+describe("tri d'une liste sur un champ à plusieurs valeurs (CRM-80, D11)", () => {
+  const SETS = [
+    record("Alpha", day("2026-09-03"), { tags: ["vip"] }),
+    record("Bravo", day("2026-09-02"), { tags: [] }),
+    record("Charlie", day("2026-09-01"), { tags: ["zzz"] }),
+  ];
+
+  it("trie sur les libellés joints, pas sur les clés enregistrées, et laisse un ensemble vide en dernier", () => {
+    expect(isSortable(TEST_TYPE, "tags")).toBe(true);
+    /* « zzz » porte le libellé « Alerte » : trié sur la clé, Charlie serait dernier. */
+    expect(names(sortRecords(TEST_TYPE, SETS, { field: "tags", direction: "asc" }))).toEqual(["Charlie", "Alpha", "Bravo"]);
+    expect(names(sortRecords(TEST_TYPE, SETS, { field: "tags", direction: "desc" }))).toEqual(["Alpha", "Charlie", "Bravo"]);
+  });
+});
