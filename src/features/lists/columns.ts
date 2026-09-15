@@ -6,7 +6,7 @@
  */
 import { UPDATED_AT } from "@/features/lists/sort";
 import { fieldsOf } from "@/features/objects/fields";
-import { getObject, type FieldDescriptor } from "@/features/objects/registry";
+import { getList, type FieldDescriptor } from "@/features/objects/registry";
 
 /**
  * Descripteur de la colonne de base : elle ne vient pas des champs de l'objet — aucune fiche ne la
@@ -15,11 +15,11 @@ import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 export const UPDATED_AT_COLUMN: FieldDescriptor = { key: UPDATED_AT, label: "Modifiée le", type: "date", editable: false, sortable: true, order: Number.MAX_SAFE_INTEGER };
 
 /** Colonnes qu'une liste sait afficher, dans l'ordre des descripteurs, la colonne de base en dernier. */
-export function columnsOf(type: string): readonly FieldDescriptor[] {
-  return [...fieldsOf(type), UPDATED_AT_COLUMN];
+export function columnsOf(list: string): readonly FieldDescriptor[] {
+  return [...fieldsOf(getList(list).objectKey), UPDATED_AT_COLUMN];
 }
 
-/** Colonnes visibles par défaut après la colonne titre : celles du registre, puis la colonne de base. */
-export function defaultColumnKeys(type: string): string[] {
-  return [...(getObject(type).listColumns ?? []), UPDATED_AT];
+/** Colonnes visibles par défaut après la colonne titre : celles que la liste déclare, puis la colonne de base. */
+export function defaultColumnKeys(list: string): string[] {
+  return [...(getList(list).columns ?? []), UPDATED_AT];
 }

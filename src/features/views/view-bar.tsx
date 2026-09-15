@@ -11,16 +11,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DEFAULT_VIEW, listStateToParams, type ListState } from "@/features/lists/url-state";
-import { getObject } from "@/features/objects/registry";
+import { getList } from "@/features/objects/registry";
 import type { PinnedViewEntry } from "@/features/views/pinned";
 import type { ViewSummary } from "@/features/views/views";
 
-type Props = { type: string; state: ListState; views: readonly ViewSummary[]; pinned: readonly PinnedViewEntry[] };
+/** `list` : la clé de la liste (celle d'un objet, ou une liste déclarée) sous laquelle ses vues se rangent. */
+type Props = { list: string; state: ListState; views: readonly ViewSummary[]; pinned: readonly PinnedViewEntry[] };
 
 /** Adresse d'une vue : la liste ouverte sur elle, et rien d'autre — c'est ce qu'on partage. */
-function viewUrl(type: string, view: ViewSummary): string {
-  const { listHref } = getObject(type);
-  return view.id === DEFAULT_VIEW ? listHref : `${listHref}?vue=${encodeURIComponent(view.id)}`;
+function viewUrl(list: string, view: ViewSummary): string {
+  const { href } = getList(list);
+  return view.id === DEFAULT_VIEW ? href : `${href}?vue=${encodeURIComponent(view.id)}`;
 }
 
 const ACTION_FAILED = "L'action a échoué. Réessayez.";
@@ -49,7 +50,7 @@ async function callViews(path: string, init: { method: string; body?: unknown })
  * l'enregistrement de l'état affiché sous un nom. Une vue choisie s'ouvre par son adresse
  * (`?vue=…`), donc elle se partage et se rouvre au même état (D18).
  */
-export function ViewBar({ type, state, views, pinned }: Props) {
+export function ViewBar({ list, state, views, pinned }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -70,7 +71,7 @@ export function ViewBar({ type, state, views, pinned }: Props) {
     pinnedIds.includes(view.id) ? write(`/api/vues-epinglees/${encodeURIComponent(view.id)}`, { method: "DELETE" }) : write("/api/vues-epinglees", { method: "POST", body: { viewId: view.id } });
 
   /** État affiché, tel qu'une vue le range : la vue courante n'y figure pas, une vue ne pointe pas une vue. */
-  const displayedQuery = () => listStateToParams(type, { ...state, view: null }).toString();
+  const displayedQuery = () => listStateToParams(list, { ...state, view: null }).toString();
 
   /** Suppression confirmée : la vue quitte la liste des vues et les barres latérales de chacun, l'écran revient à la vue par défaut. */
   async function remove() {
@@ -78,7 +79,7 @@ export function ViewBar({ type, state, views, pinned }: Props) {
     const outcome = await callViews(`/api/vues/${encodeURIComponent(current.id)}`, { method: "DELETE" });
     if (!outcome.ok) return setError(outcome.message);
     setRemoving(false);
-    router.push(getObject(type).listHref);
+    router.push(getList(list).href);
   }
 
   /** Monte ou descend une vue dans la barre latérale : l'ordre est choisi, donc enregistré. */
@@ -107,7 +108,7 @@ export function ViewBar({ type, state, views, pinned }: Props) {
                   {/* La vue courante se voit : sans cette marque, la case d'épinglage est la seule du menu et se lit pour elle. */}
                   {isCurrent ? <CheckIcon data-slot="view-current" className="size-3.5 shrink-0 text-primary" aria-hidden /> : <span className="size-3.5 shrink-0" aria-hidden />}
                   <Link
-                    href={viewUrl(type, view)}
+                    href={viewUrl(list, view)}
                     aria-current={isCurrent ? "page" : undefined}
                     className="min-w-0 flex-1 truncate rounded-sm px-1 text-sm hover:underline aria-[current]:font-medium"
                     title={view.name}
@@ -141,10 +142,10 @@ export function ViewBar({ type, state, views, pinned }: Props) {
               initialName=""
               submitLabel="Enregistrer"
               onSave={async (name) => {
-                const outcome = await callViews("/api/vues", { method: "POST", body: { objectType: type, name, query: displayedQuery() } });
+                const outcome = await callViews("/api/vues", { method: "POST", body: { objectType: list, name, query: displayedQuery() } });
                 if (!outcome.ok) return outcome;
                 setSaving(false);
-                router.push(`${getObject(type).listHref}?vue=${encodeURIComponent((outcome.body as { id: string }).id)}`);
+                router.push(`${getList(list).href}?vue=${encodeURIComponent((outcome.body as { id: string }).id)}`);
                 return outcome;
               }}
             />

@@ -13,14 +13,17 @@ import { ListCell } from "@/features/lists/inline-edit";
 import { ListCards } from "@/features/lists/list-cards";
 import { isSortable, UPDATED_AT, type Sort } from "@/features/lists/sort";
 import { listUrl, searchParamsOf, type ListState } from "@/features/lists/url-state";
-import { displayValue, formatDate } from "@/features/objects/labels";
-import { getObject } from "@/features/objects/registry";
+import { createLabel as createButtonLabel, displayValue, formatDate } from "@/features/objects/labels";
+import { getList, getObject, type ListDefinition, type ObjectLabels } from "@/features/objects/registry";
 import { listObjectRecords, listUserOptions } from "@/features/objects/service";
 import { QuickCreateDialog } from "@/features/objects/quick-create-dialog";
 import { listPinnedViews } from "@/features/views/pinned";
 import { ViewBar } from "@/features/views/view-bar";
 import { listStateWithView, listViews } from "@/features/views/views";
 import { requireSession } from "@/lib/auth/session";
+
+/** Libellé de la création : celui que la liste déclare, sinon « Nouvelle … » de l'objet. */
+const createLabel = (list: ListDefinition, labels: ObjectLabels) => (list.create === false ? "" : list.create?.label ?? createButtonLabel(labels));
 
 /** Paramètres d'URL tels que Next.js les passe à une page. */
 export type ListQuery = Record<string, string | string[] | undefined>;
@@ -37,12 +40,12 @@ const nextSort = (sort: Sort, field: string): Sort => ({ field, direction: sort.
  * En-tête de colonne : un lien qui trie quand le champ le permet (D6), sinon le libellé seul.
  * Le tri passe par l'URL, donc il fonctionne sans JavaScript et se partage avec l'adresse.
  */
-function ColumnHeader({ type, state, field, label, className }: { type: string; state: ListState; field: string; label: string; className: string }) {
+function ColumnHeader({ list, type, state, field, label, className }: { list: string; type: string; state: ListState; field: string; label: string; className: string }) {
   if (!isSortable(type, field)) return <TableHead className={className}>{label}</TableHead>;
   const current = state.sort.field === field ? state.sort.direction : null;
   return (
     <TableHead className={className} aria-sort={current ? ARIA_SORT[current] : "none"}>
-      <Link href={listUrl(type, { ...state, sort: nextSort(state.sort, field) })} className="inline-flex max-w-full items-center gap-1 rounded-sm hover:underline">
+      <Link href={listUrl(list, { ...state, sort: nextSort(state.sort, field) })} className="inline-flex max-w-full items-center gap-1 rounded-sm hover:underline">
         <span className="truncate">{label}</span>
         {current === "asc" && <ArrowUpIcon className="size-3 shrink-0" aria-hidden />}
         {current === "desc" && <ArrowDownIcon className="size-3 shrink-0" aria-hidden />}
@@ -58,31 +61,35 @@ function ColumnHeader({ type, state, field, label, className }: { type: string; 
  * et l'adresse se partage.
  * Un filtre que la liste ne sait pas appliquer est signalé « filtre inactif », jamais une erreur.
  */
-export async function ObjectList({ type, query }: { type: string; query?: ListQuery }) {
+export async function ObjectList({ type: listKey, query }: { type: string; query?: ListQuery }) {
   /* Les champs personnalisés avant de lire l'URL : un filtre, un tri ou une colonne posés sur l'un d'eux se lisent comme un champ déclaré (2.4). */
   const customFields = await loadCustomFields();
-  const state = await listStateWithView(type, searchParamsOf(query));
-  const [{ user }, records, users, views] = await Promise.all([requireSession(), listObjectRecords(type, { includeArchived: state.includeArchived }), listUserOptions(), listViews(type)]);
+  const list = getList(listKey);
+  const type = list.objectKey;
+  const state = await listStateWithView(listKey, searchParamsOf(query));
+  const [{ user }, records, users, views] = await Promise.all([requireSession(), listObjectRecords(type, { includeArchived: state.includeArchived }), listUserOptions(), listViews(listKey)]);
   const pinned = await listPinnedViews(user.id);
-  const shown = listForState(type, records, state, users);
+  /* Le filtre de base de la liste s'applique ici, côté serveur : l'URL peut ajouter un filtre, jamais retirer celui-là (D10). */
+  const shown = listForState(listKey, records, state, users);
   const definition = getObject(type);
-  const fields = columnsOf(type);
+  const fields = columnsOf(listKey);
   const title = fields.find((field) => field.key === definition.titleField)!;
   const columns = state.columns.map((key) => fields.find((field) => field.key === key)!);
   const count = shown.length;
+  const singular = (list.singular ?? definition.labels.singular).toLowerCase();
   return (
     <div className="grid gap-4">
       <CustomFieldsSource definitions={customFields} />
       <header className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">{definition.labels.plural}</h1>
-        <QuickCreateDialog type={type} users={users} currentUserId={user.id} />
+        <h1 className="text-2xl font-semibold tracking-tight">{list.label}</h1>
+        {list.create !== false && <QuickCreateDialog type={type} create={list.create} users={users} currentUserId={user.id} />}
       </header>
-      <ViewBar type={type} state={state} views={views} pinned={pinned} />
+      <ViewBar list={listKey} state={state} views={views} pinned={pinned} />
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <FilterChips type={type} state={state} users={users} />
+        <FilterChips list={listKey} type={type} state={state} users={users} />
         {/* Choisir des colonnes n'a pas de sens en cartes : le menu suit le tableau (D9). */}
         <div className="hidden md:block">
-          <ColumnMenu type={type} state={state} />
+          <ColumnMenu list={listKey} type={type} state={state} />
         </div>
       </div>
       {state.inactive.length > 0 && (
@@ -96,19 +103,19 @@ export async function ObjectList({ type, query }: { type: string; query?: ListQu
       )}
       {count === 0 ? (
         <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-          {state.filters.length > 0 ? "Aucune fiche ne répond à ces filtres." : `Aucune fiche pour l'instant. Créez la première avec « ${definition.labels.singular} ».`}
+          {state.filters.length > 0 ? "Aucune fiche ne répond à ces filtres." : `Aucune fiche pour l'instant. Créez la première avec « ${createLabel(list, definition.labels)} ».`}
         </p>
       ) : (
         <>
           {/* Sous 768 px, les cartes remplacent le tableau : la page ne défile jamais en largeur (D9). */}
           <ListCards type={type} records={shown} columns={columns.filter((column) => column.key !== UPDATED_AT)} users={users} />
           <div className="hidden md:block">
-            <Table aria-label={definition.labels.plural} className="table-fixed">
+            <Table aria-label={list.label} className="table-fixed">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <ColumnHeader type={type} state={state} field={title.key} label={title.label} className="h-7" />
+                  <ColumnHeader list={listKey} type={type} state={state} field={title.key} label={title.label} className="h-7" />
                   {columns.map((column) => (
-                    <ColumnHeader key={column.key} type={type} state={state} field={column.key} label={column.label} className={column.key === UPDATED_AT ? "h-7 w-28 text-right" : "h-7 w-[18%]"} />
+                    <ColumnHeader key={column.key} list={listKey} type={type} state={state} field={column.key} label={column.label} className={column.key === UPDATED_AT ? "h-7 w-28 text-right" : "h-7 w-[18%]"} />
                   ))}
                 </TableRow>
               </TableHeader>
@@ -146,7 +153,7 @@ export async function ObjectList({ type, query }: { type: string; query?: ListQu
           </div>
         </>
       )}
-      <p className="text-sm text-muted-foreground">{count === 1 ? `1 ${definition.labels.singular.toLowerCase()}` : `${count} ${definition.labels.plural.toLowerCase()}`}</p>
+      <p className="text-sm text-muted-foreground">{count === 1 ? `1 ${singular}` : `${count} ${list.label.toLowerCase()}`}</p>
     </div>
   );
 }

@@ -3,9 +3,9 @@
  * fichier est la seule description de l'objet côté client. La relation contact → entreprise est
  * déclarée ici : la colonne des liens d'une entreprise en lit l'inverse (« Contacts »).
  */
-import { UsersIcon } from "lucide-react";
+import { BriefcaseBusinessIcon, UsersIcon } from "lucide-react";
 import { registerObject } from "@/features/objects/registry";
-import { CONSULTANT_PROFILE_HISTORY_FIELDS } from "@/features/consultants/schema";
+import { CONSULTANTS_LIST, CONSULTANT_PROFILE_HISTORY_FIELDS } from "@/features/consultants/schema";
 import { CONTACT_PROFILE_HISTORY_FIELDS, PERSON_FIELDS } from "./schema";
 
 registerObject({
@@ -32,4 +32,25 @@ registerObject({
     { to: "company", fkColumn: "billingCompanyId", label: "Société de facturation", inverseLabel: "Consultants facturés" },
   ],
   feedParent: "company",
+  /**
+   * « Consultants » (D10) : les personnes qui portent un profil consultant, sous leur propre entrée de
+   * barre latérale, avec leurs colonnes, leur vue par défaut et leur création. Le filtre de base est
+   * appliqué côté serveur et ne se retire pas par l'URL. « État » s'intercalera entre le coût et le
+   * responsable en 3.2.
+   */
+  lists: [
+    {
+      key: CONSULTANTS_LIST,
+      label: "Consultants",
+      singular: "Consultant",
+      icon: BriefcaseBusinessIcon,
+      href: "/consultants",
+      order: 30,
+      baseFilters: [{ field: "profiles", operator: "contient", value: "consultant" }],
+      columns: ["status", "modules", "dailyCost", "ownerId"],
+      defaultViewName: "Tous les consultants",
+      /* Cinq champs, et une API à elle : elle crée la personne et son profil d'un seul geste (D12). */
+      create: { apiBase: "/api/consultants", fields: ["firstName", "lastName", "email", "status", "dailyCost"], label: "Nouveau consultant" },
+    },
+  ],
 });

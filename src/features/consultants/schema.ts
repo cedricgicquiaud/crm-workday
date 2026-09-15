@@ -14,6 +14,9 @@ import type { FieldDescriptor, ListValue } from "@/features/objects/registry";
  */
 export const CONSULTANT_PROFILE = { key: "consultant", label: "profil consultant" } as const;
 
+/** Clé de la liste « Consultants » (D10) : celle sous laquelle se rangent ses vues et ses épingles. */
+export const CONSULTANTS_LIST = "consultants";
+
 /** Statut d'un consultant (D2) : la forme du lien entre le cabinet et lui. */
 export const STATUSES: readonly ListValue[] = [
   { value: "salarie", label: "Salarié" },

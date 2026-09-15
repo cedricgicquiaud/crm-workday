@@ -3,10 +3,10 @@
  * la liste lit puis filtre en mémoire, ce qui garde le service générique intact et rend le filtrage
  * testable sans base. Les filtres se combinent en « et » seulement (D16).
  */
-import type { Filter } from "@/features/lists/filters";
+import { readFilters, type Filter } from "@/features/lists/filters";
 import { sortRecords, type Sort } from "@/features/lists/sort";
 import { fieldsOf } from "@/features/objects/fields";
-import type { FieldDescriptor } from "@/features/objects/registry";
+import { getList, type FieldDescriptor } from "@/features/objects/registry";
 import type { UserOption } from "@/features/objects/labels";
 import type { ObjectRecord } from "@/features/objects/service";
 import { normalizeQuery } from "@/features/search/normalize";
@@ -68,7 +68,12 @@ export function applyFilters(type: string, records: readonly ObjectRecord[], fil
 /**
  * Fiches d'une liste dans l'état lu de l'URL : filtrées puis triées. La route générique et l'écran
  * passent par ici, pour qu'une adresse partagée et un appel d'API rendent exactement la même liste.
+ *
+ * Le filtre de base que la liste déclare (D10) s'ajoute **toujours** à ceux de l'URL : c'est lui qui
+ * dit ce que la liste est. Une adresse bricolée peut ajouter un filtre, jamais retirer celui-là.
  */
-export function listForState(type: string, records: readonly ObjectRecord[], state: { filters: readonly Filter[]; sort: Sort }, users: readonly UserOption[] = []): ObjectRecord[] {
-  return sortRecords(type, applyFilters(type, records, state.filters), state.sort, users);
+export function listForState(list: string, records: readonly ObjectRecord[], state: { filters: readonly Filter[]; sort: Sort }, users: readonly UserOption[] = []): ObjectRecord[] {
+  const { objectKey, baseFilters } = getList(list);
+  const base = readFilters(objectKey, baseFilters ?? []).filters;
+  return sortRecords(objectKey, applyFilters(objectKey, records, [...base, ...state.filters]), state.sort, users);
 }
