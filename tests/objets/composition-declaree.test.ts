@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { pgTable, text, uuid } from "drizzle-orm/pg-core";
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { FieldControl, type FieldControlProps } from "@/features/objects/field-control";
 import { defineSection, getServerObject, registerServerObject, sectionsOf, type ObjectSection } from "@/features/objects/registry.server";
 
 /**
@@ -59,5 +62,43 @@ describe("page d'une fiche (CRM-73, D20)", () => {
     expect(page).not.toMatch(/@\/features\/persons\//);
     /* Même forme que la page entreprise : à la ligne d'import et à la clé près, les deux pages sont le même fichier. */
     expect(page.split("\n").length).toBeLessThanOrEqual(source("src/app/(app)/entreprises/[id]/page.tsx").split("\n").length + 2);
+  });
+});
+
+/**
+ * Un champ se rend au même endroit pour tout le monde (CRM-78) : la section « Champs », le dialogue
+ * de création rapide et « Profil contact » appelaient chacun leur copie, d'où un contrôle sorti à
+ * 32 px sur la fiche (défaut de la repasse 2.2, parent de CRM-31).
+ */
+describe("un seul composant rend un champ (CRM-78)", () => {
+  const rendered = (props: Partial<FieldControlProps> = {}) => renderToString(createElement(FieldControl, { id: "champ-test", label: "Poste", placement: "sheet", kind: "text", value: "DSI", ...props }));
+
+  it("porte le libellé au-dessus du contrôle, lié à lui, et montre la valeur enregistrée", () => {
+    const html = rendered();
+    expect(html).toMatch(/<label[^>]*for="champ-test"[^>]*>Poste<\/label>/);
+    expect(html).toContain('value="DSI"');
+  });
+
+  it("affiche un refus sous le champ, en alerte, et le fait désigner par le contrôle", () => {
+    const html = rendered({ error: "Valeur invalide." });
+    expect(html).toMatch(/id="champ-test-error"[^>]*role="alert"/);
+    expect(html).toContain("Valeur invalide.");
+    expect(html).toContain('aria-describedby="champ-test-error"');
+    expect(html).toContain('aria-invalid="true"');
+  });
+
+  /* La hauteur d'un champ vient des tokens de densité : 28 px sur une fiche, 32 px dans un dialogue, jamais d'un « h-7 » ou d'un « h-8 » écrit à la main. */
+  it("prend sa hauteur des tokens de densité, celle de la fiche ou celle du dialogue", () => {
+    expect(rendered({ placement: "sheet" })).toContain("h-(--control-h)");
+    expect(rendered({ placement: "sheet" })).not.toMatch(/\bh-7\b/);
+    expect(rendered({ placement: "dialog" })).toContain("h-(--control-h-lg)");
+    expect(rendered({ placement: "dialog" })).not.toMatch(/\bh-8\b/);
+  });
+
+  it("rend une valeur en lecture seule en texte lié à son libellé, jamais par un contrôle éteint", () => {
+    const html = rendered({ readOnly: true, value: "contact", display: "Contact" });
+    expect(html).toMatch(/aria-labelledby="champ-test-label"[^>]*>Contact</);
+    expect(html).not.toContain("<input");
+    expect(html).not.toContain("disabled");
   });
 });
