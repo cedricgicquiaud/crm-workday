@@ -98,8 +98,9 @@ test.describe("« Nouveau consultant » depuis la liste et la palette (CRM-83, C
     await memberPage.getByRole("option", { name: "Salarié", exact: true }).click();
 
     /* Le nom d'une personne existante : le doublon probable est signalé, et propose d'ouvrir sa fiche. */
-    await expect(dialog.getByText("doublon probable", { exact: false })).toBeVisible();
-    await expect(dialog.getByRole("link", { name: `Marc ${lastName}` })).toBeVisible();
+    const hint = dialog.getByRole("status");
+    await expect(hint).toContainText(`Marc ${lastName}`);
+    await expect(hint.getByRole("link", { name: "Ouvrir la fiche" })).toBeVisible();
 
     /* La même adresse, en une autre casse : refus 409 qui nomme la personne, et rien n'est créé. */
     await dialog.getByLabel("Email principal").fill(email.toUpperCase());

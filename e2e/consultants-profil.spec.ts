@@ -81,7 +81,9 @@ test.describe("profil consultant sur la fiche d'une personne (CRM-81, contrats 3
     await expect(section.getByRole("combobox", { name: "Société de facturation" })).toContainText(dupont);
 
     const feed = memberPage.getByRole("region", { name: "Fil d'activité" });
-    await expect(feed.getByText("Modules : vide → HCM, Integration")).toBeVisible();
+    /* Une ligne par geste, chacune avec l'ensemble entier (D13) : deux modules cochés l'un après l'autre font deux lignes. */
+    await expect(feed.getByText("Modules : vide → HCM")).toBeVisible();
+    await expect(feed.getByText("Modules : HCM → HCM, Integration")).toBeVisible();
     await expect(feed.getByText("Certifié sur : vide → HCM")).toBeVisible();
     await expect(feed.getByText(`Société de facturation : vide → ${dupont}`)).toBeVisible();
     await expect(feed.getByText("Années d'expérience : vide → 6")).toBeVisible();
