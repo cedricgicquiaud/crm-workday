@@ -144,6 +144,33 @@ test.describe("profil consultant sur la fiche d'une personne (CRM-81, contrats 3
     await expect(section.getByRole("button")).toHaveCount(0);
   });
 
+  test("tous les modules cochés, chaque libellé s'affiche en entier à côté de sa case « certifié », à 1280 et à 375 px", async ({ memberPage }) => {
+    const lastName = `Complet ${suffix()}`;
+    const id = await createPerson(memberPage, { firstName: "Iris", lastName });
+    expect((await memberPage.request.patch(`/api/personnes/${id}/profil-consultant`, { data: { status: "freelance" } })).status()).toBe(200);
+
+    await memberPage.goto(`/personnes/${id}`);
+    const section = memberPage.getByRole("region", { name: "Profil consultant" });
+    const items = section.getByRole("listitem");
+    const count = await items.count();
+
+    /* Tous les modules cochés d'un geste : chaque ligne porte alors sa case « certifié », le cas le plus serré. */
+    await saveProfile(memberPage, async () => {
+      for (let index = 0; index < count; index += 1) await items.nth(index).getByRole("checkbox").first().click();
+      await items.last().getByRole("checkbox").first().press("Enter");
+    });
+    await expect(section.getByRole("checkbox", { name: "Adaptive Planning certifié" })).toBeVisible();
+
+    /* Un libellé rogné par sa case « certifié » (« Integr… ») ou renvoyé à la ligne : la liste n'a pas fait sa place. */
+    const clipped = async () => items.locator("> span:not([role])").evaluateAll((spans) => spans.filter((span) => span.scrollWidth > span.clientWidth + 1 || span.getBoundingClientRect().height > 24).map((span) => span.textContent ?? ""));
+
+    expect(await clipped(), "à 1280 px").toEqual([]);
+
+    await memberPage.setViewportSize({ width: 375, height: 900 });
+    expect(await clipped(), "à 375 px").toEqual([]);
+    expect(await memberPage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  });
+
   test("à 375 px, la section du profil tient dans la largeur : aucun défilement horizontal, un seul titre de page", async ({ memberPage }) => {
     const lastName = `Mobile ${suffix()}`;
     const id = await createPerson(memberPage, { firstName: "Nina", lastName });
