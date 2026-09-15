@@ -9,7 +9,7 @@
  * profils présents (D8). Les trois s'écrivent donc dans une seule transaction avec le profil : un
  * profil sans ses modules, ou une personne dont « Profils » ment, serait une fiche à moitié écrite.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { cache } from "react";
 import { company, consultantModule, consultantProfile, person } from "@/db/schema";
 import { recordHistory } from "@/features/history/history";
@@ -19,7 +19,9 @@ import { assertWritable, getObjectRecord, type Actor, type ObjectRecord } from "
 import { profilesLabel, recomputeProfiles, registerProfileSource } from "@/features/persons/profiles";
 import { HttpError } from "@/lib/auth/session";
 import { db, type Executor } from "@/lib/db";
-import { CONSULTANT_INPUT_FIELDS, CONSULTANT_PROFILE_FIELDS } from "./schema";
+import { COMPANY_TYPES } from "@/features/companies/schema";
+import { RECORD_OPTIONS_LIMIT } from "@/features/objects/service";
+import { BILLING_COMPANY_FIELD, BILLING_COMPANY_TYPE, CONSULTANT_INPUT_FIELDS, CONSULTANT_PROFILE_FIELDS, STATUS_SUBJECT } from "./schema";
 
 const TYPE = "person";
 
@@ -193,6 +195,65 @@ function rowPatch(values: FieldValues): Record<string, unknown> {
   return Object.fromEntries(Object.entries(values).filter(([key]) => key in COLUMNS).map(([key, value]) => [key, COLUMNS[key](value)]));
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const typeLabel = (value: string) => COMPANY_TYPES.find((entry) => entry.value === value)?.label.toLowerCase() ?? value;
+
+export type BillingCompanyOption = { id: string; name: string };
+
+/**
+ * Entreprises proposées comme société de facturation pour un statut (D4) : celles du type imposé,
+ * jamais une archivée, bornées comme tout sélecteur. Un salarié n'en a pas : le sélecteur est vide,
+ * et la section ne le montre pas.
+ */
+export async function listBillingCompanyOptions(status: string, { limit = RECORD_OPTIONS_LIMIT } = {}): Promise<BillingCompanyOption[]> {
+  const expected = BILLING_COMPANY_TYPE[status] ?? null;
+  if (!expected) return [];
+  const rows = await db
+    .select({ id: company.id, name: company.name })
+    .from(company)
+    .where(and(eq(company.type, expected), isNull(company.archivedAt)))
+    .orderBy(desc(company.updatedAt), asc(company.id))
+    .limit(limit);
+  return rows;
+}
+
+type BillingCompany = { id: string; name: string; type: string; archived: boolean };
+
+/** L'entreprise désignée : 400 si elle n'existe pas, 409 si elle est archivée (D4). */
+async function loadBillingCompany(id: string): Promise<BillingCompany> {
+  const [row] = UUID.test(id) ? await db.select({ id: company.id, name: company.name, type: company.type, archivedAt: company.archivedAt }).from(company).where(eq(company.id, id)).limit(1) : [];
+  if (!row) throw invalid({ billingCompanyId: `« ${BILLING_COMPANY_FIELD.label} » ne désigne aucune entreprise.` });
+  if (row.archivedAt) throw new HttpError(409, "entreprise_archivee", `Entreprise archivée : « ${row.name} » ne facture plus de consultant.`, { billingCompanyId: row.id });
+  return { id: row.id, name: row.name, type: row.type, archived: false };
+}
+
+/**
+ * La société de facturation après ce PATCH, vérifiée contre le statut qui en résulte (D4). Changer
+ * de statut quand la société ne convient plus est refusé sur le champ « Statut », avec ce qu'il faut
+ * faire : retirer la société d'abord. Deux gestes, donc deux lignes d'historique.
+ */
+async function resolveBillingCompany(existing: ConsultantProfile | null, values: FieldValues): Promise<{ id: string | null; name: string | null } | null> {
+  const status = (values.status as string | undefined) ?? existing?.status ?? "";
+  const expected = BILLING_COMPANY_TYPE[status] ?? null;
+  const subject = STATUS_SUBJECT[status] ?? "Ce consultant";
+  const given = "billingCompanyId" in values;
+  const target = given && typeof values.billingCompanyId === "string" ? await loadBillingCompany(values.billingCompanyId) : null;
+  const kept = given ? null : existing?.billingCompanyId ?? null;
+
+  if (target) {
+    if (!expected) throw invalid({ billingCompanyId: `${subject} n'a pas de société de facturation.` });
+    if (target.type !== expected) throw invalid({ billingCompanyId: `${subject} est facturé par une ${typeLabel(expected)} : « ${target.name} » est un ${typeLabel(target.type)}.` });
+    return { id: target.id, name: target.name };
+  }
+  /* La société déjà enregistrée ne convient plus au nouveau statut : c'est le statut qu'on refuse, et le message dit par quoi commencer. */
+  if (kept && BILLING_COMPANY_TYPE[status] !== BILLING_COMPANY_TYPE[existing?.status ?? status]) {
+    const message = expected ? `${subject} est facturé par une ${typeLabel(expected)} : retirez d'abord « ${existing?.billingCompanyName} ».` : `${subject} n'a pas de société de facturation : retirez d'abord « ${existing?.billingCompanyName} ».`;
+    throw invalid({ status: message });
+  }
+  return given ? { id: null, name: null } : null;
+}
+
 /** Les modules qu'un profil portera après ce PATCH, et ceux qui y seront certifiés (D3). */
 type ResolvedModules = { modules: string[]; certifiedModules: string[] };
 
@@ -253,10 +314,13 @@ export async function writeConsultantProfile(personId: string, prepared: Prepare
   const existing = await readConsultantProfile(personId);
   const { values } = prepared;
   const resolved = resolveModules(existing, values);
+  const billing = await resolveBillingCompany(existing, values);
   /* Les modules se comparent toujours : retirer un module retire sa certification, même quand le PATCH ne parle pas d'elle. */
   const changes = fieldChanges(existing, { ...values, ...resolved });
   const patch = rowPatch(values);
   const movedModules = changes.some((change) => change.field === "modules" || change.field === "certifiedModules");
+  /* La société s'historise par son nom : un identifiant ne se lit pas (D13). */
+  if (billing && billing.id !== (existing?.billingCompanyId ?? null)) changes.push({ field: BILLING_COMPANY_FIELD.key, oldValue: existing?.billingCompanyName ?? null, newValue: billing.name });
   const now = new Date();
 
   if (!existing) {
@@ -265,7 +329,7 @@ export async function writeConsultantProfile(personId: string, prepared: Prepare
     await db.transaction(async (tx) => {
       const [row] = await tx.insert(consultantProfile).values({ personId, status: String(values.status), ...patch }).returning({ id: consultantProfile.id });
       await writeModules(tx, row.id, resolved);
-      await tx.update(person).set({ updatedAt: now }).where(eq(person.id, personId));
+      await tx.update(person).set({ ...(billing ? { billingCompanyId: billing.id } : {}), updatedAt: now }).where(eq(person.id, personId));
       after = await recomputeProfiles(personId, tx);
     });
     changes.unshift({ field: "profiles", oldValue: before, newValue: profilesLabel(after) });
@@ -273,7 +337,7 @@ export async function writeConsultantProfile(personId: string, prepared: Prepare
     await db.transaction(async (tx) => {
       if (Object.keys(patch).length > 0) await tx.update(consultantProfile).set({ ...patch, updatedAt: now }).where(eq(consultantProfile.personId, personId));
       if (movedModules) await writeModules(tx, await profileIdOf(personId, tx), resolved);
-      await tx.update(person).set({ updatedAt: now }).where(eq(person.id, personId));
+      await tx.update(person).set({ ...(billing ? { billingCompanyId: billing.id } : {}), updatedAt: now }).where(eq(person.id, personId));
     });
   }
 

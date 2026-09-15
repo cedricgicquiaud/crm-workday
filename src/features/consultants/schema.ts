@@ -70,6 +70,13 @@ export const BILLING_COMPANY_TYPE: Readonly<Record<string, string | null>> = {
   portage: "societe_de_portage",
 };
 
+/** Comment un refus nomme le consultant selon son statut : « Un freelance est facturé par… ». */
+export const STATUS_SUBJECT: Readonly<Record<string, string>> = {
+  salarie: "Un salarié",
+  freelance: "Un freelance",
+  portage: "Un consultant porté",
+};
+
 /**
  * Champs du profil consultant, déclarés parmi ceux de la personne : ils sont colonnes, filtres et
  * tris de ses listes, et se règlent par l'API du profil (`profile`, D19). Leurs rangs viennent après
