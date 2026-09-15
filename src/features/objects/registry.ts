@@ -7,7 +7,8 @@
  */
 import type { LucideIcon } from "lucide-react";
 
-export type FieldType = "text" | "list" | "date" | "number" | "user";
+/** `multilist` : plusieurs valeurs d'une liste fermée dans un même champ (modules Workday, Profils, D19). */
+export type FieldType = "text" | "list" | "date" | "number" | "user" | "multilist";
 
 export type ListValue = { value: string; label: string };
 
@@ -18,7 +19,7 @@ export type FieldDescriptor = {
   label: string;
   type: FieldType;
   required?: boolean;
-  /** valeurs d'une liste fermée (`type: "list"`) */
+  /** valeurs d'une liste fermée (`type: "list"` ou `"multilist"`) */
   values?: readonly ListValue[];
   /** valeurs retirées de la liste (2.4) : lisibles sur les fiches qui les portent, marquées « retirée », jamais proposées */
   retiredValues?: readonly ListValue[];
@@ -26,8 +27,28 @@ export type FieldDescriptor = {
   default?: string;
   /** faux : lecture seule sur la fiche (défaut : vrai) */
   editable?: boolean;
+  /** un `multilist` se trie sur ses libellés joints (D11) */
   sortable?: boolean;
   maxLength?: number;
+  /** nombre : borne basse acceptée (D5, D7) */
+  min?: number;
+  /** nombre : borne haute acceptée */
+  max?: number;
+  /** nombre : décimales acceptées au plus ; absent, le nombre en prend autant qu'il veut */
+  decimals?: number;
+  /** nombre : seul un entier est accepté (« 6,5 » refusé, D7) */
+  integer?: boolean;
+  /** nombre : unité écrite après la valeur (« 650,00 € ») */
+  unit?: string;
+  /** ce qu'un ensemble vide affiche (« Aucun », D8) ; absent, il s'écrit « — » comme toute valeur absente */
+  emptyLabel?: string;
+  /**
+   * Champ d'un profil de la fiche (D19) : il se rend dans la section de son profil et jamais dans
+   * « Champs », se règle par l'API de ce profil (celle de l'objet le refuse), s'exclut du dialogue de
+   * création de l'objet et de l'édition en cellule ; `required` s'entend dans le profil. Il reste
+   * colonne, filtre et tri de la liste. Le libellé sert au refus (« … se règle sur le profil consultant »).
+   */
+  profile?: { key: string; label: string };
   /** texte : espaces retirés, casse… appliquée avant la validation et l'enregistrement */
   normalize?: (value: string) => string;
   /** texte : forme attendue après normalisation, et message de la règle */

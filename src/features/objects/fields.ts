@@ -33,8 +33,9 @@ export function sheetFieldsOf(type: string, record: Record<string, unknown>): re
   return [...shown, ...archived].sort((a, b) => a.order - b.order);
 }
 
-/** Valeurs validées : texte pour `text`, `list`, `user` et `date` (jour ISO), nombre pour `number`, `null` pour un champ vidé. */
-export type FieldValues = Record<string, string | number | null>;
+/** Valeur validée d'un champ : texte pour `text`, `list`, `user` et `date` (jour ISO), nombre pour `number`, tableau de clés pour `multilist`, `null` pour un champ vidé. */
+export type FieldValue = string | number | string[] | null;
+export type FieldValues = Record<string, FieldValue>;
 export type FieldErrors = Record<string, string>;
 
 /** Messages des règles communes ; le descripteur d'un champ peut porter les siens (`pattern.message`). */
@@ -45,10 +46,20 @@ const MESSAGES = {
   notANumber: (label: string) => `« ${label} » doit être un nombre.`,
   outOfList: (label: string) => `Valeur hors liste pour « ${label} ».`,
   tooLong: (label: string, max: number) => `« ${label} » dépasse ${max} caractères.`,
+  notASet: (label: string) => `« ${label} » attend une liste de valeurs.`,
+  notAnInteger: (label: string) => `« ${label} » doit être un nombre entier.`,
+  tooManyDecimals: (label: string, decimals: number) => `« ${label} » ne prend pas plus de ${decimals} décimale${decimals > 1 ? "s" : ""}.`,
+  outOfRange: (label: string, min: number, max: number) => `« ${label} » doit être compris entre ${grouped(min)} et ${grouped(max)}.`,
 };
 
-/** Une valeur absente et une chaîne vide (ou blanche) sont la même chose : rien. */
+/** « 10 000 » : les milliers séparés par une espace, comme les montants des fondations, sans dépendre de la locale d'exécution. */
+const grouped = (value: number): string => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
+/** Une valeur absente et une chaîne vide (ou blanche) sont la même chose : rien. Un ensemble, lui, est une valeur même vide : il se distingue d'un champ jamais renseigné. */
 const blank = (value: unknown): boolean => value === undefined || value === null || (typeof value === "string" && value.trim() === "");
+
+/** Vrai pour un ensemble sans valeur : ce qu'un `multilist` porte quand il ne porte rien. */
+export const isEmptySet = (value: unknown): boolean => Array.isArray(value) && value.length === 0;
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -67,7 +78,12 @@ function isIsoDay(text: string): boolean {
  * nombre dans un champ texte…) est refusée : `String(value)` enregistrerait « [object Object] ».
  * `date` : une chaîne `AAAA-MM-JJ` valide ; `number` : un nombre fini (JSON) ; les autres : une chaîne.
  */
-function parseValue(field: FieldDescriptor, raw: unknown): { value: string | number | null } | { error: string } {
+function parseValue(field: FieldDescriptor, raw: unknown): { value: FieldValue } | { error: string } {
+  if (field.type === "multilist") {
+    if (raw === null || raw === undefined) return { value: [] };
+    if (!Array.isArray(raw) || raw.some((entry) => typeof entry !== "string")) return { error: MESSAGES.notASet(field.label) };
+    return { value: (raw as string[]).map((entry) => entry.trim()) };
+  }
   if (blank(raw)) return { value: null };
   if (field.type === "number") return typeof raw === "number" && Number.isFinite(raw) ? { value: raw } : { error: MESSAGES.notANumber(field.label) };
   if (field.type === "date") return typeof raw === "string" && isIsoDay(raw.trim()) ? { value: raw.trim() } : { error: MESSAGES.notADate(field.label) };
@@ -81,6 +97,8 @@ function parseValue(field: FieldDescriptor, raw: unknown): { value: string | num
  * (« 12.50 » et 12.5 s'écrivent « 12.5 »), texte tel quel sinon ; une valeur vide est `null`.
  */
 export function serializeValue(field: FieldDescriptor, value: unknown): string | null {
+  /* Un ensemble se compare et s'historise par ses libellés joints (« HCM, Integration », D13). */
+  if (field.type === "multilist") return Array.isArray(value) && value.length > 0 ? setLabels(field, value).join(", ") : null;
   if (blank(value)) return null;
   if (field.type === "date") return value instanceof Date ? isoDay(value) : String(value);
   if (field.type === "number") {
@@ -90,11 +108,29 @@ export function serializeValue(field: FieldDescriptor, value: unknown): string |
   return String(value);
 }
 
+/** Libellés des valeurs d'un ensemble, dans l'ordre reçu ; une valeur retirée de la liste reste lisible, marquée (2.4, D3). */
+export function setLabels(field: FieldDescriptor, values: readonly unknown[]): string[] {
+  return values.map((entry) => {
+    const text = String(entry);
+    const retired = field.retiredValues?.find((v) => v.value === text);
+    if (retired) return `${retired.label} (retirée)`;
+    return field.values?.find((v) => v.value === text)?.label ?? text;
+  });
+}
+
 /** Normalisation propre au champ texte (espaces d'un SIREN…), avant toute règle ; une valeur vidée par elle reste vide. */
-function normalize(field: FieldDescriptor, value: string | number | null): string | number | null {
+function normalize(field: FieldDescriptor, value: FieldValue): FieldValue {
   if (typeof value !== "string" || !field.normalize) return value;
   const text = field.normalize(value).trim();
   return text === "" ? null : text;
+}
+
+/** Ce que les précisions d'un nombre reprochent à une valeur, ou rien : entier, décimales, bornes (D5, D7). */
+function numberProblem(field: FieldDescriptor, value: number): string | undefined {
+  if (field.integer === true && !Number.isInteger(value)) return MESSAGES.notAnInteger(field.label);
+  if (field.decimals !== undefined && !Number.isInteger(value * 10 ** field.decimals)) return MESSAGES.tooManyDecimals(field.label, field.decimals);
+  if (field.min !== undefined && field.max !== undefined && (value < field.min || value > field.max)) return MESSAGES.outOfRange(field.label, field.min, field.max);
+  return undefined;
 }
 
 /**
@@ -115,10 +151,23 @@ export function validateValues(fields: readonly FieldDescriptor[], input: unknow
       continue;
     }
     const value = normalize(field, parsed.value);
+    if (Array.isArray(value)) {
+      const unknown = value.find((entry) => !field.values?.some((v) => v.value === entry));
+      if (unknown !== undefined) errors[field.key] = MESSAGES.outOfList(field.label);
+      else values[field.key] = value;
+      continue;
+    }
     if (value === null) {
       if (field.required && (present || field.default === undefined)) errors[field.key] = MESSAGES.required(field.label);
       else if (present) values[field.key] = null;
       continue;
+    }
+    if (typeof value === "number") {
+      const problem = numberProblem(field, value);
+      if (problem) {
+        errors[field.key] = problem;
+        continue;
+      }
     }
     if (typeof value === "string") {
       if (field.type === "list" && !field.values?.some((v) => v.value === value)) {
