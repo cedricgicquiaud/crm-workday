@@ -1,12 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type KeyboardEvent } from "react";
+import { useState } from "react";
 import "@/features/objects/manifest";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { FieldControl, type FieldControlKind, type FieldControlOption } from "@/features/objects/field-control";
 import { sheetFieldsOf } from "@/features/objects/fields";
 import { displayValue, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
@@ -85,101 +82,39 @@ export function FieldsSection({ type, record: initial, users, readOnly = false }
   );
 }
 
-/**
- * Valeur en lecture seule : un nom calculé, un champ dérivé, ou n'importe quel champ d'une fiche
- * archivée (D21). Elle se lit comme du texte. Rendue par un contrôle éteint, elle serait à demi
- * transparente — le contraste tomberait sous le seuil lisible alors que c'est une donnée de la
- * fiche (défaut d'audit 2.2). Les sections propres à un objet s'en servent aussi.
- */
-export function ReadOnlyValue({ id, label, value }: { id: string; label: string; value: string }) {
-  return (
-    <div className="grid gap-1">
-      <span id={`${id}-label`} className="flex items-center gap-2 text-sm leading-none font-medium select-none">
-        {label}
-      </span>
-      <p id={id} aria-labelledby={`${id}-label`} className="min-w-0 truncate text-sm" title={value}>
-        {value}
-      </p>
-    </div>
-  );
-}
-
 type EditableProps = { type: string; field: FieldDescriptor; value: string; error?: string; users: readonly UserOption[]; readOnly: boolean; onSave: (value: string) => Promise<boolean> };
 
-/** Un champ éditable en place : le contrôle porte le libellé au-dessus (12 px / 500) et l'erreur en dessous (11 px). */
-function EditableField({ type, field, value: saved, error, users, readOnly, onSave }: EditableProps) {
-  const id = `champ-${type}-${field.key}`;
-  const errorId = `${id}-error`;
-  const [draft, setDraft] = useState(saved);
-  /* La valeur enregistrée a changé ailleurs (réponse du serveur) : le brouillon la suit. */
-  const [seen, setSeen] = useState(saved);
-  if (seen !== saved) {
-    setSeen(saved);
-    setDraft(saved);
-  }
-  const editable = field.editable !== false && !readOnly;
-  const describedBy = error ? errorId : undefined;
+/** Forme du contrôle d'un champ de fiche : un responsable se choisit dans la liste des utilisateurs, comme une liste fermée. */
+function kindOf(field: FieldDescriptor): FieldControlKind {
+  if (field.type === "list" || field.type === "user") return "list";
+  if (field.multiline) return "multiline";
+  return field.type === "date" ? "date" : field.type === "number" ? "number" : "text";
+}
 
-  if (!editable) return <ReadOnlyValue id={id} label={field.label} value={displayValue(field, saved, users)} />;
-
-  async function commit() {
-    if (draft === saved) return;
-    if (!(await onSave(draft.trim()))) setDraft(saved);
-  }
-
-  function onKeyDown(event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
-    if (event.key === "Escape") {
-      setDraft(saved);
-      event.currentTarget.blur();
-    } else if (event.key === "Enter" && !field.multiline) {
-      event.preventDefault();
-      event.currentTarget.blur();
-    }
-  }
-
+/** Valeurs proposées par un champ de liste ou de responsable ; rien pour un champ de saisie. */
+function optionsOf(field: FieldDescriptor, saved: string, users: readonly UserOption[]): readonly FieldControlOption[] | undefined {
   const options = field.type === "list" ? field.values ?? [] : field.type === "user" ? users.map((u) => ({ value: u.id, label: u.name })) : null;
+  if (!options) return undefined;
   /* Une valeur retirée de la liste (2.4) reste affichée telle qu'elle a été enregistrée, marquée, et ne se choisit plus. */
   const retired = field.retiredValues?.find((value) => value.value === saved);
-  const items = retired ? [...(options ?? []), { value: retired.value, label: displayValue(field, saved, users) }] : options;
+  return retired ? [...options, { value: retired.value, label: displayValue(field, saved, users), disabled: true }] : options;
+}
 
+/** Un champ de la fiche, éditable en place ou lu comme du texte quand il ne se saisit pas (champ dérivé, fiche archivée). */
+function EditableField({ type, field, value: saved, error, users, readOnly, onSave }: EditableProps) {
+  const editable = field.editable !== false && !readOnly;
   return (
-    <div className="grid gap-1">
-      <Label htmlFor={id}>{field.label}</Label>
-      {items ? (
-        <Select items={items} value={saved || null} onValueChange={(next) => void onSave(next ?? "")} disabled={!editable}>
-          <SelectTrigger id={id} aria-label={field.label} size="sm" aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="w-full">
-            <SelectValue placeholder="—" />
-          </SelectTrigger>
-          <SelectContent>
-            {items.map((option) => (
-              <SelectItem key={option.value} value={option.value} disabled={option.value === retired?.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : field.multiline ? (
-        <Textarea id={id} value={draft} rows={4} readOnly={!editable} aria-invalid={error ? true : undefined} aria-describedby={describedBy} onChange={(e) => setDraft(e.target.value)} onBlur={() => void commit()} onKeyDown={onKeyDown} />
-      ) : (
-        <Input
-          id={id}
-          type={field.type === "date" ? "date" : field.type === "number" ? "number" : "text"}
-          className="h-7 truncate"
-          value={draft}
-          title={draft || undefined}
-          readOnly={!editable}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={describedBy}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => void commit()}
-          onKeyDown={onKeyDown}
-        />
-      )}
-      {error && (
-        <p id={errorId} role="alert" className="text-xs text-danger">
-          {error}
-        </p>
-      )}
-    </div>
+    <FieldControl
+      id={`champ-${type}-${field.key}`}
+      label={field.label}
+      placement="sheet"
+      kind={kindOf(field)}
+      value={saved}
+      options={optionsOf(field, saved, users)}
+      error={error}
+      readOnly={!editable}
+      display={displayValue(field, saved, users)}
+      onSave={onSave}
+    />
   );
 }
