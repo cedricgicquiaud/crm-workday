@@ -78,14 +78,18 @@ export type ServerObjectDefinition = {
 const objects = new Map<string, ServerObjectDefinition>();
 
 /**
- * Déclare la part serveur d'un objet. Une section sans chargeur ou sans rendu échoue ici, à
- * l'enregistrement, pas au rendu : la fiche de la première personne ouverte n'a pas à découvrir
- * qu'une section est incomplète.
+ * Déclare la part serveur d'un objet. Une section sans chargeur, sans rendu, ou dont la clé est déjà
+ * prise échoue ici, à l'enregistrement, pas au rendu : la fiche de la première personne ouverte n'a
+ * pas à découvrir qu'une section est incomplète, ni à en perdre une parce que deux portent la même
+ * clé (elles se rendraient dans un ordre arbitraire sous la même clé React).
  */
 export function registerServerObject(definition: ServerObjectDefinition): void {
+  const keys = new Set<string>();
   for (const section of definition.sections ?? []) {
     if (typeof section.load !== "function") throw new Error(`Objet « ${definition.key} » : la section « ${section.key} » n'a pas de chargeur.`);
     if (typeof section.render !== "function") throw new Error(`Objet « ${definition.key} » : la section « ${section.key} » n'a pas de rendu.`);
+    if (keys.has(section.key)) throw new Error(`Objet « ${definition.key} » : la section « ${section.key} » est déclarée deux fois.`);
+    keys.add(section.key);
   }
   objects.set(definition.key, definition);
 }
