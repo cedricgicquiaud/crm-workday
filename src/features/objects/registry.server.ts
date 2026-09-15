@@ -8,6 +8,7 @@ import type { PgTable } from "drizzle-orm/pg-core";
 import type { ReactNode } from "react";
 import type { ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
+import type { Executor } from "@/lib/db";
 
 /** Résultat de recherche (palette Cmd+K, 2.1b) : la fiche, son titre et un sous-titre facultatif. */
 export type SearchHit = { id: string; title: string; subtitle?: string };
@@ -27,6 +28,12 @@ export type DependentTable = {
   oneAtMost?: boolean;
   /** colonnes de la fiche que cette ligne tient à jour (l'entreprise de rattachement, un champ dérivé) : elles la suivent quand elle change de fiche, sans quoi la fiche conservée porterait un rattachement à moitié */
   carries?: readonly string[];
+  /**
+   * Ce que cette ligne portait, en toutes lettres, pour l'entrée de fusion qui la consigne avant de
+   * la supprimer (D16) : un statut par son libellé, une entreprise par son nom, des modules par les
+   * leurs. Absent, la ligne est consignée colonne par colonne, ce qui suffit à une famille simple.
+   */
+  describe?: (row: Record<string, unknown>, record: ObjectRecord) => Promise<string>;
 };
 
 /** Ce qu'une section reçoit pour se rendre : la fiche, ce que son chargeur a lu, et si la fiche ne s'écrit plus (fiche archivée, D21). */
@@ -80,6 +87,13 @@ export type ServerObjectDefinition = {
    * Absent, une fiche se résume aux colonnes de sa table et à ses valeurs personnalisées.
    */
   attach?: (records: readonly ObjectRecord[]) => Promise<ObjectRecord[]>;
+  /**
+   * Recalcule les champs dérivés d'une fiche après une écriture que le mécanisme ne connaît pas (une
+   * fusion, qui déplace des profils) : « Profils » se déduit des profils présents, il ne se recopie
+   * jamais (D8). Appelé dans la transaction de l'écriture, pour que la fiche n'existe pas un instant
+   * avec un champ dérivé faux.
+   */
+  recompute?: (id: string, exec: Executor) => Promise<void>;
 };
 
 const objects = new Map<string, ServerObjectDefinition>();

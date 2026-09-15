@@ -6,9 +6,9 @@
  */
 import { and, desc, eq, exists, ilike, isNull, or } from "drizzle-orm";
 import { createElement } from "react";
-import { company, contactProfile, person, personEmail } from "@/db/schema";
+import { company, consultantProfile, contactProfile, person, personEmail } from "@/db/schema";
 import { normalizeName } from "@/features/duplicates/normalize";
-import { attachConsultantProfiles, consultantSubtitles } from "@/features/consultants/consultant-profile";
+import { attachConsultantProfiles, consultantSubtitles, describeConsultantProfile } from "@/features/consultants/consultant-profile";
 import { defineSection, registerServerObject, type DependentTable, type SearchHit } from "@/features/objects/registry.server";
 import { listRecordOptions } from "@/features/objects/service";
 import { db } from "@/lib/db";
@@ -16,6 +16,7 @@ import type { CompanyOption } from "./company-picker";
 import { getContactProfile, type ContactProfile } from "./contact-profile";
 import { ContactProfileSection } from "./contact-profile-section";
 import { getPerson } from "./persons";
+import { recomputeProfiles } from "./profiles";
 import { normalizeEmail } from "./schema";
 
 const MAX_HITS = 20;
@@ -55,7 +56,9 @@ function duplicateKey(record: Record<string, unknown>): string | null {
  */
 const dependents: readonly DependentTable[] = [
   { table: personEmail, fkColumn: "personId", label: "Adresses email" },
-  { table: contactProfile, fkColumn: "personId", label: "Profil contact", oneAtMost: true, carries: ["companyId", "profiles"] },
+  { table: contactProfile, fkColumn: "personId", label: "Profil contact", oneAtMost: true, carries: ["companyId"] },
+  /* Le profil consultant emmène la société de facturation : elle ne veut rien dire sans lui (D16). */
+  { table: consultantProfile, fkColumn: "personId", label: "Profil consultant", oneAtMost: true, carries: ["billingCompanyId"], describe: describeConsultantProfile },
 ];
 
 /** Ce que la section « Profil contact » lit d'un coup : le profil de la personne et les entreprises qu'elle peut choisir. */
@@ -86,5 +89,7 @@ registerServerObject({
   loadRecord: (id) => getPerson(id),
   /* Les champs du profil consultant ne sont pas des colonnes de `person` : le service les joint à chaque lecture (D19). */
   attach: attachConsultantProfiles,
+  /* « Profils » se déduit des profils présents : après une fusion, la conservée le recalcule (D8). */
+  recompute: (id, exec) => recomputeProfiles(id, exec).then(() => undefined),
   sections: [contactProfileSection],
 });

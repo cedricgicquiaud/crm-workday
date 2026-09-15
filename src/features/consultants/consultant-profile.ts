@@ -14,6 +14,7 @@ import { cache } from "react";
 import { company, consultantModule, consultantProfile, person } from "@/db/schema";
 import { recordHistory } from "@/features/history/history";
 import { serializeValue, setLabels, validateValues, type FieldValue, type FieldValues } from "@/features/objects/fields";
+import { displayValue } from "@/features/objects/labels";
 import type { FieldDescriptor } from "@/features/objects/registry";
 import { assertWritable, getObjectRecord, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { profilesLabel, recomputeProfiles, registerProfileSource } from "@/features/persons/profiles";
@@ -400,6 +401,27 @@ export async function consultantSubtitles(personIds: readonly string[]): Promise
       return [row.personId, `${statusLabel(row.status)}${labels}`];
     }),
   );
+}
+
+/**
+ * Ce que portait le profil consultant d'une fiche absorbée, en toutes lettres, pour l'entrée de
+ * fusion qui le consigne avant qu'il ne disparaisse (D16) : son statut, sa société par son nom, ses
+ * modules et leurs certifications. Un identifiant ne se lit pas ; un lecteur doit pouvoir dire, six
+ * mois plus tard, ce que la fusion a fait disparaître.
+ */
+export async function describeConsultantProfile(row: Record<string, unknown>, absorbed: ObjectRecord): Promise<string> {
+  const parts = [`statut ${displayValue(descriptor("status"), row.status, [])}`];
+  const billingId = absorbed.billingCompanyId;
+  if (typeof billingId === "string") {
+    const [target] = await db.select({ name: company.name }).from(company).where(eq(company.id, billingId)).limit(1);
+    if (target) parts.push(`société de facturation ${target.name}`);
+  }
+  const held = (await modulesOf([String(row.id)])).get(String(row.id));
+  if (held && held.modules.length > 0) {
+    const certified = held.certified.length > 0 ? ` (certifié sur ${setLabels(descriptor("modules"), held.certified).join(", ")})` : "";
+    parts.push(`modules ${setLabels(descriptor("modules"), held.modules).join(", ")}${certified}`);
+  }
+  return parts.join(", ");
 }
 
 /** Personnes qui portent un profil consultant, parmi celles qu'on lui passe (fusion, listes). */
