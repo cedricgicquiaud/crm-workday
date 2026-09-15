@@ -146,7 +146,8 @@ les suivantes. Moins de 200 caractères, ce qu'il doit faire en premier.
 4. **Audit et recette**, en parallèle sur chaque PR, par deux agents qui n'ont pas écrit le
    code :
    - `verifier` sur `git diff main...HEAD` : sécurité, idiomes, couverture des numéros de
-     contrat de la livraison, ordre test → code dans l'historique.
+     contrat de la livraison, ordre test → code dans l'historique. Il relance la suite courte
+     (tests unitaires) et lit la suite d'écran dans la CI de la branche : il ne la rejoue pas.
    - `testeur` sur l'application lancée (`Lancer l'app`), dans le worktree de la livraison :
      il lance `.claude/tools/passe-visuelle/passe-visuelle.mjs` sur chaque écran livré
      (avec l'`Amorce de recette` déclarée, sans quoi il ne verrait que des écrans vides).
@@ -168,15 +169,26 @@ les suivantes. Moins de 200 caractères, ce qu'il doit faire en premier.
      coche rien, ne commite rien** : le cahier de recette est déroulé à la main par
      l'humain, en recette, pas par un agent.
    Les deux lisent le diff ou l'écran, jamais les deux : c'est ce qui fait deux preuves
-   différentes. Ils sont en lecture seule : ils **chevauchent la production de la livraison
+   différentes. **Un poste, un serveur** : pendant la passe visuelle, personne d'autre ne
+   lance la suite d'écran sur ce poste — le verifier ne la lance jamais, le correcteur attend
+   le rapport du testeur avant ses re-tests. L'outil du testeur relance le serveur du poste ;
+   une suite lancée à côté tombe en `ECONNREFUSED` (15/09 : deux suites perdues, le verifier
+   relancé à la main). Ils sont en lecture seule : ils **chevauchent la production de la livraison
    suivante** (le producteur n+1 démarre dès que le producteur n a ouvert sa PR). Seuls les
    producteurs sont limités à `Agents en parallèle` ; les contrôleurs, non.
    Bloquant ou important de `verifier`, **ou défaut constaté** par `testeur` → l'agent
    `correcteur`, avec la liste fermée des corrections (les deux rapports réunis), re-tests, push.
    Il corrige cette liste et rien d'autre ; ce qu'il voit en passant, il le signale sans y toucher.
-   Puis `testeur` **relance sa passe sur le seul écran corrigé** — dix secondes, il compare
-   les mesures. Un aller-retour, pas plus : si le défaut persiste, la PR s'ouvre quand même,
-   marquée **non mergeable** dans son rapport, défauts en tête. Mineur → commentaire.
+   Puis, **si la liste contenait un défaut d'écran**, `testeur` relance sa passe sur le seul
+   écran corrigé — dix secondes, il compare les mesures. Une liste faite des seuls points du
+   verifier n'appelle pas de repasse : les images de la première passe restent celles de la
+   PR (15/09 : trois écrans repassés pour rien). Un aller-retour, pas plus : si le défaut
+   persiste, la PR s'ouvre quand même, marquée **non mergeable** dans son rapport, défauts en
+   tête. Mineur → commentaire. **Pas de second audit du verifier après la correction** : le
+   correcteur a une liste fermée et chaque correction porte son test ; la CI de la branche et
+   le relecteur humain relisent le diff. Le seul second cycle est celui du producteur relancé
+   (point 3). Sur 3.0 de crm-workday, 1 h 30 d'horloge pour 40 min de production : la moitié
+   en contrôle, incidents et repasses ; ces quatre règles la ramènent vers 50 min.
 
    **Les écrans dans la PR.** Le testeur a écrit, pour chaque écran, une image légère dans
    `.pilot/pr/<CODE>/<écran>.jpg` (option `--pr` de l'outil ; sa consigne porte le code de
