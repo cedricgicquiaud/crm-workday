@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import "@/features/objects/manifest";
+/* Les entrées de création de la palette se déclarent en même temps que la barre latérale : l'une et l'autre lisent le même registre. */
+import "@/features/objects/palette-entries";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
 import { listLists } from "@/features/objects/registry";
 import { isCurrentPage } from "@/features/shell/nav-entries";

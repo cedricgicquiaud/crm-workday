@@ -17,7 +17,7 @@ import { getObject, type FieldDescriptor, type ListCreate, type Relation } from 
 export type QuickCreateTrigger = { label: string; variant?: "default" | "outline"; size?: "default" | "sm" };
 
 /** `create` : la déclaration de création d'une liste (D12) — ses champs, son API, son libellé ; absente, celle de l'objet. */
-type Props = { type: string; create?: ListCreate; users: readonly UserOption[]; currentUserId: string; prefill?: Record<string, string>; trigger?: QuickCreateTrigger };
+type Props = { type: string; create?: ListCreate; users: readonly UserOption[]; currentUserId: string; prefill?: Record<string, string>; trigger?: QuickCreateTrigger; defaultOpen?: boolean };
 
 /** Refus du serveur : message global, erreurs par champ (400), fiche existante à ouvrir (409, D19). */
 type Failure = { message: string; fields?: FieldErrors; existingId?: string; existingName?: string; archived?: boolean };
@@ -79,13 +79,14 @@ async function loadRelationOptions(objectKey: string): Promise<RelationOption[]>
  * d'une fiche existante fait apparaître l'avertissement « doublon probable » (D19), qui nomme la
  * fiche et propose de l'ouvrir sans jamais empêcher la création.
  */
-export function QuickCreateDialog({ type, create, users, currentUserId, prefill, trigger }: Props) {
+export function QuickCreateDialog({ type, create, users, currentUserId, prefill, trigger, defaultOpen = false }: Props) {
   const router = useRouter();
   const definition = getObject(type);
   const entries = entriesOf(type, create);
   const fields = entries.flatMap((entry) => (entry.kind === "field" ? [entry.field] : []));
   const relations = entries.flatMap((entry) => (entry.kind === "relation" ? [entry] : []));
-  const [open, setOpen] = useState(false);
+  /* Ouvert d'emblée quand l'adresse le demande : c'est ainsi que la palette crée depuis n'importe où (D12). */
+  const [open, setOpen] = useState(defaultOpen);
   const [values, setValues] = useState<Record<string, string>>(prefill ?? {});
   const [errors, setErrors] = useState<FieldErrors>({});
   const [failure, setFailure] = useState<Failure | null>(null);

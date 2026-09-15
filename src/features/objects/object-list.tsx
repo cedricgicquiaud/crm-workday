@@ -16,6 +16,7 @@ import { listUrl, searchParamsOf, type ListState } from "@/features/lists/url-st
 import { createLabel as createButtonLabel, displayValue, formatDate } from "@/features/objects/labels";
 import { getList, getObject, type ListDefinition, type ObjectLabels } from "@/features/objects/registry";
 import { listObjectRecords, listUserOptions } from "@/features/objects/service";
+import { CREATE_PARAM } from "@/features/objects/palette-entries";
 import { QuickCreateDialog } from "@/features/objects/quick-create-dialog";
 import { listPinnedViews } from "@/features/views/pinned";
 import { ViewBar } from "@/features/views/view-bar";
@@ -77,12 +78,15 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
   const columns = state.columns.map((key) => fields.find((field) => field.key === key)!);
   const count = shown.length;
   const singular = (list.singular ?? definition.labels.singular).toLowerCase();
+  /* La palette ouvre une création en menant ici avec ce paramètre (D12). */
+  const openCreate = query?.[CREATE_PARAM] === "1";
   return (
     <div className="grid gap-4">
       <CustomFieldsSource definitions={customFields} />
       <header className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">{list.label}</h1>
-        {list.create !== false && <QuickCreateDialog type={type} create={list.create} users={users} currentUserId={user.id} />}
+        {/* La clé change avec le paramètre : arriver depuis la palette rouvre le dialogue même si l'on était déjà sur la liste. */}
+        {list.create !== false && <QuickCreateDialog key={openCreate ? "creation" : "liste"} type={type} create={list.create} users={users} currentUserId={user.id} defaultOpen={openCreate} />}
       </header>
       <ViewBar list={listKey} state={state} views={views} pinned={pinned} />
       <div className="flex flex-wrap items-start justify-between gap-2">
