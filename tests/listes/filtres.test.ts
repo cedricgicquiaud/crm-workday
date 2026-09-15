@@ -53,3 +53,35 @@ describe("lecture des filtres d'une liste (CRM-47, D16, D18)", () => {
     ]);
   });
 });
+
+/**
+ * Un ensemble ne se cherche que par ce qu'il sait porter (D11) : « Étiquettes est Client » (le
+ * mauvais opérateur), une valeur retirée de la liste ou une valeur inventée sont écartées avec leur
+ * avertissement — c'est ce qui arrive à « Profils est contact » écrit avant que Profils soit un
+ * ensemble, et à un module retiré de la liste des modules Workday.
+ */
+describe("lecture d'un filtre sur un champ à plusieurs valeurs (CRM-80, D11)", () => {
+  it("garde un filtre « contient » posé sur une valeur de la liste", () => {
+    const { filters, inactive } = readFilters(TEST_TYPE, [{ field: "tags", operator: "contient", value: "vip" }]);
+    expect(filters).toEqual([{ field: "tags", operator: "contient", value: "vip" }]);
+    expect(inactive).toEqual([]);
+  });
+
+  it("écarte un opérateur qui ne s'applique pas à un ensemble", () => {
+    const { filters, inactive } = readFilters(TEST_TYPE, [{ field: "tags", operator: "est", value: "vip" }]);
+    expect(filters).toEqual([]);
+    expect(inactive.map((entry) => entry.message)).toEqual(["Filtre inactif : « est » ne s'applique pas au champ « Étiquettes »."]);
+  });
+
+  it("écarte une valeur retirée de la liste, et une valeur que la liste n'a jamais portée", () => {
+    const { filters, inactive } = readFilters(TEST_TYPE, [
+      { field: "tags", operator: "contient", value: "ancien" },
+      { field: "tags", operator: "ne_contient_pas", value: "inventee" },
+    ]);
+    expect(filters).toEqual([]);
+    expect(inactive.map((entry) => entry.message)).toEqual([
+      "Filtre inactif : « Ancien » n'est plus une valeur de « Étiquettes ».",
+      "Filtre inactif : « inventee » n'est pas une valeur de « Étiquettes ».",
+    ]);
+  });
+});
