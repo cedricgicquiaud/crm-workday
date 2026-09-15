@@ -6,7 +6,9 @@ import { POST as postPerson } from "@/app/api/personnes/route";
 import { auditLog, company, consultantModule, consultantProfile, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createObject } from "@/features/objects/service";
+import { CREATE_PARAM } from "@/features/objects/palette-entries";
 import { search } from "@/features/search/search";
+import { getPaletteEntries } from "@/features/shell/palette/registry";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
@@ -72,5 +74,23 @@ describe("sous-titre d'un consultant dans la palette (CRM-82, D14)", () => {
   it("laisse l'entreprise ou l'adresse aux personnes qui ne sont pas consultantes", async () => {
     const contact = await createPerson({ firstName: "Manon", lastName: "Duprat", email: "manon.duprat@acme.fr" });
     expect(await subtitleOf("duprat", contact)).toBe("manon.duprat@acme.fr");
+  });
+});
+
+/**
+ * D12, frontière F7 : la palette gagne une entrée de création par objet à création rapide, générée
+ * depuis le registre. Aucune n'est écrite à la main dans la coque — déclarer un objet demain lui
+ * donnera la sienne sans qu'on touche à la palette.
+ */
+describe("entrées de création de la palette (CRM-84, D12)", () => {
+  it("propose une entrée par liste à création rapide, dans l'ordre des listes, et chacune ouvre la création de sa liste", async () => {
+    await import("@/features/objects/palette-entries");
+    const creations = getPaletteEntries().filter((entry) => entry.id.startsWith("creation-"));
+    expect(creations.map((entry) => entry.label)).toEqual(["Nouvelle entreprise", "Nouvelle personne", "Nouveau consultant"]);
+    expect(creations.every((entry) => entry.group === "actions")).toBe(true);
+
+    const opened: string[] = [];
+    for (const entry of creations) entry.run({ navigate: (href) => opened.push(href), close: () => {} });
+    expect(opened).toEqual([`/entreprises?${CREATE_PARAM}=1`, `/personnes?${CREATE_PARAM}=1`, `/consultants?${CREATE_PARAM}=1`]);
   });
 });
