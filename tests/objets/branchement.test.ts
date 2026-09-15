@@ -11,10 +11,14 @@ import { customFieldKey } from "@/features/custom-fields/fields-source";
 import { listHistory } from "@/features/history/history";
 import { fieldsOf } from "@/features/objects/fields";
 import { linkedGroups } from "@/features/objects/links-column";
-import { registerObject } from "@/features/objects/registry";
+import { listForState } from "@/features/lists/apply-filters";
+import { defaultColumnKeys } from "@/features/lists/columns";
+import { parseListState } from "@/features/lists/url-state";
+import { listLists, registerObject } from "@/features/objects/registry";
 import { registerServerObject } from "@/features/objects/registry.server";
 import { createObject, getObjectRecord, listObjectRecords, updateObject } from "@/features/objects/service";
 import { search } from "@/features/search/search";
+import { defaultView } from "@/features/views/views";
 import { closeDb, db, rawSql } from "@/lib/db";
 
 const ACTOR = { email: "acteur-branchement@exemple.fr", firstName: "Nour", lastName: "Baz", password: "MotDePasse-Branchement-1", role: "membre" as const };
@@ -73,6 +77,20 @@ beforeAll(async () => {
     relations: [{ to: TYPE, fkColumn: "parentId", label: "Fiche mère", inverseLabel: "Fiches filles", prefill: "parentId" }],
     quickCreate: ["name"],
     listColumns: ["ownerId"],
+    /* Une liste déclarée (D10) : un objet la pose comme le reste, sans qu'un mécanisme la nomme. */
+    lists: [
+      {
+        key: "test_branche_orphelines",
+        label: "Fiches orphelines",
+        singular: "Fiche orpheline",
+        icon: CircleDashedIcon,
+        href: "/fiches-branchees-orphelines",
+        order: 941,
+        baseFilters: [{ field: "parentId", operator: "est_vide", value: "" }],
+        columns: ["parentName"],
+        defaultViewName: "Toutes les fiches orphelines",
+      },
+    ],
   });
   registerServerObject({
     key: TYPE,
@@ -140,6 +158,15 @@ describe("un objet déclaré obtient les mécanismes communs (CRM-57, contrat 33
     const listed = await listObjectRecords(TYPE);
     expect(listed.find((entry) => entry.id === record.id)?.parentName).toBe("Fiche mère branchée");
     expect(listed.find((entry) => entry.id === mere.id)?.parentName).toBeNull();
+
+    /* Liste déclarée : elle prend sa place dans la barre latérale, porte ses colonnes, sa vue par défaut nommée, et son filtre de base qu'aucune URL ne retire. */
+    const declared = listLists().find((list) => list.key === "test_branche_orphelines")!;
+    expect(declared).toMatchObject({ objectKey: TYPE, label: "Fiches orphelines", href: "/fiches-branchees-orphelines" });
+    expect(defaultColumnKeys("test_branche_orphelines")).toEqual(["parentName", "updatedAt"]);
+    expect(defaultView("test_branche_orphelines").name).toBe("Toutes les fiches orphelines");
+    const all = await listObjectRecords(TYPE);
+    const orphaned = listForState("test_branche_orphelines", all, parseListState("test_branche_orphelines", new URLSearchParams("f=name:contient:branchée")));
+    expect(orphaned.map((entry) => entry.name)).toEqual(["Fiche mère branchée"]);
 
     /* Colonne des liens : la relation déclarée donne son groupe, avec la fiche désignée. */
     const groups = await linkedGroups(TYPE, record.id);
