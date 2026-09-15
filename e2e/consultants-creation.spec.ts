@@ -55,6 +55,12 @@ test.describe("« Nouveau consultant » depuis la liste et la palette (CRM-83, C
     const table = memberPage.getByRole("table", { name: "Consultants" });
     await expect(table.getByRole("row").nth(1).getByRole("link", { name: `Chloé ${lastName}` })).toBeVisible();
     await expect(table.getByRole("row").nth(1)).toContainText("650,00 €");
+
+    /* La colonne « Modules » marque d'un ✔ ceux qui sont certifiés (D10). */
+    const id = (await memberPage.getByRole("link", { name: `Chloé ${lastName}` }).getAttribute("href"))!.split("/").pop()!;
+    expect((await memberPage.request.patch(`/api/personnes/${id}/profil-consultant`, { data: { modules: ["hcm", "integration"], certifiedModules: ["hcm"] } })).status()).toBe(200);
+    await memberPage.reload();
+    await expect(table.getByRole("row").nth(1)).toContainText("HCM ✔, Integration");
   });
 
   test("la palette ⌘K retrouve le consultant par son nom, annonce son statut et ses modules, et ouvre sa fiche", async ({ memberPage }) => {

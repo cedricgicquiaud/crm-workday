@@ -87,7 +87,7 @@ export const STATUS_SUBJECT: Readonly<Record<string, string>> = {
  */
 export const CONSULTANT_PROFILE_FIELDS: readonly FieldDescriptor[] = [
   { key: "status", label: "Statut", type: "list", values: STATUSES, required: true, sortable: true, profile: CONSULTANT_PROFILE, order: 100 },
-  { key: "modules", label: "Modules", type: "multilist", values: MODULES, retiredValues: RETIRED_MODULES, profile: CONSULTANT_PROFILE, order: 110 },
+  { key: "modules", label: "Modules", type: "multilist", values: MODULES, retiredValues: RETIRED_MODULES, markedBy: { field: "certifiedModules", mark: "✔" }, profile: CONSULTANT_PROFILE, order: 110 },
   { key: "certifiedModules", label: "Certifié sur", type: "multilist", values: MODULES, retiredValues: RETIRED_MODULES, profile: CONSULTANT_PROFILE, order: 120 },
   /* Le nom de la société de facturation : c'est lui que la liste affiche, trie et filtre ; l'identifiant est écrit par l'API du profil. */
   { key: "billingCompanyName", label: "Société de facturation", type: "text", editable: false, sortable: true, profile: CONSULTANT_PROFILE, order: 130 },

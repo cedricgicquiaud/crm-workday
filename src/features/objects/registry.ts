@@ -43,6 +43,11 @@ export type FieldDescriptor = {
   /** ce qu'un ensemble vide affiche (« Aucun », D8) ; absent, il s'écrit « — » comme toute valeur absente */
   emptyLabel?: string;
   /**
+   * `multilist` : les valeurs que porte aussi le champ nommé reçoivent cette marque en colonne
+   * (« HCM ✔, Integration » pour les modules certifiés, D10). Deux champs, une seule colonne à lire.
+   */
+  markedBy?: { field: string; mark: string };
+  /**
    * Champ d'un profil de la fiche (D19) : il se rend dans la section de son profil et jamais dans
    * « Champs », se règle par l'API de ce profil (celle de l'objet le refuse), s'exclut du dialogue de
    * création de l'objet et de l'édition en cellule ; `required` s'entend dans le profil. Il reste

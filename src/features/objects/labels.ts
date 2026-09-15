@@ -32,7 +32,7 @@ const splitSet = (value: unknown): string[] =>
  * vide. Une valeur retirée d'une liste (2.4) se lit toujours, marquée : la fiche qui la porte dit
  * ce qu'elle porte, elle ne l'oublie pas parce que la liste a changé.
  */
-export function displayValue(field: FieldDescriptor, value: unknown, users: readonly UserOption[]): string {
+export function displayValue(field: FieldDescriptor, value: unknown, users: readonly UserOption[], marked?: unknown): string {
   /*
    * Un ensemble s'écrit par ses libellés joints ; vide, il porte l'étiquette déclarée (« Aucun », D8).
    * Il arrive en tableau depuis une fiche, et en clés jointes par des virgules depuis l'historique,
@@ -40,7 +40,12 @@ export function displayValue(field: FieldDescriptor, value: unknown, users: read
    */
   if (field.type === "multilist") {
     const entries = Array.isArray(value) ? value : splitSet(value);
-    return entries.length === 0 ? field.emptyLabel ?? EMPTY : setLabels(field, entries).join(", ");
+    if (entries.length === 0) return field.emptyLabel ?? EMPTY;
+    const flagged = new Set(Array.isArray(marked) ? marked.map(String) : splitSet(marked));
+    const mark = field.markedBy?.mark ?? "";
+    return setLabels(field, entries)
+      .map((label, index) => `${label}${flagged.has(String(entries[index])) ? ` ${mark}` : ""}`)
+      .join(", ");
   }
   if (value === null || value === undefined || value === "") return EMPTY;
   const text = String(value);
