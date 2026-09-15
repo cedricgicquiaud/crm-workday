@@ -78,7 +78,7 @@ export async function linkedGroups(type: string, id: string): Promise<LinkedGrou
   return [...own, ...inverse];
 }
 
-/** « Ajouter une personne », « Ajouter un consultant » : le genre vient de l'article déclaré. */
+/** « Ajouter une entreprise », « Ajouter une personne », « Ajouter un … » pour un objet masculin : le déterminant vient de l'article déclaré. */
 const addLabel = (objectKey: string) => {
   const { labels } = getObject(objectKey);
   return `Ajouter ${labels.article} ${labels.singular.toLowerCase()}`;

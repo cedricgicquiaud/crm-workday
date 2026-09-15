@@ -3,9 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ReadOnlyValue } from "@/features/objects/fields-section";
+import { FieldControl } from "@/features/objects/field-control";
 import { CompanyPicker, type CompanyOption } from "@/features/persons/company-picker";
 import type { ContactProfile } from "@/features/persons/contact-profile";
 import { DECISION_ROLES } from "@/features/persons/schema";
@@ -20,9 +18,10 @@ const FAILED = "La modification n'a pas pu être enregistrée.";
 /**
  * Section « Profil contact » de la fiche personne (D3) : sans profil, un bouton « Ajouter un profil
  * contact » ouvre le choix de l'entreprise (obligatoire) ; avec profil, l'entreprise et le rôle
- * s'éditent en place (le poste, champ déclaré de la personne, s'édite dans « Champs »). La valeur
- * affichée ne change qu'après la réponse 2xx ; un refus s'affiche sous le champ (`role="alert"`) et
- * la valeur enregistrée revient. Le sélecteur ne propose que des entreprises actives.
+ * s'éditent en place (le poste, champ déclaré de la personne, s'édite dans « Champs »). Les deux
+ * passent par le champ des mécanismes : la valeur affichée ne change qu'après la réponse 2xx, un
+ * refus s'affiche en alerte sous le champ et la valeur enregistrée revient. Le sélecteur ne propose
+ * que des entreprises actives.
  */
 export function ContactProfileSection({ personId, profile: initial, companies, readOnly = false }: Props) {
   const router = useRouter();
@@ -51,11 +50,15 @@ export function ContactProfileSection({ personId, profile: initial, companies, r
     return true;
   }
 
-  const companyError = errors.companyId;
   const companyField = (
-    <Field id="profil-contact-companyId" label="Entreprise" error={companyError}>
-      <CompanyPicker id="profil-contact-companyId" value={profile?.companyId ?? null} options={companies} current={profile ? { id: profile.companyId, name: profile.companyName } : null} error={companyError} describedBy={companyError ? "profil-contact-companyId-error" : undefined} onChange={(companyId) => void save("companyId", companyId)} />
-    </Field>
+    <CompanyPicker
+      id="profil-contact-companyId"
+      value={profile?.companyId ?? null}
+      options={companies}
+      current={profile ? { id: profile.companyId, name: profile.companyName } : null}
+      error={errors.companyId}
+      onChange={(companyId) => save("companyId", companyId)}
+    />
   );
 
   return (
@@ -78,46 +81,26 @@ export function ContactProfileSection({ personId, profile: initial, companies, r
           <p className="text-xs text-muted-foreground">Choisir l&apos;entreprise crée le profil ; le rôle se règle ensuite, le poste dans « Champs ».</p>
         </div>
       )}
-      {profile && readOnly && (
+      {profile && (
         <div className="grid gap-3">
-          <ReadOnlyValue id="profil-contact-companyId" label="Entreprise" value={profile.companyName} />
-          <ReadOnlyValue id="profil-contact-decisionRole" label="Rôle dans la décision" value={DECISION_ROLES.find((role) => role.value === profile.decisionRole)?.label ?? profile.decisionRole} />
-        </div>
-      )}
-      {profile && !readOnly && (
-        <div className="grid gap-3">
-          {companyField}
-          <Field id="profil-contact-decisionRole" label="Rôle dans la décision" error={errors.decisionRole}>
-            <Select items={DECISION_ROLES.map((role) => ({ value: role.value, label: role.label }))} value={profile.decisionRole} onValueChange={(next) => next && void save("decisionRole", next)}>
-              <SelectTrigger id="profil-contact-decisionRole" aria-label="Rôle dans la décision" size="sm" aria-invalid={errors.decisionRole ? true : undefined} aria-describedby={errors.decisionRole ? "profil-contact-decisionRole-error" : undefined} className="w-full">
-                <SelectValue placeholder="—" />
-              </SelectTrigger>
-              <SelectContent>
-                {DECISION_ROLES.map((role) => (
-                  <SelectItem key={role.value} value={role.value}>
-                    {role.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+          {/* Fiche archivée : l'entreprise et le rôle se lisent en texte, ils ne se changent plus (D21). */}
+          {readOnly ? <FieldControl id="profil-contact-companyId" label="Entreprise" placement="sheet" kind="record" value={profile.companyId} display={profile.companyName} readOnly /> : companyField}
+          <FieldControl
+            id="profil-contact-decisionRole"
+            label="Rôle dans la décision"
+            placement="sheet"
+            kind="list"
+            value={profile.decisionRole}
+            options={DECISION_ROLES.map((role) => ({ value: role.value, label: role.label }))}
+            display={roleLabel(profile.decisionRole)}
+            error={errors.decisionRole}
+            readOnly={readOnly}
+            onSave={(next) => save("decisionRole", next)}
+          />
         </div>
       )}
     </section>
   );
 }
 
-/** Libellé au-dessus (12 px / 500), erreur en dessous (11 px), comme les champs de la fiche. */
-function Field({ id, label, error, children }: { id: string; label: string; error?: string; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-1">
-      <Label htmlFor={id}>{label}</Label>
-      {children}
-      {error && (
-        <p id={`${id}-error`} role="alert" className="text-xs text-danger">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
+const roleLabel = (value: string) => DECISION_ROLES.find((role) => role.value === value)?.label ?? value;

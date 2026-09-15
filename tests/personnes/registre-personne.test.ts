@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import "@/features/objects/manifest.server";
 import { eq } from "drizzle-orm";
@@ -5,7 +6,7 @@ import { auditLog, company, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { fieldsOf, historyFieldsOf } from "@/features/objects/fields";
 import { getObject, listObjects } from "@/features/objects/registry";
-import { getServerObject } from "@/features/objects/registry.server";
+import { getServerObject, sectionsOf } from "@/features/objects/registry.server";
 import { createObject } from "@/features/objects/service";
 import { createPerson, updatePerson } from "@/features/persons/persons";
 import { closeDb, db } from "@/lib/db";
@@ -63,6 +64,45 @@ describe("libellés des champs édités hors de la section « Champs » (CRM-42,
     expect(labels.get("jobTitle")).toBe("Poste");
     expect(fieldsOf("person").map((field) => field.key)).not.toContain("companyId");
     expect(fieldsOf("person").map((field) => field.key)).not.toContain("decisionRole");
+  });
+});
+
+/**
+ * D20 : ce que la fiche générique montre d'une personne vient de sa déclaration — le badge de tête,
+ * le chargeur de la fiche (le poste et les autres adresses viennent d'ailleurs que de ses colonnes)
+ * et la section « Profil contact » avec son chargeur.
+ */
+describe("composition déclarée de la fiche personne (CRM-73, D20)", () => {
+  it("déclare le badge de tête « Profils », un chargeur de fiche qui rend le poste et les autres adresses, et la section « Profil contact » au rang 10 dont le chargeur rend le profil et les entreprises proposées", async () => {
+    const acme = await createObject("company", { name: "Cabinet Acme", type: "client" }, { id: actorId });
+    const claire = await createPerson({ firstName: "Claire", lastName: "Noël", email: "claire.noel@acme.fr", otherEmails: "c.noel@perso.fr", companyId: acme.id, jobTitle: "DSI" }, { id: actorId });
+
+    expect(getObject("person").headerFields).toEqual(["profiles"]);
+
+    const record = await getServerObject("person").loadRecord!(claire.id);
+    expect(record).toMatchObject({ id: claire.id, jobTitle: "DSI", otherEmails: "c.noel@perso.fr" });
+
+    const sections = sectionsOf("person");
+    expect(sections.map((section) => [section.key, section.order])).toEqual([["profil-contact", 10]]);
+    const data = (await sections[0].load(claire.id)) as { profile: { companyId: string; companyName: string; jobTitle: string | null } | null; companies: readonly { id: string; name: string }[] };
+    expect(data.profile).toMatchObject({ companyId: acme.id, companyName: "Cabinet Acme", jobTitle: "DSI" });
+    expect(data.companies).toContainEqual({ id: acme.id, name: "Cabinet Acme" });
+  });
+});
+
+/**
+ * Une ouverture de fiche lit le profil contact une fois, pas deux : le chargeur de la fiche
+ * (`loadRecord`, pour le poste) et celui de la section « Profil contact » le demandent chacun, et
+ * `cache` de React les réunit en une lecture pour la durée de la requête. La mémorisation elle-même
+ * ne s'observe pas ici — hors requête Next, `cache` relit à chaque appel — d'où une garde sur la
+ * déclaration, comme pour la page mince. L'écriture, elle, relit sans mémoire : mémorisée, elle
+ * rendrait le profil d'avant l'enregistrement à qui vient de l'enregistrer.
+ */
+describe("lecture du profil contact par ouverture de fiche (CRM-73, D20)", () => {
+  it("mémorise la lecture du profil par requête et laisse l'écriture relire sans mémoire", () => {
+    const code = readFileSync("src/features/persons/contact-profile.ts", "utf8");
+    expect(code).toMatch(/export const getContactProfile = cache\(readContactProfile\)/);
+    expect(code).not.toMatch(/\bgetContactProfile\(/);
   });
 });
 

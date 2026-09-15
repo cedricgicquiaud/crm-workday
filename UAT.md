@@ -279,3 +279,38 @@ Préparation : aucune migration nouvelle (`npm run db:migrate` ne change rien), 
 - [ ] Contrat 31 (suppression d'une fiche sans lien) : toujours en administrateur, créer une entreprise depuis `/entreprises` — « Nouvelle entreprise », raison sociale `Essai à supprimer`, type `Prospect` — sans lui ajouter ni contact ni activité. Sur sa fiche, « Actions » → « Supprimer définitivement » → bouton rouge « Supprimer définitivement ». La page revient sur `/entreprises` et « Essai à supprimer » n'y figure plus, interrupteur « Archivées » allumé compris. La palette ne la trouve pas sur `essai`. Revenir en arrière dans le navigateur affiche l'écran « 404 » : la fiche n'existe plus.
 - [ ] Appel serveur (contrat 31) : avec le cookie de session d'un **membre** — `curl -i -X DELETE 'http://localhost:3000/api/objets/company/<id>' -H 'cookie: better-auth.session_token=<valeur>'` — la réponse est `403` avec `"error":"reserve_aux_administrateurs"`, et la fiche est toujours là. Sans cookie du tout : `401`. Avec le cookie d'un administrateur sur une fiche retenue : `409` avec `"error":"fiche_liee"` et la liste `blockers`. Archiver deux fois de suite la même fiche — `curl -i -X POST 'http://localhost:3000/api/objets/company/<id>/archiver' -H 'cookie: …'` — donne `200` puis `409` : une action qui n'a rien fait ne répond jamais `200`.
 - [ ] Téléphone, 375 px : réduire la fenêtre à 375 px sur une fiche entreprise. Le bouton « Actions » reste visible et atteignable sans faire défiler la page en largeur ; son menu s'ouvre entièrement dans l'écran. Ouvrir « Supprimer définitivement » (en administrateur) : le dialogue tient dans la largeur, ses deux boutons compris. Archiver la fiche : la bannière tient sur plusieurs lignes sans déborder. Aucun défilement horizontal, un seul titre `<h1>`.
+
+## Feature 3 — Les consultants Workday
+
+Chaque livraison remplit uniquement sa sous-section. Les titres et lignes d'introduction ne bougent pas.
+
+### 3.0 Fiche personne recomposée
+
+Cette livraison ne change **rien** à l'écran : elle déplace de la composition. La fiche personne était écrite deux fois (une fois par la fiche générique, une fois par la page de la personne) ; elle est maintenant écrite une seule fois, et la personne déclare ce qu'elle ajoute. La recette consiste donc à vérifier que tout est au même endroit qu'avant, et que les garde-fous refusent bien ce qu'ils doivent refuser.
+
+Préparation : aucune migration nouvelle (`npm run db:migrate` ne change rien), les entreprises et personnes de l'amorce, `npm run dev`. Une personne avec profil contact et une personne sans profil sont nécessaires : les créer au besoin depuis `http://localhost:3000/personnes`.
+
+- [ ] Tout est au même endroit : ouvrir la fiche d'une personne qui a un profil contact, `http://localhost:3000/personnes/<id>`. En haut, son nom complet en grand, puis le badge gris « Personne », puis le badge « Profils : Contact », puis le bouton « Actions », dans cet ordre sur la même ligne. En dessous, la ligne « Créée le … · modifiée le … · responsable : … ». Puis trois colonnes : « Liens » à gauche, au centre « Champs » puis « Profil contact » (dans cet ordre, « Profil contact » sous « Champs »), « Fil d'activité » à droite.
+- [ ] Le badge de tête dit la casquette : sur une personne **sans** profil contact, le badge de tête affiche « Profils : Aucun ». Cliquer « Ajouter un profil contact », choisir une entreprise : le badge passe à « Profils : Contact » sans rien recharger à la main.
+- [ ] La fiche entreprise n'a pas bougé : ouvrir `http://localhost:3000/entreprises/<id>`. Nom, badge « Entreprise », « Actions », les trois colonnes ; **aucun** badge de tête supplémentaire et **aucune** section sous « Champs » — l'entreprise n'en déclare pas.
+- [ ] Les champs viennent d'ailleurs que de la table : sur la fiche d'une personne rattachée à une entreprise, la section « Champs » affiche bien « Poste » avec sa valeur et « Autres emails » avec les adresses secondaires séparées par une virgule. Ces deux-là ne sont pas des colonnes de la personne : s'ils étaient vides alors que la personne en porte, la lecture déclarée de la fiche n'aurait pas été prise.
+- [ ] Un champ se rend partout pareil : sur la fiche d'une personne, mesurer à l'œil la hauteur des cases « Prénom », « Poste » et du sélecteur « Rôle dans la décision » de « Profil contact » : les trois font la même hauteur (28 px) et sont alignées à gauche sur la même colonne. Ouvrir ensuite `http://localhost:3000/personnes` → « Nouvelle personne » : dans le dialogue, les cases « Prénom », « Nom », « Email principal », le sélecteur « Entreprise » et « Poste » font tous la même hauteur (32 px), plus grande que sur la fiche. Aucun champ n'est plus court que son voisin.
+- [ ] Refus affiché sous le champ (section « Champs ») : sur la fiche d'une personne, dans « Autres emails », saisir `pas-une-adresse` et appuyer sur Entrée. Un message rouge apparaît **sous la case** : « Cette adresse n'est pas valide : pas-une-adresse. » et la case reprend la valeur enregistrée avant la saisie.
+- [ ] Refus affiché sous le champ (section « Profil contact ») : sur une personne sans profil, cliquer « Ajouter un profil contact ». Le sélecteur « Entreprise » ne propose aucune entreprise archivée. Choisir une entreprise : le profil se crée, « Rôle dans la décision » apparaît en dessous avec « Non précisé ».
+- [ ] Refus : une section déclarée sans chargeur est refusée quand l'objet se déclare, jamais à l'ouverture d'une fiche. Dans `src/features/persons/register.server.ts`, commenter la ligne qui commence par `load:` dans la section « Profil contact », puis lancer `npm test` : les tests qui chargent les objets échouent tous sur le même message, « Objet « person » : la section « profil-contact » n'a pas de chargeur. ». Faire la même chose avec la ligne `render:` : le message dit « … n'a pas de rendu. ». **Remettre les deux lignes** et vérifier que `npm test` repasse au vert.
+- [ ] Refus : la page d'une fiche ne connaît pas son objet. Ouvrir `src/app/(app)/personnes/[id]/page.tsx` : le fichier fait moins de dix lignes, il n'importe rien de `src/features/persons/` et se contente d'appeler la fiche générique avec `type="person"`. Le comparer à `src/app/(app)/entreprises/[id]/page.tsx` : à la clé de l'objet près, les deux fichiers sont le même.
+- [ ] Refus : le garde-fou refuse le mot « consultant » dans les mécanismes. Ajouter la ligne `// getObject("consultant")` en tête de `src/features/objects/links-column.tsx`, puis lancer `npm test` : le test « les mécanismes ne citent aucun objet » échoue en nommant `src/features/objects/links-column.tsx`. Retirer la ligne : la suite repasse au vert.
+- [ ] Non-régression des écrans : `npx playwright test e2e/personnes.spec.ts e2e/archivage.spec.ts e2e/fusion.spec.ts e2e/entreprises.spec.ts` passe au vert, sans qu'aucune ligne de ces fichiers ait été modifiée par la livraison (`git diff main...HEAD -- e2e/` ne rend rien).
+- [ ] Téléphone, 375 px : réduire la fenêtre à 375 px sur la fiche d'une personne avec profil contact. Les trois colonnes passent l'une sous l'autre, « Liens » puis « Champs » puis « Profil contact », et le fil d'activité devient le second onglet. Aucun défilement horizontal, un seul titre `<h1>`. Les sélecteurs « Entreprise » et « Rôle dans la décision » tiennent dans la largeur, leur valeur tronquée par des points de suspension si elle est longue.
+
+### 3.1a Profil consultant
+
+À remplir par la livraison.
+
+### 3.1b Liste « Consultants » et « Nouveau consultant »
+
+À remplir par la livraison.
+
+### 3.2 Disponibilité, état, liste filtrable
+
+À remplir par la livraison.

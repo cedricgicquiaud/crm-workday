@@ -7,10 +7,8 @@ import "@/features/objects/manifest";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DuplicateWarning, type DuplicateHint } from "@/features/duplicates/duplicate-warning";
+import { FieldControl } from "@/features/objects/field-control";
 import { fieldsOf, validateValues, type FieldErrors } from "@/features/objects/fields";
 import { createLabel, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor, type Relation } from "@/features/objects/registry";
@@ -177,9 +175,17 @@ export function QuickCreateDialog({ type, users, currentUserId, prefill, trigger
             entry.kind === "field" ? (
               <QuickField key={entry.key} type={type} field={entry.field} value={valueOf(entry.field)} error={errors[entry.key]} users={users} onChange={(value) => set(entry.key, value)} />
             ) : (
-              <Field key={entry.key} id={fieldId(type, entry.key)} label={entry.relation.label} error={errors[entry.key]}>
-                <RelationSelect id={fieldId(type, entry.key)} label={entry.relation.label} value={values[entry.key] ?? null} options={options[entry.key] ?? []} size="default" error={errors[entry.key]} describedBy={errors[entry.key] ? `${fieldId(type, entry.key)}-error` : undefined} onChange={(value) => set(entry.key, value)} />
-              </Field>
+              <FieldControl
+                key={entry.key}
+                id={fieldId(type, entry.key)}
+                label={entry.relation.label}
+                placement="dialog"
+                kind="record"
+                value={values[entry.key] ?? ""}
+                options={(options[entry.key] ?? []).map((option) => ({ value: option.id, label: option.name }))}
+                error={errors[entry.key]}
+                onChange={(value) => set(entry.key, value)}
+              />
             ),
           )}
           <DuplicateWarning type={type} duplicates={duplicates} />
@@ -211,74 +217,26 @@ export function QuickCreateDialog({ type, users, currentUserId, prefill, trigger
 
 const fieldId = (type: string, key: string) => `creation-${type}-${key}`;
 
-/** Libellé au-dessus (12 px / 500), erreur en dessous (11 px). */
-function Field({ id, label, error, children }: { id: string; label: string; error?: string; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-2">
-      <Label htmlFor={id}>{label}</Label>
-      {children}
-      {error && (
-        <p id={`${id}-error`} role="alert" className="text-xs text-danger">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-type RelationSelectProps = { id: string; label: string; value: string | null; options: readonly RelationOption[]; placeholder?: string; size?: "sm" | "default"; error?: string; describedBy?: string; onChange: (id: string) => void };
-
-/**
- * Sélecteur d'une fiche liée : les fiches proposées par la source bornée de l'objet (jamais une
- * archivée, D21), la valeur tronquée si elle est longue. `size` suit les champs de l'écran qui le
- * porte : « sm » sur une fiche, où les champs font 28 px, la taille par défaut dans un dialogue, où
- * ils en font 32.
- */
-export function RelationSelect({ id, label, value, options, placeholder = "Choisir…", size = "sm", error, describedBy, onChange }: RelationSelectProps) {
-  /* Une valeur pré-remplie avant que la liste soit chargée reste sélectionnée : l'élément est ajouté sans libellé jusque-là. */
-  const items = value && !options.some((option) => option.id === value) ? [...options, { id: value, name: "…" }] : options;
-  return (
-    <Select items={items.map((option) => ({ value: option.id, label: option.name }))} value={value} onValueChange={(next) => next && onChange(next)}>
-      <SelectTrigger id={id} aria-label={label} size={size} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="w-full min-w-0">
-        <SelectValue className="min-w-0 truncate" placeholder={placeholder} />
-      </SelectTrigger>
-      {/* La liste s'ouvre alignée sur le champ ; alignée sur l'option choisie, elle déborderait de quelques pixels sur sa droite. */}
-      <SelectContent alignItemWithTrigger={false}>
-        {items.map((option) => (
-          <SelectItem key={option.id} value={option.id}>
-            {option.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
 type QuickFieldProps = { type: string; field: FieldDescriptor; value: string; error?: string; users: readonly UserOption[]; onChange: (value: string) => void };
 
-/** Un champ du dialogue selon son type : liste ou responsable en sélecteur, le reste en champ texte. */
+/**
+ * Un champ du dialogue : liste ou responsable en sélecteur, le reste en champ de saisie. Un champ de
+ * date ou de nombre se saisit ici en texte et se valide par son descripteur, comme avant la fiche :
+ * le dialogue reste une saisie rapide, la fiche porte les contrôles typés.
+ */
 function QuickField({ type, field, value, error, users, onChange }: QuickFieldProps) {
-  const id = fieldId(type, field.key);
-  const errorId = `${id}-error`;
-  const options = field.type === "list" ? field.values ?? [] : field.type === "user" ? users.map((u) => ({ value: u.id, label: u.name })) : null;
+  const options = field.type === "list" ? field.values ?? [] : field.type === "user" ? users.map((u) => ({ value: u.id, label: u.name })) : undefined;
   return (
-    <Field id={id} label={field.label} error={error}>
-      {options ? (
-        <Select items={options} value={value || null} onValueChange={(next) => onChange(next ?? "")}>
-          <SelectTrigger id={id} aria-label={field.label} aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined} className="w-full">
-            <SelectValue placeholder="Choisir…" />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : (
-        <Input id={id} name={field.key} value={value} autoComplete="off" aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined} onChange={(e) => onChange(e.target.value)} />
-      )}
-    </Field>
+    <FieldControl
+      id={fieldId(type, field.key)}
+      label={field.label}
+      placement="dialog"
+      kind={options ? "list" : "text"}
+      value={value}
+      options={options}
+      error={error}
+      name={field.key}
+      onChange={onChange}
+    />
   );
 }
