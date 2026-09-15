@@ -8,7 +8,7 @@ import { and, desc, eq, exists, ilike, isNull, or } from "drizzle-orm";
 import { createElement } from "react";
 import { company, contactProfile, person, personEmail } from "@/db/schema";
 import { normalizeName } from "@/features/duplicates/normalize";
-import { attachConsultantProfiles } from "@/features/consultants/consultant-profile";
+import { attachConsultantProfiles, consultantSubtitles } from "@/features/consultants/consultant-profile";
 import { defineSection, registerServerObject, type DependentTable, type SearchHit } from "@/features/objects/registry.server";
 import { listRecordOptions } from "@/features/objects/service";
 import { db } from "@/lib/db";
@@ -20,7 +20,7 @@ import { normalizeEmail } from "./schema";
 
 const MAX_HITS = 20;
 
-/** Sous-titre du résultat (palette) : l'entreprise du profil contact, sinon l'adresse principale. */
+/** Sous-titre du résultat (palette) : le profil consultant d'abord (D14), sinon l'entreprise du profil contact, sinon l'adresse principale. */
 async function search(query: string): Promise<SearchHit[]> {
   const text = query.trim();
   if (!text) return [];
@@ -38,7 +38,8 @@ async function search(query: string): Promise<SearchHit[]> {
     .where(and(isNull(person.archivedAt), or(ilike(person.name, `%${text}%`), ilike(person.email, address), byOtherAddress)))
     .orderBy(desc(person.updatedAt))
     .limit(MAX_HITS);
-  return rows.map((row) => ({ id: row.id, title: row.name, subtitle: row.companyName ?? row.email ?? undefined }));
+  const consultants = await consultantSubtitles(rows.map((row) => row.id));
+  return rows.map((row) => ({ id: row.id, title: row.name, subtitle: consultants.get(row.id) ?? row.companyName ?? row.email ?? undefined }));
 }
 
 /** Prénom et nom sans casse, accents ni ponctuation : deux personnes de même clé sont des doublons probables (D19). */

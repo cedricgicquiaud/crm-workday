@@ -13,7 +13,7 @@ import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { cache } from "react";
 import { company, consultantModule, consultantProfile, person } from "@/db/schema";
 import { recordHistory } from "@/features/history/history";
-import { serializeValue, validateValues, type FieldValue, type FieldValues } from "@/features/objects/fields";
+import { serializeValue, setLabels, validateValues, type FieldValue, type FieldValues } from "@/features/objects/fields";
 import type { FieldDescriptor } from "@/features/objects/registry";
 import { assertWritable, getObjectRecord, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { profilesLabel, recomputeProfiles, registerProfileSource } from "@/features/persons/profiles";
@@ -382,6 +382,24 @@ export async function upsertConsultantProfile(personId: string, input: unknown, 
 /** Le profil consultant ne se retire pas en V1 (D1) : la demande est refusée, jamais exécutée à moitié. */
 export function refuseProfileRemoval(): never {
   throw new HttpError(405, "retrait_impossible", "Un profil consultant ne se retire pas : il part avec la personne.");
+}
+
+/**
+ * Ce qu'un consultant dit de lui dans une recherche (D14) : « Freelance · HCM, Integration ». Il
+ * prime sur l'entreprise du profil contact et sur l'adresse email — c'est par son statut et ses
+ * modules qu'on cherche un consultant. Rien pour une personne qui n'en est pas un.
+ */
+export async function consultantSubtitles(personIds: readonly string[]): Promise<Map<string, string>> {
+  const rows = await profileRows(personIds);
+  const modules = await modulesOf(rows.map((row) => row.id));
+  const statusLabel = (value: string) => descriptor("status").values?.find((entry) => entry.value === value)?.label ?? value;
+  return new Map(
+    rows.map((row) => {
+      const retained = modules.get(row.id)?.modules ?? [];
+      const labels = retained.length === 0 ? "" : ` · ${setLabels(descriptor("modules"), retained).join(", ")}`;
+      return [row.personId, `${statusLabel(row.status)}${labels}`];
+    }),
+  );
 }
 
 /** Personnes qui portent un profil consultant, parmi celles qu'on lui passe (fusion, listes). */
