@@ -1,6 +1,6 @@
 # Méthode pilot — version installée
 
-- Version : `8412543` (dépôt `pilot`)
+- Version : `4670749` (dépôt `pilot`)
 - Installée le : 2026-09-14
 
 Fiches d'agent posées par l'installation — cette liste sert à retirer proprement
