@@ -156,7 +156,7 @@ test.describe("personne sans email ni entreprise, Profils dérivé, deux adresse
     const fullName = `Camille ${lastName}`;
     await memberPage.goto("/accueil");
     const objectsNav = memberPage.locator('[data-slot="sidebar"]').getByRole("navigation", { name: "Objets" });
-    await expect(objectsNav.getByRole("link")).toHaveText(["Entreprises", "Personnes"]);
+    await expect(objectsNav.getByRole("link")).toHaveText(["Entreprises", "Personnes", "Consultants"]);
     await objectsNav.getByRole("link", { name: "Personnes" }).click();
     await expect(memberPage).toHaveURL(/\/personnes$/);
     await expect(memberPage.getByRole("heading", { level: 1, name: "Personnes" })).toBeVisible();
