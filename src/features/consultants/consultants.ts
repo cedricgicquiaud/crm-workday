@@ -7,14 +7,16 @@
  * Tout est validé avant la première écriture : les champs de la personne par ses descripteurs, ceux
  * du profil par les siens, l'unicité de l'adresse dans tout le CRM. Un refus ne crée donc rien.
  */
+import { getList, getObject } from "@/features/objects/registry";
 import { createObject, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { assertEmailAvailable } from "@/features/persons/emails";
 import { getPerson, type PersonRecord } from "@/features/persons/persons";
 import { recomputeProfiles } from "@/features/persons/profiles";
 import { normalizeEmail } from "@/features/persons/schema";
+import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { insertConsultantProfile, prepareConsultantProfile, type PreparedConsultantProfile } from "./consultant-profile";
-import { CONSULTANT_PROFILE_KEYS } from "./schema";
+import { CONSULTANTS_LIST, CONSULTANT_PROFILE_KEYS } from "./schema";
 
 const TYPE = "person";
 
@@ -23,6 +25,28 @@ export type PreparedConsultant = { fields: Record<string, unknown>; profile: Pre
 
 const asObject = (input: unknown): Record<string, unknown> => (input && typeof input === "object" ? (input as Record<string, unknown>) : {});
 
+/** Les champs que le dialogue « Nouveau consultant » déclare (D12) : la liste en est la seule source. */
+function creationKeys(): readonly string[] {
+  const create = getList(CONSULTANTS_LIST).create;
+  return (create ? create.fields : undefined) ?? getObject(TYPE).quickCreate ?? [];
+}
+
+/**
+ * Refuse (400 par champ) toute clé que le dialogue ne déclare pas. Sans ce refus, une clé sans place
+ * où aller — le poste, les autres adresses, un champ du profil qui n'est pas au dialogue — partait à
+ * la création de la personne, qui l'ignorait : la réponse disait 201 et rien n'était enregistré.
+ */
+function refuseUnknownKeys(raw: Record<string, unknown>): void {
+  const declared = new Set(creationKeys());
+  const label = (key: string) => getObject(TYPE).fields.find((field) => field.key === key)?.label ?? key;
+  const errors = Object.fromEntries(
+    Object.keys(raw)
+      .filter((key) => !declared.has(key))
+      .map((key) => [key, `« ${label(key)} » ne se saisit pas à la création d'un consultant : il se règle sur sa fiche.`]),
+  );
+  if (Object.keys(errors).length > 0) throw new HttpError(400, "champ_hors_creation", Object.values(errors)[0], { fields: errors });
+}
+
 /**
  * Sépare et valide l'entrée reçue, sans rien écrire : les clés du profil vont à ses descripteurs (le
  * statut y est obligatoire), les autres à la personne. L'unicité de l'adresse est vérifiée par la
@@ -30,6 +54,7 @@ const asObject = (input: unknown): Record<string, unknown> => (input && typeof i
  */
 export async function prepareConsultantCreation(input: unknown): Promise<PreparedConsultant> {
   const raw = asObject(input);
+  refuseUnknownKeys(raw);
   const profile = Object.fromEntries(Object.entries(raw).filter(([key]) => CONSULTANT_PROFILE_KEYS.includes(key)));
   const fields = Object.fromEntries(Object.entries(raw).filter(([key]) => !CONSULTANT_PROFILE_KEYS.includes(key)));
   const prepared: PreparedConsultant = { fields, profile: prepareConsultantProfile(profile, null) };

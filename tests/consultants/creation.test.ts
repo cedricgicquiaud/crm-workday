@@ -66,8 +66,10 @@ describe("création d'un consultant (CRM-84, D12)", () => {
 
   it("n'écrit ni la personne ni le profil quand l'écriture échoue en chemin : les deux ou rien", async () => {
     const doomed = (await createObject("company", { name: "Éphémère Conseil", type: "societe_de_consultant" }, { id: memberId })).id;
-    /* La société disparaît entre la validation et l'écriture : le rattachement échoue après l'insertion de la personne. */
-    const prepared = await prepareConsultantCreation({ firstName: "Tout", lastName: "Ourien", status: "freelance", billingCompanyId: doomed });
+    /* La société disparaît entre la validation et l'écriture : le rattachement échoue après l'insertion de la personne.
+       Elle ne passe pas par l'entrée du dialogue, qui ne déclare pas ce champ : elle se pose sur les valeurs validées. */
+    const prepared = await prepareConsultantCreation({ firstName: "Tout", lastName: "Ourien", status: "freelance" });
+    prepared.profile.values.billingCompanyId = doomed;
     await db.delete(company).where(eq(company.id, doomed));
     const before = await countPersons();
 
