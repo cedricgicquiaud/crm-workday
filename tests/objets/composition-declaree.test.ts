@@ -101,4 +101,13 @@ describe("un seul composant rend un champ (CRM-78)", () => {
     expect(html).not.toContain("<input");
     expect(html).not.toContain("disabled");
   });
+
+  it("est le seul à rendre un champ : ni la section des champs, ni le dialogue de création rapide, ni une section d'objet ne posent leur propre libellé ou leur propre alerte", () => {
+    for (const path of ["src/features/objects/fields-section.tsx", "src/features/objects/quick-create-dialog.tsx", "src/features/persons/contact-profile-section.tsx"]) {
+      const code = readFileSync(path, "utf8");
+      expect(code, path).toContain("@/features/objects/field-control");
+      expect(code, path).not.toContain("<Label");
+      expect(code, path).not.toContain('role="alert"');
+    }
+  });
 });
