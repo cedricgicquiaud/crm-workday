@@ -133,6 +133,14 @@ describe("champ à plusieurs valeurs et bornes d'un nombre (CRM-80, D19)", () =>
     expect(displayValue(cost, 650, [])).toBe("650,00 €");
   });
 
+  it("marque les valeurs que le champ compagnon déclaré porte aussi", () => {
+    const modules = { ...FIELDS[0], markedBy: { field: "certifiedModules", mark: "✔" } };
+    expect(displayValue(modules, ["hcm", "integration"], [], ["hcm"])).toBe("HCM ✔, Integration");
+    expect(displayValue(modules, ["hcm", "integration"], [], [])).toBe("HCM, Integration");
+    /* Sans le champ compagnon, l'ensemble se lit comme n'importe quel autre. */
+    expect(displayValue(modules, ["hcm"], [])).toBe("HCM");
+  });
+
   it("affiche l'étiquette déclarée pour un ensemble vide, et « — » sans étiquette", () => {
     const modules = FIELDS[0];
     expect(displayValue(modules, [], [])).toBe("—");
