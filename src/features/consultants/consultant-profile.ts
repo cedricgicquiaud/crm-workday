@@ -193,6 +193,46 @@ function rowPatch(values: FieldValues): Record<string, unknown> {
   return Object.fromEntries(Object.entries(values).filter(([key]) => key in COLUMNS).map(([key, value]) => [key, COLUMNS[key](value)]));
 }
 
+/** Les modules qu'un profil portera après ce PATCH, et ceux qui y seront certifiés (D3). */
+type ResolvedModules = { modules: string[]; certifiedModules: string[] };
+
+/** Les modules dans l'ordre de la liste fermée : deux consultants se comparent, la saisie ne dicte pas l'ordre. */
+function inListOrder(modules: readonly string[]): string[] {
+  const rank = new Map(descriptor("modules").values!.map((value, index) => [value.value, index]));
+  return [...new Set(modules)].sort((a, b) => (rank.get(a) ?? Infinity) - (rank.get(b) ?? Infinity));
+}
+
+const moduleLabel = (value: string) => descriptor("modules").values?.find((entry) => entry.value === value)?.label ?? value;
+
+/**
+ * Les modules et les certifications après ce PATCH. Une certification ne survit pas au module
+ * qu'elle porte : retirer un module retire la sienne. Mais certifier un module qu'on ne retient pas
+ * est un refus, pas un silence (D3) — sinon la saisie répondrait 200 sans rien enregistrer.
+ */
+function resolveModules(existing: ConsultantProfile | null, values: FieldValues): ResolvedModules {
+  const modules = inListOrder((values.modules as string[] | undefined) ?? existing?.modules ?? []);
+  const claimed = values.certifiedModules as string[] | undefined;
+  if (claimed) {
+    const orphan = claimed.find((module) => !modules.includes(module));
+    if (orphan) throw invalid({ certifiedModules: `« Certifié sur » ne porte que des modules retenus : « ${moduleLabel(orphan)} » ne l'est pas.` });
+    return { modules, certifiedModules: inListOrder(claimed) };
+  }
+  return { modules, certifiedModules: inListOrder((existing?.certifiedModules ?? []).filter((module) => modules.includes(module))) };
+}
+
+/** Écrit les modules d'un profil : ceux qui partent, ceux qui arrivent, et le drapeau « certifié » de ceux qui restent. */
+async function writeModules(exec: Executor, profileId: string, resolved: ResolvedModules): Promise<void> {
+  const rows = await exec.select({ id: consultantModule.id, module: consultantModule.module, certified: consultantModule.certified }).from(consultantModule).where(eq(consultantModule.profileId, profileId));
+  const dropped = rows.filter((row) => !resolved.modules.includes(row.module)).map((row) => row.id);
+  if (dropped.length > 0) await exec.delete(consultantModule).where(inArray(consultantModule.id, dropped));
+  for (const module of resolved.modules) {
+    const certified = resolved.certifiedModules.includes(module);
+    const row = rows.find((candidate) => candidate.module === module);
+    if (!row) await exec.insert(consultantModule).values({ profileId, module, certified });
+    else if (row.certified !== certified) await exec.update(consultantModule).set({ certified }).where(eq(consultantModule.id, row.id));
+  }
+}
+
 type Change = { field: string; oldValue: string | null; newValue: string | null };
 
 /** Ce qui change entre le profil enregistré et les valeurs reçues, écrit comme un lecteur le lit (D13). */
@@ -212,15 +252,19 @@ export async function writeConsultantProfile(personId: string, prepared: Prepare
   assertWritable(TYPE, current);
   const existing = await readConsultantProfile(personId);
   const { values } = prepared;
-  const changes = fieldChanges(existing, values);
+  const resolved = resolveModules(existing, values);
+  /* Les modules se comparent toujours : retirer un module retire sa certification, même quand le PATCH ne parle pas d'elle. */
+  const changes = fieldChanges(existing, { ...values, ...resolved });
   const patch = rowPatch(values);
+  const movedModules = changes.some((change) => change.field === "modules" || change.field === "certifiedModules");
   const now = new Date();
 
   if (!existing) {
     const before = profilesLabel((current.profiles as string[] | undefined) ?? []);
     let after: string[] = [];
     await db.transaction(async (tx) => {
-      await tx.insert(consultantProfile).values({ personId, status: String(values.status), ...patch });
+      const [row] = await tx.insert(consultantProfile).values({ personId, status: String(values.status), ...patch }).returning({ id: consultantProfile.id });
+      await writeModules(tx, row.id, resolved);
       await tx.update(person).set({ updatedAt: now }).where(eq(person.id, personId));
       after = await recomputeProfiles(personId, tx);
     });
@@ -228,12 +272,19 @@ export async function writeConsultantProfile(personId: string, prepared: Prepare
   } else if (changes.length > 0) {
     await db.transaction(async (tx) => {
       if (Object.keys(patch).length > 0) await tx.update(consultantProfile).set({ ...patch, updatedAt: now }).where(eq(consultantProfile.personId, personId));
+      if (movedModules) await writeModules(tx, await profileIdOf(personId, tx), resolved);
       await tx.update(person).set({ updatedAt: now }).where(eq(person.id, personId));
     });
   }
 
   await recordHistory(changes.map((change) => ({ objectType: TYPE, objectId: personId, action: "modifiee" as const, ...change, authorId: actor.id })));
   return (await readConsultantProfile(personId))!;
+}
+
+/** Identifiant de la ligne de profil d'une personne ; elle existe, l'appelant vient de la lire. */
+async function profileIdOf(personId: string, exec: Executor): Promise<string> {
+  const [row] = await exec.select({ id: consultantProfile.id }).from(consultantProfile).where(eq(consultantProfile.personId, personId)).limit(1);
+  return row.id;
 }
 
 /** Ajoute (au premier statut) ou modifie le profil consultant d'une personne : 400 données invalides, 404 personne inconnue, 409 personne archivée. */
