@@ -6,6 +6,7 @@
  * de la personne, l'entreprise par son nom (l'ancienne y reste, D3).
  */
 import { eq } from "drizzle-orm";
+import { cache } from "react";
 import { company, contactProfile, person } from "@/db/schema";
 import { recordHistory } from "@/features/history/history";
 import { validateValues, type FieldValues } from "@/features/objects/fields";
@@ -44,7 +45,8 @@ async function companyNameOf(id: string | null): Promise<string | null> {
   return row?.name ?? null;
 }
 
-export async function getContactProfile(personId: string): Promise<ContactProfile | null> {
+/** Lecture directe du profil, sans mémoire : celle d'une écriture, qui relit ce qu'elle vient d'écrire. Un écran passe par `getContactProfile`. */
+export async function readContactProfile(personId: string): Promise<ContactProfile | null> {
   const [row] = await db
     .select({ personId: contactProfile.personId, companyId: person.companyId, companyName: company.name, jobTitle: contactProfile.jobTitle, decisionRole: contactProfile.decisionRole })
     .from(contactProfile)
@@ -58,6 +60,16 @@ export async function getContactProfile(personId: string): Promise<ContactProfil
   if (!row.companyId || !row.companyName) throw new HttpError(500, "profil_sans_entreprise", "Profil contact sans entreprise de rattachement : la fiche est incohérente.", { personId });
   return { ...row, companyId: row.companyId, companyName: row.companyName };
 }
+
+/**
+ * Une lecture du profil par requête : `cache` de React mémorise l'appel pour toute la durée du rendu
+ * ou de la requête. Une ouverture de fiche le demande deux fois — le chargeur de la fiche pour le
+ * poste, celui de la section « Profil contact » pour le reste — et n'interroge la base qu'une seule.
+ * L'écriture, elle, passe par `readContactProfile` : mémorisée, la relecture qui suit l'écriture
+ * rendrait le profil d'avant. Hors requête (tests, scripts), il n'y a pas de portée à mémoriser,
+ * chaque appel relit.
+ */
+export const getContactProfile = cache(readContactProfile);
 
 /** Valeurs validées d'un profil et l'entreprise chargée ; rien n'est écrit. */
 export type PreparedContactProfile = { values: FieldValues; company: CompanyRow | null };
@@ -80,7 +92,7 @@ const roleLabel = (value: unknown): string | null => DECISION_ROLES.find((role) 
 export async function writeContactProfile(personId: string, prepared: PreparedContactProfile, actor: Actor): Promise<ContactProfile> {
   const current = await getObjectRecord(TYPE, personId);
   assertWritable(TYPE, current);
-  const existing = await getContactProfile(personId);
+  const existing = await readContactProfile(personId);
   const { values, company: target } = prepared;
   const changes: { field: string; oldValue: string | null; newValue: string | null }[] = [];
   const now = new Date();
@@ -117,13 +129,13 @@ export async function writeContactProfile(personId: string, prepared: PreparedCo
     }
   }
   await recordHistory(changes.filter((c) => c.oldValue !== c.newValue).map((c) => ({ objectType: TYPE, objectId: personId, action: "modifiee" as const, ...c, authorId: actor.id })));
-  return (await getContactProfile(personId))!;
+  return (await readContactProfile(personId))!;
 }
 
 /** Ajoute ou modifie le profil contact d'une personne : 400 sans entreprise à la création, 409 entreprise archivée ou personne archivée. */
 export async function upsertContactProfile(personId: string, input: unknown, actor: Actor): Promise<ContactProfile> {
   const current = await getObjectRecord(TYPE, personId);
   assertWritable(TYPE, current);
-  const prepared = await prepareContactProfile(input, await getContactProfile(personId));
+  const prepared = await prepareContactProfile(input, await readContactProfile(personId));
   return writeContactProfile(personId, prepared, actor);
 }

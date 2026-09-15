@@ -5,7 +5,7 @@
  */
 import { assertWritable, createObject, getObjectRecord, listObjectRecords, updateObject, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
-import { CONTACT_PROFILE_KEYS, getContactProfile, prepareContactProfile, writeContactProfile, type PreparedContactProfile } from "./contact-profile";
+import { CONTACT_PROFILE_KEYS, getContactProfile, prepareContactProfile, readContactProfile, writeContactProfile, type PreparedContactProfile } from "./contact-profile";
 import { assertEmailAvailable, assertOtherEmailsAvailable, otherEmailsOf, parseOtherEmails, setOtherEmails } from "./emails";
 import { DERIVED_FIELDS, normalizeEmail } from "./schema";
 
@@ -84,7 +84,8 @@ export async function updatePerson(id: string, patch: unknown, actor: Actor): Pr
   const current = await getObjectRecord(TYPE, id);
   assertWritable(TYPE, current);
   const { fields, otherEmails, profile } = await prepareInput(patch, id, current.email);
-  const preparedProfile = profile ? await prepareContactProfile(profile, await getContactProfile(id)) : null;
+  /* Lecture directe : la modification relit le profil juste après l'avoir écrit (`getPerson`), et rendrait sinon celui d'avant. */
+  const preparedProfile = profile ? await prepareContactProfile(profile, await readContactProfile(id)) : null;
   if (Object.keys(fields).length > 0) await updateObject(TYPE, id, fields, actor);
   if (otherEmails) await setOtherEmails(id, otherEmails, actor);
   if (preparedProfile) await writeContactProfile(id, preparedProfile, actor);
