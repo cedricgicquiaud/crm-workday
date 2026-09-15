@@ -55,10 +55,13 @@ test.describe("profil consultant sur la fiche d'une personne (CRM-81, contrats 3
     });
     await expect(memberPage.getByText("Profils : Consultant")).toBeVisible();
 
-    /* Deux écritures successives attendent chacune leur réponse : enchaînées, elles rendraient le test instable. */
-    await saveProfile(memberPage, () => section.getByRole("checkbox", { name: "HCM", exact: true }).click());
-    await saveProfile(memberPage, () => section.getByRole("checkbox", { name: "Integration", exact: true }).click());
-    await saveProfile(memberPage, () => section.getByRole("checkbox", { name: "HCM certifié" }).click());
+    /* La liste des modules est un champ comme les autres : les cases se cochent, et un seul PATCH part au geste de validation. */
+    await saveProfile(memberPage, async () => {
+      await section.getByRole("checkbox", { name: "HCM", exact: true }).click();
+      await section.getByRole("checkbox", { name: "Integration", exact: true }).click();
+      await section.getByRole("checkbox", { name: "HCM certifié" }).click();
+      await section.getByRole("checkbox", { name: "HCM certifié" }).press("Enter");
+    });
     await saveProfile(memberPage, () => section.getByLabel("Années d'expérience").fill("6").then(() => section.getByLabel("Années d'expérience").press("Enter")));
     await saveProfile(memberPage, () => section.getByLabel("Langues").fill("français, anglais").then(() => section.getByLabel("Langues").press("Enter")));
     await saveProfile(memberPage, () => section.getByLabel("CV").fill("https://exemple.fr/cv-lea.pdf").then(() => section.getByLabel("CV").press("Enter")));
@@ -81,9 +84,9 @@ test.describe("profil consultant sur la fiche d'une personne (CRM-81, contrats 3
     await expect(section.getByRole("combobox", { name: "Société de facturation" })).toContainText(dupont);
 
     const feed = memberPage.getByRole("region", { name: "Fil d'activité" });
-    /* Une ligne par geste, chacune avec l'ensemble entier (D13) : deux modules cochés l'un après l'autre font deux lignes. */
-    await expect(feed.getByText("Modules : vide → HCM")).toBeVisible();
-    await expect(feed.getByText("Modules : HCM → HCM, Integration")).toBeVisible();
+    /* Une ligne par geste, chacune avec l'ensemble entier (D13) : les deux modules cochés d'un geste font une seule ligne. */
+    await expect(feed.getByText("Modules : vide → HCM, Integration")).toBeVisible();
+    await expect(feed.getByText("Modules : HCM →")).toHaveCount(0);
     await expect(feed.getByText("Certifié sur : vide → HCM")).toBeVisible();
     await expect(feed.getByText(`Société de facturation : vide → ${dupont}`)).toBeVisible();
     await expect(feed.getByText("Années d'expérience : vide → 6")).toBeVisible();
