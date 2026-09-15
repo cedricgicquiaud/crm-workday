@@ -16,6 +16,9 @@ export default defineConfig({
   /** Un seul worker : les fichiers e2e partagent la base `crm` et leurs amorces de comptes se marchent dessus en parallèle. */
   workers: 1,
   retries: process.env.CI ? 1 : 0,
+  /* En CI le serveur de dev part à froid dans chaque part : la première ouverture d'une route la compile (10 à 20 s). Les attentes s'en accommodent ; la chauffe de `global-setup.ts` fait le reste (CRM-89). */
+  timeout: process.env.CI ? 60_000 : 30_000,
+  expect: { timeout: process.env.CI ? 15_000 : 5_000 },
   reporter: process.env.CI ? "github" : "list",
   use: { baseURL: appUrl, trace: "retain-on-failure", locale: "fr-FR", timezoneId: "Europe/Paris" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
