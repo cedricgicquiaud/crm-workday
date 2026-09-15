@@ -68,6 +68,18 @@ async function createActivity(page: Page, type: string, id: string, data: Record
   expect(created.status()).toBe(201);
 }
 
+/**
+ * Enregistre la saisie du composeur et attend la réponse 201 du serveur. Le texte saisi se lit
+ * déjà dans le composeur avant la réponse (React recopie la valeur d'un `textarea` contrôlé dans
+ * son contenu, et `getByText` l'y trouve) : sans cette attente, le test enchaîne, et la réponse de
+ * l'enregistrement précédent vide la saisie en cours — « Enregistrer » reste éteint (CRM-77).
+ */
+async function save(page: Page, composer: Locator): Promise<void> {
+  const saved = page.waitForResponse((res) => res.request().method() === "POST" && res.url().includes("/activites"));
+  await composer.getByRole("button", { name: "Enregistrer" }).click();
+  expect((await saved).status()).toBe(201);
+}
+
 test.describe("fil d'activité d'une fiche (CRM-44, contrats 11 et 14)", () => {
   test("un membre écrit une note, un appel et une tâche : le fil les montre groupés par jour avec les activités de ses contacts sous leur nom, et les puces filtrent par type avec leur compteur", async ({ memberPage }) => {
     const name = `Banque Solveige ${suffix()}`;
@@ -82,12 +94,12 @@ test.describe("fil d'activité d'une fiche (CRM-44, contrats 11 et 14)", () => {
     const composer = feed.getByRole("group", { name: "Nouvelle activité" });
 
     await composer.getByRole("textbox").fill("Le client valide le renouvellement.");
-    await composer.getByRole("button", { name: "Enregistrer" }).click();
+    await save(memberPage, composer);
     await expect(feed.getByText("Le client valide le renouvellement.")).toBeVisible();
 
     await composer.getByRole("button", { name: "Appel", exact: true }).click();
     await composer.getByRole("textbox").fill("Appel de suivi, 12 minutes.");
-    await composer.getByRole("button", { name: "Enregistrer" }).click();
+    await save(memberPage, composer);
     await expect(feed.getByText("Appel de suivi, 12 minutes.")).toBeVisible();
 
     /* Contrat 16 à l'écran : sans titre, la tâche ne part pas. */
@@ -95,7 +107,7 @@ test.describe("fil d'activité d'une fiche (CRM-44, contrats 11 et 14)", () => {
     await expect(composer.getByRole("button", { name: "Enregistrer" })).toBeDisabled();
     await composer.getByLabel("Titre").fill("Envoyer la proposition");
     await composer.getByLabel("Échéance").fill(parisDay(7));
-    await composer.getByRole("button", { name: "Enregistrer" }).click();
+    await save(memberPage, composer);
     await expect(feed.getByText("Envoyer la proposition")).toBeVisible();
 
     /* Groupé par jour, et la note du contact y est, sous le nom de la personne. */
@@ -127,14 +139,14 @@ test.describe("tâche échue et bannière de la fiche (CRM-45, contrat 12)", () 
     await composer.getByRole("button", { name: "Tâche", exact: true }).click();
     await composer.getByLabel("Titre").fill("Appeler ce soir");
     await composer.getByLabel("Échéance").fill(parisDay(0));
-    await composer.getByRole("button", { name: "Enregistrer" }).click();
+    await save(memberPage, composer);
     await expect(feed.getByText("Appeler ce soir")).toBeVisible();
     await expect(banner).toHaveCount(0);
 
     await composer.getByRole("button", { name: "Tâche", exact: true }).click();
     await composer.getByLabel("Titre").fill("Relancer la proposition");
     await composer.getByLabel("Échéance").fill(parisDay(-1));
-    await composer.getByRole("button", { name: "Enregistrer" }).click();
+    await save(memberPage, composer);
     await expect(banner).toHaveText("1 tâche échue.");
 
     /* Le responsable est l'auteur : son nom ne se lit qu'une fois sur la ligne, pas deux. */
@@ -228,18 +240,18 @@ test.describe("fil d'activité d'une personne (CRM-44, contrat 11)", () => {
     const composer = feed.getByRole("group", { name: "Nouvelle activité" });
 
     await composer.getByRole("textbox").fill("Le budget SIRH est validé.");
-    await composer.getByRole("button", { name: "Enregistrer" }).click();
+    await save(memberPage, composer);
     await expect(feed.getByText("Le budget SIRH est validé.")).toBeVisible();
 
     await composer.getByRole("button", { name: "Appel", exact: true }).click();
     await composer.getByRole("textbox").fill("Appel de cadrage, 20 minutes.");
-    await composer.getByRole("button", { name: "Enregistrer" }).click();
+    await save(memberPage, composer);
     await expect(feed.getByText("Appel de cadrage, 20 minutes.")).toBeVisible();
 
     await composer.getByRole("button", { name: "Tâche", exact: true }).click();
     await composer.getByLabel("Titre").fill("Envoyer le calendrier de projet");
     await composer.getByLabel("Échéance").fill(parisDay(-1));
-    await composer.getByRole("button", { name: "Enregistrer" }).click();
+    await save(memberPage, composer);
 
     const today = feed.getByRole("region", { name: dayLabel() });
     await expect(today.getByText("Le budget SIRH est validé.")).toBeVisible();
