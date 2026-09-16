@@ -100,15 +100,19 @@ describe("aperçu de la conversion : la personne (CRM-95, D15, contrats 15, 19, 
 
     const typed = await previewOf(id);
     expect(typed.company.query).toBe("Banque Proche SA");
-    expect(typed.company.proposals).toEqual([{ id: client.id, name: "Banque Proche", type: "client", archived: false }]);
-    expect(typed.company.sameNameAs).toBeNull();
-
-    const shorter = await previewOf(id, "?entreprise=banque%20proche");
-    expect(shorter.company.proposals.map((proposal) => [proposal.name, proposal.archived])).toEqual(
-      expect.arrayContaining([["Banque Proche", false], ["Banque Proche Épargne", true]]),
+    expect(typed.company.proposals).toHaveLength(2);
+    expect(typed.company.proposals).toEqual(
+      expect.arrayContaining([
+        { id: client.id, name: "Banque Proche", type: "client", archived: false },
+        { id: closed.id, name: "Banque Proche Épargne", type: "prospect", archived: true },
+      ]),
     );
-    expect(shorter.company.proposals).toHaveLength(2);
-    expect(shorter.company.sameNameAs).toBe("Banque Proche");
+    /* « Banque Proche SA » et « Banque Proche » ont le même nom une fois la forme juridique retirée : c'est la règle du signal « doublon probable ». */
+    expect(typed.company.sameNameAs).toBe("Banque Proche");
+
+    const typing = await previewOf(id, "?entreprise=epargne");
+    expect(typing.company.proposals.map((proposal) => proposal.name)).toEqual(["Banque Proche Épargne"]);
+    expect(typing.company.sameNameAs).toBeNull();
   });
 
   it("propose 20 entreprises au plus et compte les autres (« et N autres »)", async () => {

@@ -5,8 +5,9 @@
  * simultanées n'en réussissent qu'une, et un échec en chemin ne laisse rien derrière lui.
  * La conversion réutilise les écritures des personnes : la création générique et le profil contact.
  */
-import { eq } from "drizzle-orm";
+import { desc, eq, or, sql } from "drizzle-orm";
 import { company, lead, person } from "@/db/schema";
+import { normalizeCompanyName } from "@/features/duplicates/normalize";
 import { recordHistory, type HistoryInput } from "@/features/history/history";
 import { validateValues, type FieldValues } from "@/features/objects/fields";
 import { createObject, getObjectRecord, type Actor, type ObjectRecord } from "@/features/objects/service";
@@ -192,6 +193,45 @@ async function personPreview(current: ObjectRecord): Promise<PersonPreview> {
   };
 }
 
+/** Entreprises proposées au plus (D15) ; au-delà, la fenêtre écrit « et N autres ». */
+export const COMPANY_PROPOSALS_LIMIT = 20;
+
+/** Candidates lues au plus avant le rapprochement des noms : la lecture reste bornée même sur une saisie très courte. */
+const COMPANY_CANDIDATES_LIMIT = 200;
+
+/** Minuscules sans accents côté base, pour préfiltrer sur les mots de la forme comparable d'un nom. */
+const ACCENTED = "àâäáãåéèêëíìîïóòôöõúùûüçñÿ";
+const PLAIN = "aaaaaaeeeeiiiiooooouuuucny";
+
+/**
+ * Entreprises proches d'une saisie (D15) : celles dont le nom normalisé (D19 de la feature 2) contient
+ * celui de la saisie, ou y est contenu. La base préfiltre sur les mots de la saisie, bornée ; le
+ * rapprochement se fait ensuite sur la forme comparable. L'homonyme exacte est rangée en tête et
+ * nommée dans `sameNameAs` ; une archivée reste proposée, marquée.
+ */
+async function companyPreview(query: string): Promise<CompanyPreview> {
+  const wanted = normalizeCompanyName(query);
+  if (wanted === "") return { query, proposals: [], more: 0, sameNameAs: null };
+  const words = wanted.split(" ");
+  const rows = await db
+    .select({ id: company.id, name: company.name, type: company.type, archivedAt: company.archivedAt })
+    .from(company)
+    .where(or(...words.map((word) => sql`translate(lower(${company.name}), ${ACCENTED}, ${PLAIN}) like ${`%${word}%`}`)))
+    .orderBy(desc(company.updatedAt), desc(company.id))
+    .limit(COMPANY_CANDIDATES_LIMIT);
+  const close = rows
+    .map((row) => ({ row, name: normalizeCompanyName(row.name) }))
+    .filter(({ name }) => name !== "" && (name.includes(wanted) || wanted.includes(name)))
+    .sort((a, b) => Number(b.name === wanted) - Number(a.name === wanted) || Number(a.row.archivedAt !== null) - Number(b.row.archivedAt !== null) || a.row.name.localeCompare(b.row.name));
+  const same = close.find(({ name }) => name === wanted);
+  return {
+    query,
+    proposals: close.slice(0, COMPANY_PROPOSALS_LIMIT).map(({ row }) => ({ id: row.id, name: row.name, type: row.type, archived: row.archivedAt !== null })),
+    more: Math.max(close.length - COMPANY_PROPOSALS_LIMIT, 0),
+    sameNameAs: same ? same.row.name : null,
+  };
+}
+
 /** Aperçu de la conversion pour la fenêtre (D15) : 404 inconnu, 409 si le lead ne se convertit pas ; rien n'est écrit. */
 export async function previewConversion(id: string, companyQuery: string | null): Promise<ConversionPreview> {
   const current = await getObjectRecord(TYPE, id);
@@ -201,7 +241,7 @@ export async function previewConversion(id: string, companyQuery: string | null)
     leadId: current.id,
     title: String(current.title),
     person: await personPreview(current),
-    company: { query, proposals: [], more: 0, sameNameAs: null },
+    company: await companyPreview(query),
     jobTitle: text(current.jobTitle),
   };
 }
