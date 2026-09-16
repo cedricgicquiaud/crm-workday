@@ -103,4 +103,11 @@ describe("filtres de la liste « Consultants » (CRM-86, contrat 14)", () => {
   it("« Certifié sur contient HCM » ne garde que ceux certifiés HCM", async () => {
     expect((await shown("f=certifiedModules:contient:hcm")).sort()).toEqual(["Dina", "Rémi"]);
   });
+
+  it("« État est disponible » ramène les disponibles, et « État est indisponible » laisse dehors un consultant à date passée", async () => {
+    expect((await shown("f=state:est:disponible")).sort()).toEqual(["Dina", "Rémi"]);
+    expect((await shown("f=state:est:en_mission")).sort()).toEqual(["Léo", "Marc"]);
+    /* Dina a une date passée sans la case : elle est disponible, pas indisponible. */
+    expect(await shown("f=state:est:indisponible")).toEqual(["Iris"]);
+  });
 });
