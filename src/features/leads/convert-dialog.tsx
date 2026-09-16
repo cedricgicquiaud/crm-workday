@@ -132,7 +132,7 @@ export function ConvertLeadAction({ id }: { id: string }) {
         Convertir
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent showCloseButton={false} className="grid max-h-[90dvh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 p-0">
+        <DialogContent showCloseButton={false} className="grid max-h-[90dvh] grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 p-0">
           <DialogHeader className="border-b p-4">
             <DialogTitle>Convertir le lead</DialogTitle>
             <DialogDescription className="min-w-0 truncate" title={preview?.title}>
@@ -279,7 +279,8 @@ export function ConvertLeadAction({ id }: { id: string }) {
               </section>
             )}
           </div>
-          <DialogFooter className="border-t p-4">
+          {/* Le pied de shadcn déborde de `-mx-4 -mb-4` pour un dialogue à `p-4` : celui-ci est à `p-0`, le pied reste dans le cadre. */}
+          <DialogFooter className="mx-0 mb-0 border-t p-4">
             <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>
               Annuler
             </Button>
