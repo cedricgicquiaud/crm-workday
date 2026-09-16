@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as postActivity } from "@/app/api/objets/[type]/[id]/activites/route";
 import { GET as getLead, PATCH as patchLead } from "@/app/api/leads/[id]/route";
-import { POST as postLead } from "@/app/api/leads/route";
+import { GET as getLeads, POST as postLead } from "@/app/api/leads/route";
 import { activity, auditLog, lead, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { listHistory } from "@/features/history/history";
@@ -49,6 +49,17 @@ describe("création d'un lead (CRM-91, D4, contrat 1)", () => {
   it("crée « Julie Martin · Banque X » à l'avancement « nouveau », le créateur en responsable, l'email normalisé", async () => {
     const id = await create({ firstName: "Julie", lastName: "Martin", companyName: "Banque X", email: " Julie.Martin@BanqueX.fr ", origin: "linkedin" });
     expect(await read(id)).toMatchObject({ title: "Julie Martin · Banque X", stage: "nouveau", ownerId: memberId, origin: "linkedin", email: "julie.martin@banquex.fr", score: null });
+  });
+
+  it("liste les leads non archivés, tous avancements confondus", async () => {
+    const kept = await create({ companyName: "Banque Listée", origin: "autre" });
+    const archived = await create({ companyName: "Banque Rangée", origin: "autre" });
+    await db.update(lead).set({ archivedAt: new Date() }).where(eq(lead.id, archived));
+    const res = await getLeads(jsonRequest("GET", "/api/leads", undefined, memberCookie));
+    expect(res.status).toBe(200);
+    const ids = ((await res.json()) as { leads: { id: string }[] }).leads.map((entry) => entry.id);
+    expect(ids).toContain(kept);
+    expect(ids).not.toContain(archived);
   });
 
   it("refuse (401) une création sans session", async () => {
