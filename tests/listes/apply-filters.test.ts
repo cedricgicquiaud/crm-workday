@@ -88,3 +88,13 @@ describe("filtrage d'une liste sur un champ à plusieurs valeurs (CRM-80, D11)",
     expect(names(applyFilters(TEST_TYPE, SETS, [{ field: "tags", operator: "est_vide", value: "" }]))).toEqual(["Charlie"]);
   });
 });
+
+/** Champ dérivé (D19) : il se filtre sur la valeur que la fiche porte, pas sur ce que `display` écrit (« Zèbre · Paris »). */
+describe("filtrage d'une liste sur un champ dérivé (CRM-86, D19)", () => {
+  const PHASES = [record({ name: "Alpha", phase: "ouverte", city: "Paris" }), record({ name: "Bravo", phase: "close", city: "Lyon" }), record({ name: "Charlie", phase: null })];
+
+  it("garde les fiches dont la valeur dérivée est celle cherchée, et aucune autre", () => {
+    expect(names(applyFilters(TEST_TYPE, PHASES, [{ field: "phase", operator: "est", value: "ouverte" }]))).toEqual(["Alpha"]);
+    expect(names(applyFilters(TEST_TYPE, PHASES, [{ field: "phase", operator: "n_est_pas", value: "ouverte" }]))).toEqual(["Bravo", "Charlie"]);
+  });
+});
