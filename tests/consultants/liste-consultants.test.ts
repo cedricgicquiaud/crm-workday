@@ -99,4 +99,8 @@ describe("filtres de la liste « Consultants » (CRM-86, contrat 14)", () => {
   it("« Modules contient Integration » ne garde que ceux qui ont ce module", async () => {
     expect((await shown("f=modules:contient:integration")).sort()).toEqual(["Dina", "Léo"]);
   });
+
+  it("« Certifié sur contient HCM » ne garde que ceux certifiés HCM", async () => {
+    expect((await shown("f=certifiedModules:contient:hcm")).sort()).toEqual(["Dina", "Rémi"]);
+  });
 });
