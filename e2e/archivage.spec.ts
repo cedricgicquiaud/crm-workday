@@ -160,7 +160,7 @@ test.describe("supprimer définitivement une entreprise (CRM-62, CRM-63, contrat
     const dialog = adminPage.getByRole("dialog", { name: "Supprimer définitivement ?" });
     await dialog.getByRole("button", { name: "Supprimer définitivement" }).click();
     await expect(dialog.getByRole("alert")).toContainText("Contacts");
-    expect(await dialog.getByRole("alert").getByRole("listitem").allTextContents()).toEqual(["Contacts : 1"]);
+    expect(await dialog.getByRole("alert").getByRole("listitem").allTextContents()).toEqual([expect.stringMatching(/^Contacts : Claire Bonnet \S+ \(e2e\)$/)]);
     await dialog.getByRole("button", { name: "Annuler" }).click();
     expect((await adminPage.request.get(`/api/entreprises/${heldId}`)).status()).toBe(200);
 
