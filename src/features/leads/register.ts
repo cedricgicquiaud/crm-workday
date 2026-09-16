@@ -21,5 +21,9 @@ registerObject({
   quickCreate: ["firstName", "lastName", "companyName", "email", "origin"],
   /** « Avancement : Écarté » en badge de tête : il se lit à côté de « Rouvrir » sans descendre dans les champs (D7). */
   headerFields: ["stage"],
+  /** D10 : Titre, puis Avancement, Origine, Score, Responsable, Créé le ; « Modifiée le » ne s'ajoute pas, « Créé le » étant cité. */
+  listColumns: ["stage", "origin", "score", "ownerId", "createdAt"],
+  /** D10 : « Leads en cours » — ni converti ni écarté, du plus récemment créé au plus ancien ; ses puces se retirent. */
+  defaultView: { name: "Leads en cours", query: "f=stage:n_est_pas:converti&f=stage:n_est_pas:ecarte&tri=createdAt:desc" },
   relations: [],
 });
