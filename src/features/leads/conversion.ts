@@ -8,9 +8,9 @@
 import { eq } from "drizzle-orm";
 import { company, lead, person } from "@/db/schema";
 import { recordHistory, type HistoryInput } from "@/features/history/history";
-import { validateValues } from "@/features/objects/fields";
+import { validateValues, type FieldValues } from "@/features/objects/fields";
 import { createObject, getObjectRecord, type Actor, type ObjectRecord } from "@/features/objects/service";
-import { writeContactProfile } from "@/features/persons/contact-profile";
+import { readContactProfile, writeContactProfile, type ContactProfile } from "@/features/persons/contact-profile";
 import { holderOf, type Holder } from "@/features/persons/emails";
 import { DECISION_ROLE_FIELD, DEFAULT_DECISION_ROLE, JOB_TITLE_FIELD, normalizeEmail, PERSON_FIELDS } from "@/features/persons/schema";
 import { HttpError } from "@/lib/auth/session";
@@ -39,7 +39,18 @@ type CompanyChoice = { kind: "existing"; id: string; name: string; archivedAt: D
 type PersonChoice = { kind: "found"; id: string; name: string; archivedAt: Date | null } | { kind: "new"; firstName: string; lastName: string };
 
 /** Ce que la fenêtre a confirmé, validé contre les descripteurs de la personne et du profil, avant toute écriture. */
-type Plan = { person: PersonChoice; firstName: string | null; lastName: string | null; company: CompanyChoice; jobTitle: string | null; decisionRole: string };
+type Plan = {
+  person: PersonChoice;
+  firstName: string | null;
+  lastName: string | null;
+  company: CompanyChoice;
+  /** le profil contact que la personne retrouvée porte déjà */
+  contact: ContactProfile | null;
+  /** la personne reste contact là où elle l'est : son profil n'est pas touché */
+  keepsContact: boolean;
+  jobTitle: string | null;
+  decisionRole: string;
+};
 
 /** Champs de la personne qu'une conversion vers une personne retrouvée remplit s'ils sont vides, sans jamais écraser (D16). */
 const FILLED_PERSON_FIELDS = ["phone", "linkedin"] as const;
@@ -68,8 +79,11 @@ async function chosenCompany(id: unknown): Promise<CompanyChoice | null> {
 /** Valide l'entrée de la fenêtre : prénom, nom et entreprise obligatoires pour une nouvelle personne, rôle dans sa liste (400 par champ). */
 async function planOf(current: ObjectRecord, body: Record<string, unknown>): Promise<Plan> {
   const pick = (key: string) => (key in body ? body[key] : current[key]);
-  const existing = await chosenCompany(body.companyId);
+  const chosen = await chosenCompany(body.companyId);
   const found = await foundPersonOf(current);
+  const contact = found ? await readContactProfile(found.id) : null;
+  const keeps = keepsContact(found, contact, chosen, body.keepCompany);
+  const existing: CompanyChoice | null = keeps && contact ? { kind: "existing", id: contact.companyId, name: contact.companyName, archivedAt: null } : chosen;
   /* Retrouvée, la personne garde son prénom et son nom : la fenêtre les montre en lecture, ils ne sont pas exigés (D15). */
   const named = (key: string) => ({ ...personField(key), required: found === null });
   const companyField = { ...personField("lastName"), key: COMPANY_INPUT, label: "Entreprise", required: existing === null };
@@ -86,9 +100,26 @@ async function planOf(current: ObjectRecord, body: Record<string, unknown>): Pro
     firstName,
     lastName,
     company: existing ?? { kind: "new", name: String(values[COMPANY_INPUT]) },
+    contact,
+    keepsContact: keeps,
     jobTitle: text(values.jobTitle),
     decisionRole: text(values.decisionRole) ?? DEFAULT_DECISION_ROLE,
   };
+}
+
+/** La question de la fenêtre quand la personne retrouvée est déjà contact ailleurs : sous elle s'affiche le refus de ne pas y répondre. */
+export const KEEP_COMPANY_INPUT = "keepCompany";
+
+/**
+ * Vrai quand la conversion garde l'entreprise où la personne est déjà contact (D15) : ce choix désigne
+ * l'entreprise de la conversion, et le profil n'est pas touché. La question ne se pose que si la
+ * personne est contact ailleurs que dans l'entreprise choisie ; sans réponse, 400 sous la question.
+ */
+function keepsContact(found: Holder | null, contact: ContactProfile | null, chosen: CompanyChoice | null, answer: unknown): boolean {
+  if (!found || !contact) return false;
+  if (chosen?.kind === "existing" && chosen.id === contact.companyId) return true;
+  if (typeof answer === "boolean") return answer;
+  throw invalid({ [KEEP_COMPANY_INPUT]: `« ${found.name} » est déjà contact chez « ${contact.companyName} » : choisissez l'entreprise à garder.` });
 }
 
 /** 409 qui dit pourquoi un lead ne se convertit pas : archivé, déjà converti, écarté (D14). */
@@ -118,6 +149,18 @@ async function completePerson(personId: string, current: ObjectRecord, actor: Ac
 }
 
 /**
+ * Valeurs du profil contact (D16) : créé, il prend le poste et le rôle de la fenêtre ; complété, il ne
+ * reçoit le poste que s'il n'en a pas, et le rôle que s'il est « non précisé » — rien n'est écrasé.
+ */
+function profileValues({ contact, jobTitle, decisionRole }: Plan): FieldValues {
+  if (!contact) return { jobTitle, decisionRole };
+  return {
+    ...(contact.jobTitle === null && jobTitle !== null ? { jobTitle } : {}),
+    ...(contact.decisionRole === DEFAULT_DECISION_ROLE ? { decisionRole } : {}),
+  };
+}
+
+/**
  * Convertit un lead (D16) : 404 inconnu, 400 par champ, 409 archivé, converti ou écarté. Tout
  * s'écrit dans une transaction ouverte sur le lead verrouillé, relu sous le verrou.
  */
@@ -139,7 +182,7 @@ export async function convertLead(id: string, input: unknown, actor: Actor): Pro
     const personId = plan.person.kind === "found" ? await completePerson(plan.person.id, current, actor, tx) : await createPerson(plan.person, current, actor, tx);
     const personName = plan.person.kind === "found" ? plan.person.name : `${plan.person.firstName} ${plan.person.lastName}`;
 
-    await writeContactProfile(personId, { values: { jobTitle: plan.jobTitle, decisionRole: plan.decisionRole }, company: { id: companyId, name: companyName, archivedAt: null } }, actor, tx);
+    if (!plan.keepsContact) await writeContactProfile(personId, { values: profileValues(plan), company: { id: companyId, name: companyName, archivedAt: null } }, actor, tx);
 
     /* Ce que la fenêtre a complété ne s'écrit sur le lead que dans ses champs vides (D15) : rien n'y est écrasé. */
     const completed = Object.entries({ firstName: plan.firstName, lastName: plan.lastName, companyName, jobTitle: plan.jobTitle }).filter(
