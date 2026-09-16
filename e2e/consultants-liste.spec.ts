@@ -75,6 +75,10 @@ test.describe("liste « Consultants » à l'écran (CRM-86, contrat 14)", () => 
     const row = (name: string) => table(memberPage).getByRole("row").filter({ has: memberPage.getByRole("link", { name, exact: true }) });
     await expect(row(dina).getByRole("cell").nth(2)).toHaveText("HCM ✔, Integration");
     await expect(row(remi).getByRole("cell").nth(3)).toHaveText("520,00 €");
+    /* Sept colonnes tiennent dans 1280 px barre latérale ouverte, et le nom reste lisible : une colonne de titre écrasée à zéro cacherait le lien. */
+    await expect(table(memberPage).getByRole("link", { name: remi, exact: true })).toBeVisible();
+    expect((await table(memberPage).getByRole("link", { name: remi, exact: true }).boundingBox())!.width).toBeGreaterThan(80);
+    expect(await memberPage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 
     await memberPage.goto(`/consultants?${mine}&f=modules:contient:integration`);
     expect((await names(memberPage)).sort()).toEqual([dina, leo].sort());
