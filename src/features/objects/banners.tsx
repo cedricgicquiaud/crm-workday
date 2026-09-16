@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import { cn } from "cn";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { overdueTasks } from "@/features/activities/overdue";
@@ -104,10 +105,14 @@ export async function SheetBanners({ type, id, showAction = false }: { type: str
       <AlertTitle>{first.message}</AlertTitle>
       {(action || others.length > 0 || (first.links?.length ?? 0) > 0) && (
         <AlertDescription>
-          {first.links?.map((link) => (
-            <Link key={link.href} href={link.href} title={link.label} className="min-w-0 truncate font-medium underline underline-offset-2 focus-visible:rounded-sm">
-              {link.label}
-            </Link>
+          {/* Les liens se lisent séparés par « · » : collés, deux noms n'en font qu'un (« Hugo LemaireÉnergies Norvel »). */}
+          {first.links?.map((link, index) => (
+            <Fragment key={link.href}>
+              {index > 0 && " · "}
+              <Link href={link.href} title={link.label} className="min-w-0 truncate font-medium underline underline-offset-2 focus-visible:rounded-sm">
+                {link.label}
+              </Link>
+            </Fragment>
           ))}
           {action && (
             <Link href={action.href} className="font-medium underline underline-offset-2">
