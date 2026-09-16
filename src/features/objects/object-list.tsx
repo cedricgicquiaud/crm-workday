@@ -13,8 +13,8 @@ import { ListCell } from "@/features/lists/inline-edit";
 import { ListCards } from "@/features/lists/list-cards";
 import { isSortable, UPDATED_AT, type Sort } from "@/features/lists/sort";
 import { listUrl, searchParamsOf, type ListState } from "@/features/lists/url-state";
-import { createLabel as createButtonLabel, displayValue, formatDate } from "@/features/objects/labels";
-import { getList, getObject, type ListDefinition, type ObjectLabels } from "@/features/objects/registry";
+import { cellText, createLabel as createButtonLabel, displayValue, formatDate } from "@/features/objects/labels";
+import { getList, getObject, type FieldDescriptor, type ListDefinition, type ObjectLabels } from "@/features/objects/registry";
 import { listObjectRecords, listUserOptions } from "@/features/objects/service";
 import { CREATE_PARAM } from "@/features/objects/palette-entries";
 import { QuickCreateDialog } from "@/features/objects/quick-create-dialog";
@@ -34,6 +34,35 @@ const ARIA_SORT = { asc: "ascending", desc: "descending" } as const;
 /** Valeur brute d'un champ, telle que la cellule la renverra au serveur. */
 const rawValue = (value: unknown) => (value === null || value === undefined ? "" : String(value));
 
+/**
+ * Le descripteur tel que la cellule du navigateur le reçoit : sans ses règles serveur (rendu dérivé,
+ * clé de tri, motif de validation), qui ne franchissent pas la frontière client — une seule, et la
+ * page entière tombe. La cellule n'en a pas besoin : elle affiche et renvoie une valeur.
+ */
+const forClient = (field: FieldDescriptor): FieldDescriptor => Object.fromEntries(Object.entries(field).filter(([, value]) => crossesToClient(value))) as FieldDescriptor;
+
+/** Une valeur passe au navigateur si elle ne porte, à aucune profondeur, ni fonction ni expression régulière. */
+function crossesToClient(value: unknown): boolean {
+  if (typeof value === "function" || value instanceof RegExp) return false;
+  if (value && typeof value === "object") return Object.values(value).every(crossesToClient);
+  return true;
+}
+
+/** Texte en lecture d'une cellule, tronqué, avec le texte complet au survol. */
+function ReadOnlyCell({ text }: { text: string }) {
+  return (
+    <span className="block truncate" title={text}>
+      {text}
+    </span>
+  );
+}
+
+/**
+ * Part de la largeur d'une colonne de valeur : 72 % du tableau se partagent entre elles, 18 % au plus
+ * chacune. Le reste revient au titre, que `table-fixed` écraserait à zéro si les colonnes dépassaient 100 %.
+ */
+const columnShare = (count: number) => `${Math.min(18, 72 / Math.max(count, 1))}%`;
+
 /** Le tri suivant au clic : le même champ change de sens, un autre champ commence croissant. */
 const nextSort = (sort: Sort, field: string): Sort => ({ field, direction: sort.field === field && sort.direction === "asc" ? "desc" : "asc" });
 
@@ -41,11 +70,12 @@ const nextSort = (sort: Sort, field: string): Sort => ({ field, direction: sort.
  * En-tête de colonne : un lien qui trie quand le champ le permet (D6), sinon le libellé seul.
  * Le tri passe par l'URL, donc il fonctionne sans JavaScript et se partage avec l'adresse.
  */
-function ColumnHeader({ list, type, state, field, label, className }: { list: string; type: string; state: ListState; field: string; label: string; className: string }) {
-  if (!isSortable(type, field)) return <TableHead className={className}>{label}</TableHead>;
+function ColumnHeader({ list, type, state, field, label, className, width }: { list: string; type: string; state: ListState; field: string; label: string; className: string; width?: string }) {
+  const style = width ? { width } : undefined;
+  if (!isSortable(type, field)) return <TableHead className={className} style={style}>{label}</TableHead>;
   const current = state.sort.field === field ? state.sort.direction : null;
   return (
-    <TableHead className={className} aria-sort={current ? ARIA_SORT[current] : "none"}>
+    <TableHead className={className} style={style} aria-sort={current ? ARIA_SORT[current] : "none"}>
       <Link href={listUrl(list, { ...state, sort: nextSort(state.sort, field) })} className="inline-flex max-w-full items-center gap-1 rounded-sm hover:underline">
         <span className="truncate">{label}</span>
         {current === "asc" && <ArrowUpIcon className="size-3 shrink-0" aria-hidden />}
@@ -76,6 +106,7 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
   const fields = columnsOf(listKey);
   const title = fields.find((field) => field.key === definition.titleField)!;
   const columns = state.columns.map((key) => fields.find((field) => field.key === key)!);
+  const valueShare = columnShare(columns.filter((column) => column.key !== UPDATED_AT).length);
   const count = shown.length;
   const singular = (list.singular ?? definition.labels.singular).toLowerCase();
   /* La palette ouvre une création en menant ici avec ce paramètre (D12). */
@@ -118,9 +149,13 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <ColumnHeader list={listKey} type={type} state={state} field={title.key} label={title.label} className="h-7" />
-                  {columns.map((column) => (
-                    <ColumnHeader key={column.key} list={listKey} type={type} state={state} field={column.key} label={column.label} className={column.key === UPDATED_AT ? "h-7 w-28 text-right" : "h-7 w-[18%]"} />
-                  ))}
+                  {columns.map((column) =>
+                    column.key === UPDATED_AT ? (
+                      <ColumnHeader key={column.key} list={listKey} type={type} state={state} field={column.key} label={column.label} className="h-7 w-28 text-right" />
+                    ) : (
+                      <ColumnHeader key={column.key} list={listKey} type={type} state={state} field={column.key} label={column.label} className="h-7" width={valueShare} />
+                    ),
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -143,9 +178,14 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
                           <TableCell key={column.key} className="py-1 text-right tabular-nums text-muted-foreground">
                             {formatDate(record.updatedAt)}
                           </TableCell>
+                        ) : column.display ? (
+                          /* Un champ dérivé s'écrit ici, depuis la fiche entière (D19) : il ne s'édite pas, et sa règle ne voyage pas jusqu'au navigateur. */
+                          <TableCell key={column.key} className="truncate py-1 text-muted-foreground">
+                            <ReadOnlyCell text={cellText(column, record, users)} />
+                          </TableCell>
                         ) : (
                           <TableCell key={column.key} className="truncate py-1 text-muted-foreground">
-                            <ListCell type={type} id={record.id} field={column} value={rawValue(record[column.key])} marked={column.markedBy ? rawValue(record[column.markedBy.field]) : undefined} users={users} />
+                            <ListCell type={type} id={record.id} field={forClient(column)}value={rawValue(record[column.key])} marked={column.markedBy ? rawValue(record[column.markedBy.field]) : undefined} users={users} />
                           </TableCell>
                         ),
                       )}

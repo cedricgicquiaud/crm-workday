@@ -51,6 +51,8 @@ function compareIn(direction: SortDirection, a: unknown, b: unknown): number {
 export function sortRecords(type: string, records: readonly ObjectRecord[], sort: Sort, users: readonly UserOption[] = []): ObjectRecord[] {
   const field = fieldsOf(type).find((candidate) => candidate.key === sort.field);
   const shown = (record: ObjectRecord) => {
+    /* Un champ dérivé déclare son rang : le tri le suit, jamais l'alphabet de ses libellés (D19). */
+    if (field?.sortKey) return field.sortKey(record);
     const value = record[sort.field];
     if (!field || isEmpty(value) || !SHOWN_TYPES.includes(field.type)) return value;
     return displayValue(field, value, users);

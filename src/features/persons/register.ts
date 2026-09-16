@@ -35,8 +35,8 @@ registerObject({
   /**
    * « Consultants » (D10) : les personnes qui portent un profil consultant, sous leur propre entrée de
    * barre latérale, avec leurs colonnes, leur vue par défaut et leur création. Le filtre de base est
-   * appliqué côté serveur et ne se retire pas par l'URL. « État » s'intercalera entre le coût et le
-   * responsable en 3.2.
+   * appliqué côté serveur et ne se retire pas par l'URL. « État », dérivé, se lit entre le coût et le
+   * responsable (D6).
    */
   lists: [
     {
@@ -47,7 +47,7 @@ registerObject({
       href: "/consultants",
       order: 30,
       baseFilters: [{ field: "profiles", operator: "contient", value: "consultant" }],
-      columns: ["status", "modules", "dailyCost", "ownerId"],
+      columns: ["status", "modules", "dailyCost", "state", "ownerId"],
       defaultViewName: "Tous les consultants",
       /* Cinq champs, et une API à elle : elle crée la personne et son profil d'un seul geste (D12). */
       create: { apiBase: "/api/consultants", fields: ["firstName", "lastName", "email", "status", "dailyCost"], label: "Nouveau consultant" },

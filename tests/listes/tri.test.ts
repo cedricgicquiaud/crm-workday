@@ -1,5 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_SORT, isSortable, sortRecords } from "@/features/lists/sort";
+import { parseListState } from "@/features/lists/url-state";
+import { fieldsOf } from "@/features/objects/fields";
+import { cellText } from "@/features/objects/labels";
 import type { ObjectRecord } from "@/features/objects/service";
 import { registerTestObject, TEST_TYPE } from "./objet-de-test";
 
@@ -39,6 +42,38 @@ describe("tri d'une liste (CRM-48, D6)", () => {
     expect(names(sortRecords(TEST_TYPE, records, { field: "kind", direction: "asc" }, users))).toEqual(["Première", "Seconde"]);
     /* « Ana Bello » avant « Zoé Alard » alors que l'identifiant « u1 » vient avant « u2 ». */
     expect(names(sortRecords(TEST_TYPE, records, { field: "ownerId", direction: "asc" }, users))).toEqual(["Seconde", "Première"]);
+  });
+});
+
+/** Un champ dérivé se trie sur le rang qu'il déclare (`sortKey`, D19), jamais sur l'alphabet de ses libellés (CRM-86). */
+describe("tri d'une liste sur un champ dérivé (CRM-86, D19)", () => {
+  const PHASES = [
+    record("Close", day("2026-09-03"), { phase: "close" }),
+    record("Sans phase", day("2026-09-02"), { phase: null }),
+    record("Ouverte", day("2026-09-01"), { phase: "ouverte" }),
+  ];
+
+  it("trie sur la clé de rang déclarée, et laisse une fiche sans rang en dernier", () => {
+    /* Sur le libellé, « Abeille » (close) passerait avant « Zèbre » (ouverte). */
+    expect(names(sortRecords(TEST_TYPE, PHASES, { field: "phase", direction: "asc" }))).toEqual(["Ouverte", "Close", "Sans phase"]);
+    expect(names(sortRecords(TEST_TYPE, PHASES, { field: "phase", direction: "desc" }))).toEqual(["Close", "Ouverte", "Sans phase"]);
+  });
+
+  it("ne trie pas sur un rang déclaré sans `sortable` : l'URL qui le demande retombe sur le tri par défaut", () => {
+    expect(isSortable(TEST_TYPE, "phase")).toBe(true);
+    expect(isSortable(TEST_TYPE, "rank")).toBe(false);
+    expect(parseListState(TEST_TYPE, new URLSearchParams("tri=rank:asc")).sort).toEqual(DEFAULT_SORT);
+  });
+});
+
+/** Ce qu'une cellule ou une carte écrit : `display` pour un champ dérivé, sinon la valeur affichée du champ (D19). */
+describe("lecture d'un champ dérivé dans une liste (CRM-86, D19)", () => {
+  const field = (key: string) => fieldsOf(TEST_TYPE).find((candidate) => candidate.key === key)!;
+
+  it("écrit un champ dérivé depuis la fiche entière, et un champ ordinaire par sa valeur", () => {
+    const fiche = record("Alpha", day("2026-09-01"), { phase: "ouverte", city: "Paris", kind: "zzz" });
+    expect(cellText(field("phase"), fiche, [])).toBe("Zèbre · Paris");
+    expect(cellText(field("kind"), fiche, [])).toBe("Alerte");
   });
 });
 

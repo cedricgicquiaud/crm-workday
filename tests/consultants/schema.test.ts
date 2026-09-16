@@ -53,6 +53,7 @@ describe("champs du profil consultant déclarés par la personne (CRM-80, D2, D3
       "availableFrom",
       "unavailable",
       "unavailableReason",
+      "state",
       "yearsExperience",
       "languages",
       "cvUrl",

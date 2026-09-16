@@ -37,6 +37,23 @@ export function registerTestObject(): void {
         sortable: true,
         order: 70,
       },
+      /*
+       * Champ dérivé (D19) : jamais saisi, rendu depuis la fiche entière et trié sur un rang. « Zèbre » se
+       * range avant « Abeille » : un tri sur le libellé se distingue d'un tri sur le rang déclaré.
+       */
+      {
+        key: "phase",
+        label: "Phase",
+        type: "list",
+        values: [{ value: "ouverte", label: "Zèbre" }, { value: "close", label: "Abeille" }],
+        editable: false,
+        sortable: true,
+        display: (record) => `${record.phase === "ouverte" ? "Zèbre" : "Abeille"} · ${String(record.city ?? "")}`,
+        sortKey: (record) => (record.phase === "ouverte" ? "0" : record.phase === "close" ? "1" : null),
+        order: 80,
+      },
+      /* Un rang déclaré sans `sortable` : la liste ne trie pas dessus (CRM-86). */
+      { key: "rank", label: "Rang", type: "text", editable: false, sortKey: (record) => String(record.rank ?? ""), order: 90 },
     ],
     relations: [],
     listColumns: ["kind", "city"],
