@@ -9,7 +9,7 @@ import { createUserWithPassword } from "@/features/auth/accounts";
 import { createDefinition, loadCustomFields } from "@/features/custom-fields/definitions";
 import { customFieldKey } from "@/features/custom-fields/fields-source";
 import { listHistory } from "@/features/history/history";
-import { fieldsOf } from "@/features/objects/fields";
+import { fieldsOf, isLocked } from "@/features/objects/fields";
 import { selectableValues } from "@/features/objects/labels";
 import { linkedGroups } from "@/features/objects/links-column";
 import { listForState } from "@/features/lists/apply-filters";
@@ -76,7 +76,15 @@ beforeAll(async () => {
       /* Complément : la fiche ne porte pas ce nom dans sa table, le chargeur `attach` le joint à chaque lecture (D19). */
       { key: "parentName", label: "Nom de la fiche mère", type: "text", editable: false, sortable: true, order: 40 },
       /* Une valeur réservée (D21) : elle se lit et se filtre, mais aucune écriture ne la pose — un geste de l'objet la posera. */
-      { key: "phase", label: "Phase", type: "list", values: [{ value: "ouverte", label: "Ouverte" }, { value: "close", label: "Close", reserved: true }], order: 50 },
+      {
+        key: "phase",
+        label: "Phase",
+        type: "list",
+        values: [{ value: "ouverte", label: "Ouverte" }, { value: "close", label: "Close", reserved: true }],
+        /* Un champ figé selon la fiche (D21) : une fiche close ne change plus de phase tant qu'un geste ne la rouvre pas. */
+        lockedWhen: { test: (record) => record.phase === "close", message: "Fiche close : la rouvrir d'abord." },
+        order: 50,
+      },
     ],
     relations: [{ to: TYPE, fkColumn: "parentId", label: "Fiche mère", inverseLabel: "Fiches filles", prefill: "parentId" }],
     quickCreate: ["name"],
@@ -195,5 +203,27 @@ describe("valeur de liste réservée, par déclaration (CRM-91, D21)", () => {
     await expect(updateObject(TYPE, record.id, { phase: "close" }, { id: actorId })).rejects.toMatchObject({ status: 400, details: { fields: { phase: "« Close » ne se pose pas à la main dans « Phase »." } } });
     await expect(createObject(TYPE, { name: "Fiche close", phase: "close" }, { id: actorId })).rejects.toMatchObject({ status: 400 });
     expect((await getObjectRecord(TYPE, record.id)).phase).toBe("ouverte");
+  });
+});
+
+/**
+ * D21 : un champ peut se figer selon la fiche (l'avancement d'un lead écarté), sans que la fiche entière
+ * passe en lecture seule. Le mécanisme lit la déclaration : la fiche le rend en texte, l'écriture le
+ * refuse (409), et les autres champs de la même fiche restent modifiables.
+ */
+describe("champ figé selon la fiche, par déclaration (CRM-91, D21)", () => {
+  it("se lit en texte sur la fiche qui le fige, l'écriture le refuse (409) sous le champ, et les autres champs restent modifiables", async () => {
+    const record = await createObject(TYPE, { name: "Fiche à clore", phase: "ouverte" }, { id: actorId });
+    const phase = fieldsOf(TYPE).find((field) => field.key === "phase")!;
+    expect(isLocked(phase, record)).toBe(false);
+
+    /* La phase réservée est posée par le geste de l'objet, qui écrit directement. */
+    await db.update(testTable).set({ phase: "close" }).where(eq(testTable.id, record.id));
+    const closed = await getObjectRecord(TYPE, record.id);
+    expect(isLocked(phase, closed)).toBe(true);
+
+    await expect(updateObject(TYPE, record.id, { phase: "ouverte" }, { id: actorId })).rejects.toMatchObject({ status: 409, details: { fields: { phase: "Fiche close : la rouvrir d'abord." } } });
+    expect((await updateObject(TYPE, record.id, { name: "Fiche close renommée" }, { id: actorId })).name).toBe("Fiche close renommée");
+    expect((await getObjectRecord(TYPE, record.id)).phase).toBe("close");
   });
 });
