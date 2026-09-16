@@ -16,7 +16,7 @@ import { listForState } from "@/features/lists/apply-filters";
 import { defaultColumnKeys } from "@/features/lists/columns";
 import { parseListState } from "@/features/lists/url-state";
 import { listLists, registerObject } from "@/features/objects/registry";
-import { registerServerObject } from "@/features/objects/registry.server";
+import { registerServerObject, visibleActions } from "@/features/objects/registry.server";
 import { createObject, getObjectRecord, listObjectRecords, updateObject } from "@/features/objects/service";
 import { search } from "@/features/search/search";
 import { defaultView } from "@/features/views/views";
@@ -112,6 +112,12 @@ beforeAll(async () => {
       return rows.filter((row) => row.name.toLowerCase().includes(query.toLowerCase())).map((row) => ({ id: row.id, title: row.name }));
     },
     duplicateKey: (record) => String(record.name ?? "") || null,
+    /* Des actions d'en-tête déclarées (D21), rangées par rang et visibles selon la fiche : « Clore » sur une fiche ouverte, « Rouvrir » sur une fiche close. */
+    actions: [
+      { key: "rouvrir", order: 20, visible: (record) => record.phase === "close", render: () => null },
+      { key: "clore", order: 10, visible: (record) => record.phase !== "close", render: () => null },
+      { key: "exporter", order: 5, visible: () => true, render: () => null },
+    ],
     /* Le service appelle ce chargeur à chaque lecture — une fiche, une liste — et lui passe toutes les fiches d'un coup : un complément ne coûte pas une requête par ligne. */
     attach: async (records) => {
       const ids = records.map((record) => record.parentId).filter((id): id is string => typeof id === "string");
@@ -225,5 +231,14 @@ describe("champ figé selon la fiche, par déclaration (CRM-91, D21)", () => {
     await expect(updateObject(TYPE, record.id, { phase: "ouverte" }, { id: actorId })).rejects.toMatchObject({ status: 409, details: { fields: { phase: "Fiche close : la rouvrir d'abord." } } });
     expect((await updateObject(TYPE, record.id, { name: "Fiche close renommée" }, { id: actorId })).name).toBe("Fiche close renommée");
     expect((await getObjectRecord(TYPE, record.id)).phase).toBe("close");
+  });
+});
+
+/** D21 : un objet déclare ses gestes d'en-tête (Écarter, Rouvrir d'un lead) ; la fiche montre ceux que la fiche permet, par rang. */
+describe("actions d'en-tête déclarées (CRM-91, D21)", () => {
+  it("rend les actions visibles pour la fiche, par rang croissant, et aucune sur une fiche archivée", () => {
+    expect(visibleActions(TYPE, { phase: "ouverte", archivedAt: null }).map((action) => action.key)).toEqual(["exporter", "clore"]);
+    expect(visibleActions(TYPE, { phase: "close", archivedAt: null }).map((action) => action.key)).toEqual(["exporter", "rouvrir"]);
+    expect(visibleActions(TYPE, { phase: "close", archivedAt: new Date() })).toEqual([]);
   });
 });
