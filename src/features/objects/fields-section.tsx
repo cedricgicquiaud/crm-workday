@@ -5,7 +5,7 @@ import { useState } from "react";
 import "@/features/objects/manifest";
 import { FieldControl, type FieldControlKind, type FieldControlOption } from "@/features/objects/field-control";
 import { sheetFieldsOf } from "@/features/objects/fields";
-import { displayValue, type SerializedRecord, type UserOption } from "@/features/objects/labels";
+import { displayValue, selectableValues, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 
 /** `readOnly` : la fiche entière ne se modifie plus (fiche archivée, D21) ; `field.editable` reste la règle du champ. */
@@ -93,11 +93,9 @@ function kindOf(field: FieldDescriptor): FieldControlKind {
 
 /** Valeurs proposées par un champ de liste ou de responsable ; rien pour un champ de saisie. */
 function optionsOf(field: FieldDescriptor, saved: string, users: readonly UserOption[]): readonly FieldControlOption[] | undefined {
-  const options = field.type === "list" ? field.values ?? [] : field.type === "user" ? users.map((u) => ({ value: u.id, label: u.name })) : null;
-  if (!options) return undefined;
-  /* Une valeur retirée de la liste (2.4) reste affichée telle qu'elle a été enregistrée, marquée, et ne se choisit plus. */
-  const retired = field.retiredValues?.find((value) => value.value === saved);
-  return retired ? [...options, { value: retired.value, label: displayValue(field, saved, users), disabled: true }] : options;
+  /* Une valeur réservée (D21) ou retirée (2.4) portée par la fiche reste affichée, marquée, et ne se choisit pas. */
+  if (field.type === "list") return selectableValues(field, saved);
+  return field.type === "user" ? users.map((u) => ({ value: u.id, label: u.name })) : undefined;
 }
 
 /** Un champ de la fiche, éditable en place ou lu comme du texte quand il ne se saisit pas (champ dérivé, fiche archivée). */

@@ -71,6 +71,20 @@ export function cellText(field: FieldDescriptor, record: Record<string, unknown>
   return displayValue(field, record[field.key], users, field.markedBy ? record[field.markedBy.field] : undefined);
 }
 
+/** Une valeur qu'un sélecteur montre ; `disabled` : lisible sur la fiche qui la porte, jamais à choisir. */
+export type SelectableValue = { value: string; label: string; disabled?: boolean };
+
+/**
+ * Valeurs qu'un sélecteur de liste propose pour une fiche (fiche, cellule) : celles de la liste, sans
+ * les valeurs réservées à un geste de l'objet (D21). La valeur enregistrée, si elle est réservée ou
+ * retirée (2.4), s'ajoute éteinte et marquée : le sélecteur dit ce que la fiche porte sans le proposer.
+ */
+export function selectableValues(field: FieldDescriptor, saved: string): SelectableValue[] {
+  const choosable = (field.values ?? []).filter((entry) => !entry.reserved).map(({ value, label }) => ({ value, label }));
+  const carried = choosable.some((entry) => entry.value === saved) || saved === "" ? null : [...(field.values ?? []), ...(field.retiredValues ?? [])].find((entry) => entry.value === saved);
+  return carried ? [...choosable, { value: saved, label: displayValue(field, saved, []), disabled: true }] : choosable;
+}
+
 /** « 650,00 € », « 6 » : décimales fixes quand le champ en déclare, unité après la valeur. */
 export function formatNumber(field: FieldDescriptor, value: number): string {
   if (!Number.isFinite(value)) return EMPTY;

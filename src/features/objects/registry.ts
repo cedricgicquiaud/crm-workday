@@ -10,7 +10,11 @@ import type { LucideIcon } from "lucide-react";
 /** `multilist` : plusieurs valeurs d'une liste fermée dans un même champ (modules Workday, Profils, D19). */
 export type FieldType = "text" | "list" | "date" | "number" | "user" | "multilist";
 
-export type ListValue = { value: string; label: string };
+/**
+ * `reserved` : une valeur que seul un geste de l'objet pose (« converti », « écarté » d'un lead, D21).
+ * Elle se lit et se filtre comme les autres ; aucun sélecteur ne la propose et l'écriture la refuse (400).
+ */
+export type ListValue = { value: string; label: string; reserved?: boolean };
 
 /** Descripteur d'un champ : il pilote la section des champs de la fiche, l'édition en place, l'historique, puis les colonnes, filtres et tri (2.5a) et les champs personnalisés (2.4). */
 export type FieldDescriptor = {

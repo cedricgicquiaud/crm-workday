@@ -55,6 +55,7 @@ const MESSAGES = {
   notADate: (label: string) => `« ${label} » doit être une date au format AAAA-MM-JJ.`,
   notANumber: (label: string) => `« ${label} » doit être un nombre.`,
   outOfList: (label: string) => `Valeur hors liste pour « ${label} ».`,
+  reserved: (value: string, label: string) => `« ${value} » ne se pose pas à la main dans « ${label} ».`,
   tooLong: (label: string, max: number) => `« ${label} » dépasse ${max} caractères.`,
   notASet: (label: string) => `« ${label} » attend une liste de valeurs.`,
   notAnInteger: (label: string) => `« ${label} » doit être un nombre entier.`,
@@ -180,8 +181,14 @@ export function validateValues(fields: readonly FieldDescriptor[], input: unknow
       }
     }
     if (typeof value === "string") {
-      if (field.type === "list" && !field.values?.some((v) => v.value === value)) {
+      const listed = field.type === "list" ? field.values?.find((v) => v.value === value) : undefined;
+      if (field.type === "list" && !listed) {
         errors[field.key] = MESSAGES.outOfList(field.label);
+        continue;
+      }
+      /* Une valeur réservée n'est posée que par le geste de l'objet, qui écrit sans passer par ici (D21). */
+      if (listed?.reserved) {
+        errors[field.key] = MESSAGES.reserved(listed.label, field.label);
         continue;
       }
       if (field.maxLength !== undefined && value.length > field.maxLength) {

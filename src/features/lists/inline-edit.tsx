@@ -3,7 +3,7 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import "@/features/objects/manifest";
-import { displayValue, type SerializedRecord, type UserOption } from "@/features/objects/labels";
+import { displayValue, selectableValues, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 
 /** `marked` : les valeurs du champ compagnon déclaré (`markedBy`), qui portent sa marque dans la cellule. */
@@ -140,17 +140,12 @@ export function ListCell({ type, id, field, value: initial, marked, users }: Pro
         onBlur={() => setEditing(false)}
       >
         <option value="">—</option>
-        {(field.values ?? []).map((entry) => (
-          <option key={entry.value} value={entry.value}>
+        {/* Une valeur réservée (D21) ou retirée (2.4) reste lisible sur la fiche qui la porte, et ne se choisit pas. */}
+        {selectableValues(field, saved).map((entry) => (
+          <option key={entry.value} value={entry.value} disabled={entry.disabled}>
             {entry.label}
           </option>
         ))}
-        {/* Une valeur retirée de la liste (2.4) reste lisible sur la fiche qui la porte, et ne se choisit plus. */}
-        {field.retiredValues?.some((entry) => entry.value === saved) && (
-          <option value={saved} disabled>
-            {text}
-          </option>
-        )}
       </select>
     );
   }
