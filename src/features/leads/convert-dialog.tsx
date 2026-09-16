@@ -249,28 +249,33 @@ export function ConvertLeadAction({ id }: { id: string }) {
                 <h3 id={`${ids}-profil`} className="text-sm font-medium">
                   Profil contact
                 </h3>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <label className={FIELD}>
-                    <span className="text-xs text-muted-foreground">Poste</span>
-                    <Input value={draft.jobTitle} disabled={keeps} onChange={(event) => update({ jobTitle: event.target.value })} />
-                    <FieldError id={`${ids}-poste-erreur`} message={fieldErrors.jobTitle} />
-                  </label>
-                  <label className={FIELD}>
-                    <span className="text-xs text-muted-foreground">Rôle dans la décision</span>
-                    <select
-                      value={draft.decisionRole}
-                      onChange={(event) => update({ decisionRole: event.target.value })}
-                      className="h-[var(--control-h)] rounded-md border bg-transparent px-2 text-sm focus-visible:outline-2 focus-visible:outline-ring"
-                    >
-                      {DECISION_ROLES.map((role) => (
-                        <option key={role.value} value={role.value}>
-                          {role.label}
-                        </option>
-                      ))}
-                    </select>
-                    <FieldError id={`${ids}-role-erreur`} message={fieldErrors.decisionRole} />
-                  </label>
-                </div>
+                {/* Garder l'entreprise actuelle laisse le profil entier inchangé (D15) : rien à saisir, une phrase le dit. */}
+                {keeps && contact ? (
+                  <p className="min-w-0 truncate text-sm" title={contact.companyName}>{`Le profil contact chez « ${contact.companyName} » reste inchangé.`}</p>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className={FIELD}>
+                      <span className="text-xs text-muted-foreground">Poste</span>
+                      <Input value={draft.jobTitle} onChange={(event) => update({ jobTitle: event.target.value })} />
+                      <FieldError id={`${ids}-poste-erreur`} message={fieldErrors.jobTitle} />
+                    </label>
+                    <label className={FIELD}>
+                      <span className="text-xs text-muted-foreground">Rôle dans la décision</span>
+                      <select
+                        value={draft.decisionRole}
+                        onChange={(event) => update({ decisionRole: event.target.value })}
+                        className="h-[var(--control-h)] rounded-md border bg-transparent px-2 text-sm focus-visible:outline-2 focus-visible:outline-ring"
+                      >
+                        {DECISION_ROLES.map((role) => (
+                          <option key={role.value} value={role.value}>
+                            {role.label}
+                          </option>
+                        ))}
+                      </select>
+                      <FieldError id={`${ids}-role-erreur`} message={fieldErrors.decisionRole} />
+                    </label>
+                  </div>
+                )}
               </section>
             )}
           </div>
