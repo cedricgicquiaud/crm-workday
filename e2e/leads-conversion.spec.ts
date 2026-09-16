@@ -23,11 +23,8 @@ test.beforeAll(() => {
   seedAccounts();
 });
 test.beforeEach(resetAll);
-test.afterAll(() => {
-  /* Refus du découpage (T9) : `resetObjects()` lancé après la suite des leads ne bute sur aucune clé étrangère. */
-  resetObjects();
-  resetAll();
-});
+/* Refus du découpage (T9) : `resetAll()` passe `resetObjects()` après la suite des leads sans buter sur une clé étrangère. Un `resetObjects()` isolé bute sur les profils contact que les tests laissent (déjà vrai avant 4.1b) : les personnes partent d'abord. */
+test.afterAll(resetAll);
 
 async function createLead(page: Page, data: Record<string, unknown>): Promise<string> {
   const created = await page.request.post("/api/leads", { data });
@@ -111,6 +108,10 @@ test.describe("convertir un lead depuis sa fiche (CRM-96, contrats 15, 19, 20, 2
     await expect(dialog.getByText(`Déjà contact chez « ${acmeName} » : quelle entreprise garder ?`)).toBeVisible();
     await dialog.getByRole("radio", { name: `Garder « ${acmeName} »` }).check();
     await expect(dialog.getByRole("textbox", { name: "Entreprise" })).toHaveCount(0);
+    /* Garder « Acme » laisse le profil entier inchangé (D15) : ni poste ni rôle à saisir, une phrase le dit. */
+    await expect(dialog.getByRole("textbox", { name: "Poste" })).toHaveCount(0);
+    await expect(dialog.getByRole("combobox", { name: "Rôle dans la décision" })).toHaveCount(0);
+    await expect(dialog.getByText(`Le profil contact chez « ${acmeName} » reste inchangé.`)).toBeVisible();
     await confirm(memberPage, id, dialog);
 
     const banner = memberPage.getByRole("status").filter({ hasText: "Converti le" });
