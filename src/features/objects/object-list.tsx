@@ -14,7 +14,7 @@ import { ListCards } from "@/features/lists/list-cards";
 import { isSortable, UPDATED_AT, type Sort } from "@/features/lists/sort";
 import { listUrl, searchParamsOf, type ListState } from "@/features/lists/url-state";
 import { cellText, createLabel as createButtonLabel, displayValue, formatDate } from "@/features/objects/labels";
-import { getList, getObject, type ListDefinition, type ObjectLabels } from "@/features/objects/registry";
+import { getList, getObject, type FieldDescriptor, type ListDefinition, type ObjectLabels } from "@/features/objects/registry";
 import { listObjectRecords, listUserOptions } from "@/features/objects/service";
 import { CREATE_PARAM } from "@/features/objects/palette-entries";
 import { QuickCreateDialog } from "@/features/objects/quick-create-dialog";
@@ -33,6 +33,20 @@ const ARIA_SORT = { asc: "ascending", desc: "descending" } as const;
 
 /** Valeur brute d'un champ, telle que la cellule la renverra au serveur. */
 const rawValue = (value: unknown) => (value === null || value === undefined ? "" : String(value));
+
+/**
+ * Le descripteur tel que la cellule du navigateur le reçoit : sans ses règles serveur (rendu dérivé,
+ * clé de tri, motif de validation), qui ne franchissent pas la frontière client — une seule, et la
+ * page entière tombe. La cellule n'en a pas besoin : elle affiche et renvoie une valeur.
+ */
+const forClient = (field: FieldDescriptor): FieldDescriptor => Object.fromEntries(Object.entries(field).filter(([, value]) => crossesToClient(value))) as FieldDescriptor;
+
+/** Une valeur passe au navigateur si elle ne porte, à aucune profondeur, ni fonction ni expression régulière. */
+function crossesToClient(value: unknown): boolean {
+  if (typeof value === "function" || value instanceof RegExp) return false;
+  if (value && typeof value === "object") return Object.values(value).every(crossesToClient);
+  return true;
+}
 
 /** Texte en lecture d'une cellule, tronqué, avec le texte complet au survol. */
 function ReadOnlyCell({ text }: { text: string }) {
@@ -159,7 +173,7 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
                           </TableCell>
                         ) : (
                           <TableCell key={column.key} className="truncate py-1 text-muted-foreground">
-                            <ListCell type={type} id={record.id} field={column} value={rawValue(record[column.key])} marked={column.markedBy ? rawValue(record[column.markedBy.field]) : undefined} users={users} />
+                            <ListCell type={type} id={record.id} field={forClient(column)}value={rawValue(record[column.key])} marked={column.markedBy ? rawValue(record[column.markedBy.field]) : undefined} users={users} />
                           </TableCell>
                         ),
                       )}
