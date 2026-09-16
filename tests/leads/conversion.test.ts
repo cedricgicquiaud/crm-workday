@@ -86,4 +86,28 @@ describe("convertir un lead en nouvelle personne et nouvelle entreprise (CRM-95,
     const conversion = (await listHistory("lead", id)).find((entry) => entry.action === "conversion");
     expect(conversion?.newValue).toBe("Julie Martin · Banque X");
   });
+
+  it("convertit de la même façon un lead « Nouveau » et un lead « Contacté » (contrat 16)", async () => {
+    const fresh = await createLead({ firstName: "Nina", lastName: "Morel", companyName: "Assur Nord", origin: "partenaire" });
+    const contacted = await createLead({ firstName: "Paul", lastName: "Leroy", companyName: "Assur Sud", origin: "autre" });
+    await setStage(contacted, "contacte");
+
+    expect((await convert(fresh, {})).status).toBe(200);
+    expect((await convert(contacted, {})).status).toBe(200);
+    expect(await readLead(fresh)).toMatchObject({ stage: "converti" });
+    expect(await readLead(contacted)).toMatchObject({ stage: "converti" });
+  });
+
+  it("convertit un lead sans prénom ni nom après leur saisie dans la fenêtre, et les écrit sur la personne et sur le lead (contrat 17)", async () => {
+    const id = await createLead({ companyName: "Banque Z", origin: "appel_d_offres" });
+
+    const res = await convert(id, { firstName: "Sarah", lastName: "Klein" });
+    expect(res.status).toBe(200);
+    const { personId } = (await res.json()) as { personId: string };
+
+    expect(await readPerson(personId)).toMatchObject({ firstName: "Sarah", lastName: "Klein" });
+    expect(await readLead(id)).toMatchObject({ firstName: "Sarah", lastName: "Klein", title: "Sarah Klein · Banque Z" });
+    const completed = (await listHistory("lead", id)).filter((entry) => entry.action === "modifiee").map((entry) => [entry.field, entry.oldValue, entry.newValue]);
+    expect(completed).toEqual(expect.arrayContaining([["firstName", null, "Sarah"], ["lastName", null, "Klein"]]));
+  });
 });
