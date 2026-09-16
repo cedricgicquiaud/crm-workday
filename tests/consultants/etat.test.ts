@@ -39,4 +39,10 @@ describe("libellé de l'état et mention « à replacer » (CRM-85, D6)", () => 
     expect(stateLabel({ state: "en_mission", availableFrom: "2026-10-05", status: "freelance" })).toBe("En mission · disponible le 5 oct. 2026");
     expect(stateLabel({ state: "indisponible", availableFrom: "2026-10-05", status: "freelance" })).toBe("Indisponible");
   });
+
+  it("ajoute « à replacer » à un salarié disponible seulement", () => {
+    expect(stateLabel({ state: "disponible", availableFrom: null, status: "salarie" })).toBe("Disponible · à replacer");
+    expect(stateLabel({ state: "disponible", availableFrom: "2026-09-01", status: "freelance" })).toBe("Disponible");
+    expect(stateLabel({ state: "en_mission", availableFrom: "2026-10-05", status: "salarie" })).toBe("En mission · disponible le 5 oct. 2026");
+  });
 });
