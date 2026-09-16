@@ -84,3 +84,14 @@ describe("état d'un consultant lu sur sa fiche (CRM-85, contrat 11)", () => {
     );
   });
 });
+
+/** Refus (D6) : l'état se déduit, il ne se saisit pas — ni par l'API du profil, ni par celle de la personne. Jamais un 200 qui n'aurait rien écrit. */
+describe("refus d'écrire l'état d'un consultant (CRM-85, D6)", () => {
+  it("répond 400 sur le champ « État » envoyé à l'API du profil, et n'écrit rien", async () => {
+    const id = await createConsultant("Saisie", "freelance");
+    const refused = await patchProfile(id, { state: "indisponible", languages: "français" });
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({ fields: { state: "« État » se déduit des autres champs du profil et ne se saisit pas." } });
+    expect(await readPerson(id)).toMatchObject({ state: "disponible", languages: null });
+  });
+});
