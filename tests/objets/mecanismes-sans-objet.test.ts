@@ -32,6 +32,9 @@ describe("les mécanismes ne citent aucun objet (CRM-33, D4)", () => {
   it("échouerait sur un fichier des mécanismes qui citerait un objet", () => {
     expect(FORBIDDEN.test('const label = getObject("company").labels;')).toBe(true);
     expect(FORBIDDEN.test('const label = getObject("consultant").labels;')).toBe(true);
+    expect(FORBIDDEN.test('const label = getObject("lead").labels;')).toBe(true);
+    expect(FORBIDDEN.test("if (type === 'Lead') return;")).toBe(true);
+    expect(FORBIDDEN.test("const leader = misleading;")).toBe(false);
     expect(FORBIDDEN.test("import { companies } from './x'; // personne, personnel")).toBe(false);
   });
 });
