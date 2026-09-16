@@ -1,0 +1,89 @@
+import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { POST as postConversion } from "@/app/api/leads/[id]/conversion/route";
+import { GET as getLead, PATCH as patchLead } from "@/app/api/leads/[id]/route";
+import { POST as postLead } from "@/app/api/leads/route";
+import { GET as getProfile } from "@/app/api/personnes/[id]/profil-contact/route";
+import { GET as getPerson } from "@/app/api/personnes/[id]/route";
+import { GET as getCompany } from "@/app/api/entreprises/[id]/route";
+import { activity, auditLog, company, customFieldDefinition, customFieldValue, lead, person, user } from "@/db/schema";
+import { createUserWithPassword } from "@/features/auth/accounts";
+import { listHistory } from "@/features/history/history";
+import { closeDb, db } from "@/lib/db";
+import { jsonRequest, sessionCookie } from "../helpers/auth";
+
+const MEMBER = { email: "membre-conversion@exemple.fr", firstName: "Maëlle", lastName: "Riou", password: "MotDePasse-Conversion-1", role: "membre" as const };
+const OWNER = { email: "responsable-conversion@exemple.fr", firstName: "Hugo", lastName: "Perrin", password: "MotDePasse-Conversion-2", role: "membre" as const };
+
+let memberCookie: string;
+let ownerId: string;
+
+const byId = (id: string) => ({ params: Promise.resolve({ id }) });
+
+async function createLead(input: Record<string, unknown>): Promise<string> {
+  const res = await postLead(jsonRequest("POST", "/api/leads", input, memberCookie));
+  expect(res.status).toBe(201);
+  return ((await res.json()) as { id: string }).id;
+}
+
+const setStage = async (id: string, stage: string) => expect((await patchLead(jsonRequest("PATCH", `/api/leads/${id}`, { stage }, memberCookie), byId(id))).status).toBe(200);
+const convert = (id: string, body: Record<string, unknown>) => postConversion(jsonRequest("POST", `/api/leads/${id}/conversion`, body, memberCookie), byId(id));
+const read = async (route: typeof getLead, path: string, id: string) => (await route(jsonRequest("GET", `${path}/${id}`, undefined, memberCookie), byId(id))).json() as Promise<Record<string, unknown>>;
+const readLead = (id: string) => read(getLead, "/api/leads", id);
+const readPerson = (id: string) => read(getPerson, "/api/personnes", id);
+const readCompany = (id: string) => read(getCompany, "/api/entreprises", id);
+const readProfile = async (id: string) => (await getProfile(jsonRequest("GET", `/api/personnes/${id}/profil-contact`, undefined, memberCookie), byId(id))).json() as Promise<Record<string, unknown> | null>;
+
+async function cleanup() {
+  await db.delete(activity);
+  await db.delete(customFieldValue);
+  await db.delete(customFieldDefinition);
+  await db.delete(auditLog);
+  await db.delete(lead);
+  await db.delete(person);
+  await db.delete(company);
+}
+
+beforeAll(async () => {
+  await cleanup();
+  await db.delete(user).where(eq(user.email, MEMBER.email));
+  await db.delete(user).where(eq(user.email, OWNER.email));
+  await createUserWithPassword(MEMBER);
+  ownerId = (await createUserWithPassword(OWNER)).id;
+  memberCookie = await sessionCookie(MEMBER.email, MEMBER.password);
+});
+
+afterAll(async () => {
+  await cleanup();
+  await closeDb();
+});
+
+describe("convertir un lead en nouvelle personne et nouvelle entreprise (CRM-95, D16, contrat 15)", () => {
+  it("crée la personne et l'entreprise prospect au responsable du lead, avec un profil contact, et passe le lead « converti » avec l'entrée « Converti en Julie Martin · Banque X »", async () => {
+    const id = await createLead({
+      firstName: "Julie",
+      lastName: "Martin",
+      companyName: "Banque X",
+      jobTitle: "Directrice SIRH",
+      email: "julie.martin@banque-x.fr",
+      phone: "06 12 34 56 78",
+      linkedin: "https://www.linkedin.com/in/julie-martin",
+      origin: "linkedin",
+      ownerId,
+    });
+    await setStage(id, "qualifie");
+
+    const res = await convert(id, { firstName: "Julie", lastName: "Martin", companyName: "Banque X", jobTitle: "Directrice SIRH" });
+    expect(res.status).toBe(200);
+    const { personId, companyId } = (await res.json()) as { personId: string; companyId: string };
+
+    expect(await readPerson(personId)).toMatchObject({ firstName: "Julie", lastName: "Martin", email: "julie.martin@banque-x.fr", phone: "06 12 34 56 78", linkedin: "https://www.linkedin.com/in/julie-martin", ownerId, profiles: ["contact"], companyId });
+    expect(await readProfile(personId)).toMatchObject({ companyName: "Banque X", jobTitle: "Directrice SIRH", decisionRole: "non_precise" });
+    expect(await readCompany(companyId)).toMatchObject({ name: "Banque X", type: "prospect", ownerId });
+
+    expect(await readLead(id)).toMatchObject({ stage: "converti", convertedPersonId: personId, convertedCompanyId: companyId });
+    expect((await readLead(id)).convertedAt).not.toBeNull();
+    const conversion = (await listHistory("lead", id)).find((entry) => entry.action === "conversion");
+    expect(conversion?.newValue).toBe("Julie Martin · Banque X");
+  });
+});
