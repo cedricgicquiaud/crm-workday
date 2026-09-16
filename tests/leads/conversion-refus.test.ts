@@ -101,7 +101,7 @@ describe("refus de convertir vers une fiche archivée (CRM-95, D17, contrat 25)"
     expect(res.status).toBe(409);
     const { message } = (await res.json()) as { message: string };
     expect(message).toContain("« Hélène Morin »");
-    expect(message).toContain("restaur");
+    expect(message).toMatch(/restaur/i);
     expect(await readLead(id)).toMatchObject({ stage: "nouveau" });
     expect(await companyNames()).not.toContain("Banque Personne Archivée");
   });
@@ -115,7 +115,7 @@ describe("refus de convertir vers une fiche archivée (CRM-95, D17, contrat 25)"
     expect(res.status).toBe(409);
     const { message } = (await res.json()) as { message: string };
     expect(message).toContain("« Banque Fermée »");
-    expect(message).toContain("restaur");
+    expect(message).toMatch(/restaur/i);
     expect(await readLead(id)).toMatchObject({ stage: "nouveau" });
     expect(await personNames()).not.toContain("Victor Lambert");
   });

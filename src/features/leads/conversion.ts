@@ -81,6 +81,9 @@ async function planOf(current: ObjectRecord, body: Record<string, unknown>): Pro
   const pick = (key: string) => (key in body ? body[key] : current[key]);
   const chosen = await chosenCompany(body.companyId);
   const found = await foundPersonOf(current);
+  /* D17 : une fiche archivée ne reçoit rien ; le refus la nomme et dit comment la rouvrir, avant toute écriture. */
+  if (found?.archivedAt) throw new HttpError(409, "fiche_archivee", `Personne archivée : « ${found.name} » porte cet email. Restaurez-la pour convertir ce lead.`, { personId: found.id });
+  if (chosen?.kind === "existing" && chosen.archivedAt) throw new HttpError(409, "fiche_archivee", `Entreprise archivée : « ${chosen.name} » ne reçoit plus de contact. Restaurez-la pour convertir ce lead.`, { companyId: chosen.id });
   const contact = found ? await readContactProfile(found.id) : null;
   const keeps = keepsContact(found, contact, chosen, body.keepCompany);
   const existing: CompanyChoice | null = keeps && contact ? { kind: "existing", id: contact.companyId, name: contact.companyName, archivedAt: null } : chosen;
