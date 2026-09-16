@@ -4,6 +4,7 @@
  * importable côté client : aucune base, aucune horloge — le jour courant se passe en paramètre.
  */
 import { formatDate } from "@/features/objects/labels";
+import type { ListValue } from "@/features/objects/registry";
 
 export type ConsultantState = "disponible" | "en_mission" | "indisponible";
 
@@ -25,6 +26,16 @@ export function consultantState(profile: AvailabilityInput, today: string): Cons
 export type StateRecord = { state: string | null; availableFrom: string | null; status: string | null };
 
 const LABELS: Readonly<Record<ConsultantState, string>> = { disponible: "Disponible", en_mission: "En mission", indisponible: "Indisponible" };
+
+/** Les trois valeurs de filtre de l'état (D6) ; « à replacer » est une mention, pas une valeur. */
+export const STATES: readonly ListValue[] = (Object.keys(LABELS) as ConsultantState[]).map((value) => ({ value, label: LABELS[value] }));
+
+/** Ce qu'une fiche de liste porte, lu comme un `StateRecord` : l'état, la date et le statut, ou rien. */
+export const asStateRecord = (record: Record<string, unknown>): StateRecord => ({
+  state: (record.state as string | null | undefined) ?? null,
+  availableFrom: (record.availableFrom as string | null | undefined) ?? null,
+  status: (record.status as string | null | undefined) ?? null,
+});
 
 /**
  * Un salarié disponible est un coût qui court (PRD) : il est « à replacer ». Une mention, pas une

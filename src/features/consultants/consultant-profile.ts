@@ -22,7 +22,9 @@ import { HttpError } from "@/lib/auth/session";
 import { db, type Executor } from "@/lib/db";
 import { COMPANY_TYPES } from "@/features/companies/schema";
 import { RECORD_OPTIONS_LIMIT } from "@/features/objects/service";
+import { parisDay } from "@/features/activities/overdue";
 import { BILLING_COMPANY_FIELD, BILLING_COMPANY_TYPE, CONSULTANT_INPUT_FIELDS, CONSULTANT_PROFILE_FIELDS, STATUS_SUBJECT } from "./schema";
+import { consultantState, type ConsultantState } from "./state";
 
 const TYPE = "person";
 
@@ -40,6 +42,8 @@ export type ConsultantProfile = {
   availableFrom: string | null;
   unavailable: "oui" | "non";
   unavailableReason: string | null;
+  /** dérivé de la date et de la case au jour de la lecture (D6), jamais saisi */
+  state: ConsultantState;
   yearsExperience: number | null;
   languages: string | null;
   cvUrl: string | null;
@@ -108,7 +112,9 @@ async function modulesOf(profileIds: readonly string[], exec: Executor = db): Pr
   return byProfile;
 }
 
-function toProfile(row: ProfileRow, modules: { modules: string[]; certified: string[] } | undefined): ConsultantProfile {
+/** `today` : le jour civil de Paris de la lecture, d'où l'état se déduit (D6) ; il n'est jamais enregistré. */
+function toProfile(row: ProfileRow, modules: { modules: string[]; certified: string[] } | undefined, today: string): ConsultantProfile {
+  const unavailable = row.unavailable ? "oui" : "non";
   return {
     personId: row.personId,
     status: row.status,
@@ -119,8 +125,9 @@ function toProfile(row: ProfileRow, modules: { modules: string[]; certified: str
     billingCompanyArchived: row.billingCompanyArchived != null,
     dailyCost: row.dailyCost === null ? null : Number(row.dailyCost),
     availableFrom: row.availableFrom,
-    unavailable: row.unavailable ? "oui" : "non",
+    unavailable,
     unavailableReason: row.unavailableReason,
+    state: consultantState({ unavailable, availableFrom: row.availableFrom }, today),
     yearsExperience: row.yearsExperience,
     languages: row.languages,
     cvUrl: row.cvUrl,
@@ -131,7 +138,7 @@ function toProfile(row: ProfileRow, modules: { modules: string[]; certified: str
 export async function readConsultantProfile(personId: string, exec: Executor = db): Promise<ConsultantProfile | null> {
   const [row] = await profileRows([personId], exec);
   if (!row) return null;
-  return toProfile(row, (await modulesOf([row.id], exec)).get(row.id));
+  return toProfile(row, (await modulesOf([row.id], exec)).get(row.id), parisDay());
 }
 
 /**
@@ -150,7 +157,9 @@ export async function attachConsultantProfiles(records: readonly ObjectRecord[])
   if (records.length === 0) return [...records];
   const rows = await profileRows(records.map((record) => record.id));
   const modules = await modulesOf(rows.map((row) => row.id));
-  const byPerson = new Map(rows.map((row) => [row.personId, toProfile(row, modules.get(row.id))]));
+  /* Un seul jour pour toute la lecture : l'état se calcule une fois par fiche, ici, jamais dans chaque cellule. */
+  const today = parisDay();
+  const byPerson = new Map(rows.map((row) => [row.personId, toProfile(row, modules.get(row.id), today)]));
   /* La fiche reçoit les champs du profil, pas ses clés techniques : « personId » est déjà son identifiant. */
   const complement = (profile: ConsultantProfile) => Object.fromEntries(Object.entries(profile).filter(([key]) => key in EMPTY_COMPLEMENT));
   return records.map((record) => ({ ...record, ...EMPTY_COMPLEMENT, ...(byPerson.has(record.id) ? complement(byPerson.get(record.id)!) : {}) }));

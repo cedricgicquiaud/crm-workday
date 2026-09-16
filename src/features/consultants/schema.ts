@@ -7,6 +7,7 @@
  * Ce fichier est importable côté client : aucune table, aucune base.
  */
 import type { FieldDescriptor, ListValue } from "@/features/objects/registry";
+import { asStateRecord, STATES, stateLabel, stateSortKey } from "./state";
 
 /**
  * Le profil auquel ces champs appartiennent (D19) : ils se rendent dans sa section, jamais dans
@@ -95,6 +96,8 @@ export const CONSULTANT_PROFILE_FIELDS: readonly FieldDescriptor[] = [
   { key: "availableFrom", label: "Disponible à partir du", type: "date", sortable: true, profile: CONSULTANT_PROFILE, order: 150 },
   { key: "unavailable", label: "Indisponible", type: "list", values: YES_NO, profile: CONSULTANT_PROFILE, order: 160 },
   { key: "unavailableReason", label: "Motif d'indisponibilité", type: "text", maxLength: 120, profile: CONSULTANT_PROFILE, order: 170 },
+  /* Dérivé de la date et de la case, jamais saisi (D6) : filtré sur sa valeur, lu avec sa date, trié sur son rang. */
+  { key: "state", label: "État", type: "list", values: STATES, editable: false, sortable: true, display: (record) => stateLabel(asStateRecord(record)), sortKey: (record) => stateSortKey(asStateRecord(record)), profile: CONSULTANT_PROFILE, order: 175 },
   { key: "yearsExperience", label: "Années d'expérience", type: "number", integer: true, min: 0, max: YEARS_EXPERIENCE_MAX, sortable: true, profile: CONSULTANT_PROFILE, order: 180 },
   { key: "languages", label: "Langues", type: "text", maxLength: 120, sortable: true, profile: CONSULTANT_PROFILE, order: 185 },
   { key: "cvUrl", label: "CV", type: "text", maxLength: 200, pattern: { regex: /^https:\/\/\S+$/, message: CV_RULE }, profile: CONSULTANT_PROFILE, order: 190 },
