@@ -10,7 +10,11 @@ import type { LucideIcon } from "lucide-react";
 /** `multilist` : plusieurs valeurs d'une liste fermée dans un même champ (modules Workday, Profils, D19). */
 export type FieldType = "text" | "list" | "date" | "number" | "user" | "multilist";
 
-export type ListValue = { value: string; label: string };
+/**
+ * `reserved` : une valeur que seul un geste de l'objet pose (« converti », « écarté » d'un lead, D21).
+ * Elle se lit et se filtre comme les autres ; aucun sélecteur ne la propose et l'écriture la refuse (400).
+ */
+export type ListValue = { value: string; label: string; reserved?: boolean };
 
 /** Descripteur d'un champ : il pilote la section des champs de la fiche, l'édition en place, l'historique, puis les colonnes, filtres et tri (2.5a) et les champs personnalisés (2.4). */
 export type FieldDescriptor = {
@@ -27,6 +31,12 @@ export type FieldDescriptor = {
   default?: string;
   /** faux : lecture seule sur la fiche (défaut : vrai) */
   editable?: boolean;
+  /**
+   * Le champ se fige selon la fiche (D21) : l'avancement d'un lead écarté. Tant que `test` est vrai,
+   * la fiche le lit en texte, sa cellule ne s'édite pas, et l'écriture le refuse (409) avec `message` ;
+   * les autres champs de la fiche restent modifiables, à la différence d'une fiche archivée.
+   */
+  lockedWhen?: { test: (record: Record<string, unknown>) => boolean; message: string };
   /** un `multilist` se trie sur ses libellés joints (D11) */
   sortable?: boolean;
   maxLength?: number;
@@ -73,6 +83,11 @@ export type FieldDescriptor = {
   unique?: boolean;
   /** début de la phrase du refus 409 (« Le SIREN 123456789 est déjà porté ») ; le service y ajoute la fiche qui le porte */
   uniqueMessage?: (value: string) => string;
+  /**
+   * À la saisie sur la fiche, la valeur enregistrée est soumise à la source d'avertissement que l'objet
+   * déclare (route des doublons, D8) : ce qu'elle rappelle d'autres fiches s'affiche sous le champ, sans rien bloquer.
+   */
+  entryWarning?: boolean;
   /** texte long (notes) : zone de texte plutôt qu'un champ d'une ligne */
   multiline?: boolean;
   /** occupe toute la largeur de sa section sur la fiche (raison sociale, rue) */
@@ -135,6 +150,12 @@ export type ListDeclaration = {
   columns?: readonly string[];
   /** nom de la vue par défaut de cette liste (« Tous les consultants ») */
   defaultViewName: string;
+  /**
+   * État de la vue par défaut, en paramètres d'URL (« f=stage:n_est_pas:converti&tri=createdAt:desc »,
+   * D10) : l'adresse nue l'ouvre, et ce que l'adresse porte l'emporte famille par famille. Absent, la
+   * vue par défaut est la liste nue. Contrairement au filtre de base, ses puces se retirent.
+   */
+  defaultViewQuery?: string;
   /** `false` : la liste n'offre pas de création */
   create?: ListCreate | false;
 };
@@ -163,6 +184,8 @@ export type ObjectDefinition = {
    */
   historyFields?: readonly FieldDescriptor[];
   relations: readonly Relation[];
+  /** `false` : les fiches de cet objet ne se fusionnent pas (un lead, D9) — la fusion répond 405 et le menu ne la propose pas ; défaut : vrai */
+  mergeable?: boolean;
   /** objet parent dont le fil reprend les activités de celui-ci (2.3) */
   feedParent?: string;
   /** clés des champs du dialogue de création rapide (cinq au plus, D7) ; défaut : le champ titre */
@@ -180,7 +203,15 @@ export type ObjectDefinition = {
    * adresse, un rang, un filtre de base, ses colonnes, le nom de sa vue par défaut et sa création.
    */
   lists?: readonly ListDeclaration[];
+  /** Vue par défaut de la liste de l'objet, quand elle n'est pas « Tous les … » sans puce (« Leads en cours », D10) : son nom et son état. */
+  defaultView?: { name: string; query: string };
 };
+
+/**
+ * Colonnes de base que toute liste rend elle-même (« Créé le », « Modifiée le », D10) : aucune fiche
+ * ne les saisit, mais une liste peut les citer dans ses colonnes (D26), à la place où elle les veut.
+ */
+export const BASE_COLUMN_KEYS: readonly string[] = ["createdAt", "updatedAt"];
 
 const objects = new Map<string, ObjectDefinition>();
 
@@ -192,15 +223,16 @@ const objects = new Map<string, ObjectDefinition>();
 export function registerObject(definition: ObjectDefinition): void {
   const keys = new Set(definition.fields.map((field) => field.key));
   if (!keys.has(definition.titleField)) throw new Error(`Objet « ${definition.key} » : le champ titre « ${definition.titleField} » n'est pas déclaré dans ses champs.`);
+  const columnKeys = new Set([...keys, ...BASE_COLUMN_KEYS]);
   for (const column of definition.listColumns ?? []) {
-    if (!keys.has(column)) throw new Error(`Objet « ${definition.key} » : la colonne de liste « ${column} » n'est pas déclarée dans ses champs.`);
+    if (!columnKeys.has(column)) throw new Error(`Objet « ${definition.key} » : la colonne de liste « ${column} » n'est pas déclarée dans ses champs.`);
   }
   for (const key of definition.headerFields ?? []) {
     if (!keys.has(key)) throw new Error(`Objet « ${definition.key} » : le champ de tête « ${key} » n'est pas déclaré dans ses champs.`);
   }
   for (const list of definition.lists ?? []) {
     for (const column of list.columns ?? []) {
-      if (!keys.has(column)) throw new Error(`Objet « ${definition.key} » : la colonne « ${column} » de la liste « ${list.key} » n'est pas déclarée dans ses champs.`);
+      if (!columnKeys.has(column)) throw new Error(`Objet « ${definition.key} » : la colonne « ${column} » de la liste « ${list.key} » n'est pas déclarée dans ses champs.`);
     }
     for (const filter of list.baseFilters ?? []) {
       if (!keys.has(filter.field)) throw new Error(`Objet « ${definition.key} » : le filtre de base de la liste « ${list.key} » porte sur « ${filter.field} », qui n'est pas un de ses champs.`);
@@ -234,7 +266,8 @@ function ownList(definition: ObjectDefinition): ListDefinition {
     href: definition.listHref,
     order: definition.order,
     columns: definition.listColumns,
-    defaultViewName: allLabel(definition.labels),
+    defaultViewName: definition.defaultView?.name ?? allLabel(definition.labels),
+    defaultViewQuery: definition.defaultView?.query,
   };
 }
 

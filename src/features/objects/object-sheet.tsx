@@ -13,7 +13,7 @@ import { displayValue, formatDate } from "@/features/objects/labels";
 import { LinksColumn } from "@/features/objects/links-column";
 import { ObjectActionsMenu } from "@/features/objects/object-actions-menu";
 import { getObject } from "@/features/objects/registry";
-import { getServerObject, sectionsOf } from "@/features/objects/registry.server";
+import { getServerObject, sectionsOf, visibleActions } from "@/features/objects/registry.server";
 import { getObjectRecord, listUserOptions, serializeRecord, type ObjectRecord } from "@/features/objects/service";
 import { HttpError, requireSession } from "@/lib/auth/session";
 
@@ -55,7 +55,10 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
   /* Fiche archivée : elle se lit, elle ne s'écrit plus (D21) — champs en texte, composeur et créations rapides retirés. */
   const archived = record.archivedAt != null;
   const isAdmin = session.user.role === "administrateur";
-  const fieldsSection = <FieldsSection type={type} record={serializeRecord(record)} users={users} readOnly={archived} />;
+  const serialized = serializeRecord(record);
+  const fieldsSection = <FieldsSection type={type} record={serialized} users={users} readOnly={archived} />;
+  /* Gestes propres à l'objet (D21), visibles selon la fiche : à côté du menu commun, jamais dedans. */
+  const actions = visibleActions(type, record);
   return (
     <div className="grid gap-6">
       <CustomFieldsSource definitions={customFields} />
@@ -69,10 +72,16 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
           {headerFields.map((field) => (
             <Badge key={field.key} variant="outline" className="border-border">{`${field.label} : ${displayValue(field, record[field.key], users)}`}</Badge>
           ))}
-          <ObjectActionsMenu type={type} id={id} title={title} archived={archived} canDelete={isAdmin} />
+          <div className="ml-auto flex flex-wrap items-start justify-end gap-2">
+            {actions.map((action) => (
+              <Fragment key={action.key}>{action.render({ id, record: serialized })}</Fragment>
+            ))}
+            <ObjectActionsMenu type={type} id={id} title={title} archived={archived} canDelete={isAdmin} />
+          </div>
         </div>
         <p className="tabular text-sm text-muted-foreground">
-          {`Créée le ${formatDate(record.createdAt)} · modifiée le ${formatDate(record.updatedAt)}`}
+          {/* L'accord suit l'article déclaré : « Créée le » pour un objet à l'article « une », « Créé le » pour « un ». */}
+          {`${definition.labels.article === "un" ? "Créé le" : "Créée le"} ${formatDate(record.createdAt)} · ${definition.labels.article === "un" ? "modifié le" : "modifiée le"} ${formatDate(record.updatedAt)}`}
           {owner ? ` · responsable : ${displayValue(owner, record.ownerId, users)}` : ""}
         </p>
       </header>

@@ -8,6 +8,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { DeleteDialog } from "@/features/archive/delete-dialog";
 import { MERGE_PARAM } from "@/features/duplicates/normalize";
 import { MergeDialog } from "@/features/merge/merge-dialog";
+import "@/features/objects/manifest";
+import { getObject } from "@/features/objects/registry";
 
 /** `canDelete` : la suppression définitive et la fusion sont des gestes d'administrateur (contrat 31) ; les routes les refusent de leur côté. */
 type Props = { type: string; id: string; title: string; archived: boolean; canDelete: boolean };
@@ -34,8 +36,10 @@ export function ObjectActionsMenu({ type, id, title, archived, canDelete }: Prop
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [merging, setMerging] = useState(false);
+  /* Un objet qui se déclare non fusionnable (D21) n'offre ni la commande ni le dialogue ; la route répond 405 de son côté. */
+  const canMerge = canDelete && getObject(type).mergeable !== false;
   /* La bannière ouvre la fusion par l'adresse : le paramètre suffit, aucun état à synchroniser. Un membre qui suivrait le lien n'a pas le dialogue, la page s'affiche telle quelle. */
-  const mergeOpen = canDelete && (merging || twin !== null);
+  const mergeOpen = canMerge && (merging || twin !== null);
 
   function closeMerge(next: boolean) {
     setMerging(next);
@@ -77,7 +81,7 @@ export function ObjectActionsMenu({ type, id, title, archived, canDelete }: Prop
           {canDelete && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setMerging(true)}>Fusionner…</DropdownMenuItem>
+              {canMerge && <DropdownMenuItem onClick={() => setMerging(true)}>Fusionner…</DropdownMenuItem>}
               <DropdownMenuItem variant="destructive" onClick={() => setDeleting(true)}>
                 Supprimer définitivement
               </DropdownMenuItem>
@@ -87,7 +91,7 @@ export function ObjectActionsMenu({ type, id, title, archived, canDelete }: Prop
       </DropdownMenu>
       {/* Hors du menu : celui-ci se ferme au clic sur sa commande, et emporterait le dialogue avec lui. */}
       {canDelete && <DeleteDialog type={type} id={id} open={deleting} onOpenChange={setDeleting} />}
-      {canDelete && <MergeDialog type={type} id={id} title={title} other={twin} open={mergeOpen} onOpenChange={closeMerge} />}
+      {canMerge && <MergeDialog type={type} id={id} title={title} other={twin} open={mergeOpen} onOpenChange={closeMerge} />}
       {error && (
         <p role="alert" className="text-xs text-danger">
           {error}

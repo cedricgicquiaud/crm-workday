@@ -9,13 +9,15 @@ import { createUserWithPassword } from "@/features/auth/accounts";
 import { createDefinition, loadCustomFields } from "@/features/custom-fields/definitions";
 import { customFieldKey } from "@/features/custom-fields/fields-source";
 import { listHistory } from "@/features/history/history";
-import { fieldsOf } from "@/features/objects/fields";
+import { fieldsOf, isLocked } from "@/features/objects/fields";
+import { selectableValues } from "@/features/objects/labels";
 import { linkedGroups } from "@/features/objects/links-column";
 import { listForState } from "@/features/lists/apply-filters";
+import { mergeRecords, planMerge } from "@/features/merge/merge";
 import { defaultColumnKeys } from "@/features/lists/columns";
 import { parseListState } from "@/features/lists/url-state";
 import { listLists, registerObject } from "@/features/objects/registry";
-import { registerServerObject } from "@/features/objects/registry.server";
+import { registerServerObject, visibleActions } from "@/features/objects/registry.server";
 import { createObject, getObjectRecord, listObjectRecords, updateObject } from "@/features/objects/service";
 import { search } from "@/features/search/search";
 import { defaultView } from "@/features/views/views";
@@ -34,6 +36,7 @@ const testTable = pgTable(TYPE, {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   parentId: uuid("parent_id"),
+  phase: text("phase"),
   ownerId: text("owner_id").notNull(),
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -51,7 +54,7 @@ async function cleanup() {
 
 beforeAll(async () => {
   await rawSql().unsafe(
-    `CREATE TABLE IF NOT EXISTS ${TYPE} (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, parent_id uuid, owner_id text NOT NULL, created_by text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), archived_at timestamptz)`,
+    `CREATE TABLE IF NOT EXISTS ${TYPE} (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, parent_id uuid, phase text, owner_id text NOT NULL, created_by text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), archived_at timestamptz)`,
   );
   await cleanup();
   await db.delete(user).where(eq(user.email, ACTOR.email));
@@ -73,10 +76,22 @@ beforeAll(async () => {
       { key: "parentId", label: "Fiche mère", type: "text", order: 30 },
       /* Complément : la fiche ne porte pas ce nom dans sa table, le chargeur `attach` le joint à chaque lecture (D19). */
       { key: "parentName", label: "Nom de la fiche mère", type: "text", editable: false, sortable: true, order: 40 },
+      /* Une valeur réservée (D21) : elle se lit et se filtre, mais aucune écriture ne la pose — un geste de l'objet la posera. */
+      {
+        key: "phase",
+        label: "Phase",
+        type: "list",
+        values: [{ value: "ouverte", label: "Ouverte" }, { value: "close", label: "Close", reserved: true }],
+        /* Un champ figé selon la fiche (D21) : une fiche close ne change plus de phase tant qu'un geste ne la rouvre pas. */
+        lockedWhen: { test: (record) => record.phase === "close", message: "Fiche close : la rouvrir d'abord." },
+        order: 50,
+      },
     ],
     relations: [{ to: TYPE, fkColumn: "parentId", label: "Fiche mère", inverseLabel: "Fiches filles", prefill: "parentId" }],
     quickCreate: ["name"],
     listColumns: ["ownerId"],
+    /* Un objet qui ne se fusionne pas (D21) : il le déclare, la fusion commune le refuse. */
+    mergeable: false,
     /* Une liste déclarée (D10) : un objet la pose comme le reste, sans qu'un mécanisme la nomme. */
     lists: [
       {
@@ -100,6 +115,12 @@ beforeAll(async () => {
       return rows.filter((row) => row.name.toLowerCase().includes(query.toLowerCase())).map((row) => ({ id: row.id, title: row.name }));
     },
     duplicateKey: (record) => String(record.name ?? "") || null,
+    /* Des actions d'en-tête déclarées (D21), rangées par rang et visibles selon la fiche : « Clore » sur une fiche ouverte, « Rouvrir » sur une fiche close. */
+    actions: [
+      { key: "rouvrir", order: 20, visible: (record) => record.phase === "close", render: () => null },
+      { key: "clore", order: 10, visible: (record) => record.phase !== "close", render: () => null },
+      { key: "exporter", order: 5, visible: () => true, render: () => null },
+    ],
     /* Le service appelle ce chargeur à chaque lecture — une fiche, une liste — et lui passe toutes les fiches d'un coup : un complément ne coûte pas une requête par ligne. */
     attach: async (records) => {
       const ids = records.map((record) => record.parentId).filter((id): id is string => typeof id === "string");
@@ -172,5 +193,66 @@ describe("un objet déclaré obtient les mécanismes communs (CRM-57, contrat 33
     const groups = await linkedGroups(TYPE, record.id);
     expect(groups.map((group) => group.label)).toContain("Fiche mère");
     expect(groups.find((group) => group.label === "Fiche mère")?.records.map((linked) => linked.id)).toEqual([mere.id]);
+  });
+});
+
+/**
+ * D21 : une valeur de liste peut être réservée à un geste de l'objet (« converti », « écarté » d'un
+ * lead). Le mécanisme la connaît par déclaration : le sélecteur ne la propose pas, et l'écriture la
+ * refuse, sans qu'un fichier des mécanismes nomme l'objet.
+ */
+describe("valeur de liste réservée, par déclaration (CRM-91, D21)", () => {
+  it("n'est pas proposée au choix, se lit quand la fiche la porte, et l'écriture la refuse (400) sous le champ", async () => {
+    const phase = fieldsOf(TYPE).find((field) => field.key === "phase")!;
+    expect(selectableValues(phase, "ouverte").map((option) => option.value)).toEqual(["ouverte"]);
+    /* Portée par la fiche, elle reste affichée, inerte : le sélecteur dit ce que la fiche porte sans le proposer. */
+    expect(selectableValues(phase, "close")).toEqual([{ value: "ouverte", label: "Ouverte" }, { value: "close", label: "Close", disabled: true }]);
+
+    const record = await createObject(TYPE, { name: "Fiche à phase", phase: "ouverte" }, { id: actorId });
+    await expect(updateObject(TYPE, record.id, { phase: "close" }, { id: actorId })).rejects.toMatchObject({ status: 400, details: { fields: { phase: "« Close » ne se pose pas à la main dans « Phase »." } } });
+    await expect(createObject(TYPE, { name: "Fiche close", phase: "close" }, { id: actorId })).rejects.toMatchObject({ status: 400 });
+    expect((await getObjectRecord(TYPE, record.id)).phase).toBe("ouverte");
+  });
+});
+
+/**
+ * D21 : un champ peut se figer selon la fiche (l'avancement d'un lead écarté), sans que la fiche entière
+ * passe en lecture seule. Le mécanisme lit la déclaration : la fiche le rend en texte, l'écriture le
+ * refuse (409), et les autres champs de la même fiche restent modifiables.
+ */
+describe("champ figé selon la fiche, par déclaration (CRM-91, D21)", () => {
+  it("se lit en texte sur la fiche qui le fige, l'écriture le refuse (409) sous le champ, et les autres champs restent modifiables", async () => {
+    const record = await createObject(TYPE, { name: "Fiche à clore", phase: "ouverte" }, { id: actorId });
+    const phase = fieldsOf(TYPE).find((field) => field.key === "phase")!;
+    expect(isLocked(phase, record)).toBe(false);
+
+    /* La phase réservée est posée par le geste de l'objet, qui écrit directement. */
+    await db.update(testTable).set({ phase: "close" }).where(eq(testTable.id, record.id));
+    const closed = await getObjectRecord(TYPE, record.id);
+    expect(isLocked(phase, closed)).toBe(true);
+
+    await expect(updateObject(TYPE, record.id, { phase: "ouverte" }, { id: actorId })).rejects.toMatchObject({ status: 409, details: { fields: { phase: "Fiche close : la rouvrir d'abord." } } });
+    expect((await updateObject(TYPE, record.id, { name: "Fiche close renommée" }, { id: actorId })).name).toBe("Fiche close renommée");
+    expect((await getObjectRecord(TYPE, record.id)).phase).toBe("close");
+  });
+});
+
+/** D21 : un objet peut déclarer qu'il ne se fusionne pas ; l'aperçu comme la fusion répondent 405, avant de lire les fiches. */
+describe("refus de fusion déclaré (CRM-93, D21)", () => {
+  it("refuse (405) l'aperçu et la fusion de deux fiches d'un objet non fusionnable, sans rien écrire", async () => {
+    const one = await createObject(TYPE, { name: "Jumelle non fusionnable" }, { id: actorId });
+    const two = await createObject(TYPE, { name: "Jumelle non fusionnable" }, { id: actorId });
+    await expect(planMerge(TYPE, one.id, two.id)).rejects.toMatchObject({ status: 405 });
+    await expect(mergeRecords(TYPE, one.id, two.id, [])).rejects.toMatchObject({ status: 405 });
+    expect((await getObjectRecord(TYPE, two.id)).name).toBe("Jumelle non fusionnable");
+  });
+});
+
+/** D21 : un objet déclare ses gestes d'en-tête (Écarter, Rouvrir d'un lead) ; la fiche montre ceux que la fiche permet, par rang. */
+describe("actions d'en-tête déclarées (CRM-91, D21)", () => {
+  it("rend les actions visibles pour la fiche, par rang croissant, et aucune sur une fiche archivée", () => {
+    expect(visibleActions(TYPE, { phase: "ouverte", archivedAt: null }).map((action) => action.key)).toEqual(["exporter", "clore"]);
+    expect(visibleActions(TYPE, { phase: "close", archivedAt: null }).map((action) => action.key)).toEqual(["exporter", "rouvrir"]);
+    expect(visibleActions(TYPE, { phase: "close", archivedAt: new Date() })).toEqual([]);
   });
 });

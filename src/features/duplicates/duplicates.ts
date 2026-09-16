@@ -12,8 +12,14 @@ import { getServerObject } from "@/features/objects/registry.server";
 import { getObjectRecord } from "@/features/objects/service";
 import { db } from "@/lib/db";
 
-/** Une fiche existante que le signal nomme. */
-export type Duplicate = { id: string; title: string };
+/**
+ * Une fiche existante que le signal nomme. `href` et `message` viennent d'un avertissement de saisie
+ * déclaré (D8) : la fiche peut être d'un autre objet, et la phrase est celle de la source.
+ */
+export type Duplicate = { id: string; title: string; href?: string; message?: string };
+
+/** Valeur qui désigne la fiche en cours de saisie (sa propre fiche) : elle ne se rappelle pas elle-même. */
+const RECORD_VALUE = "id";
 
 /**
  * Fiches actives de même clé, la fiche exceptée. La clé se calcule en TypeScript (accents,
@@ -38,7 +44,14 @@ export async function duplicatesOfRecord(type: string, id: string): Promise<Dupl
   return matching(type, getServerObject(type).duplicateKey(record), record.id);
 }
 
-/** Doublons probables d'une fiche à créer, d'après les valeurs saisies (avertissement du dialogue). */
-export function duplicatesOfValues(type: string, values: Record<string, unknown>): Promise<Duplicate[]> {
-  return matching(type, getServerObject(type).duplicateKey(values), null);
+/**
+ * Ce que des valeurs saisies rappellent (avertissement du dialogue ou d'un champ de fiche) : les
+ * doublons probables de la clé de l'objet, puis ce que dit sa source d'avertissement déclarée (D8).
+ * `id` parmi les valeurs désigne la fiche qu'on modifie : elle n'est rappelée par aucune des deux.
+ */
+export async function duplicatesOfValues(type: string, values: Record<string, unknown>): Promise<Duplicate[]> {
+  const { duplicateKey, entryWarnings } = getServerObject(type);
+  const exceptId = typeof values[RECORD_VALUE] === "string" ? String(values[RECORD_VALUE]) : null;
+  const [twins, warnings] = await Promise.all([matching(type, duplicateKey(values), exceptId), entryWarnings ? entryWarnings(values, exceptId) : Promise.resolve([])]);
+  return [...twins, ...warnings];
 }

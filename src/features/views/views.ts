@@ -9,7 +9,7 @@ import "@/features/objects/manifest.server";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { savedView } from "@/db/schema";
-import { applyViewParams, DEFAULT_VIEW, parseListState, readViewId, type ListState } from "@/features/lists/url-state";
+import { applyDefaultView, applyViewParams, DEFAULT_VIEW, parseListState, readViewId, type ListState } from "@/features/lists/url-state";
 import { findList, getList } from "@/features/objects/registry";
 import type { Actor } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
@@ -28,9 +28,10 @@ export const VIEW_NAME_MAX = 120;
 /** Vrai si la liste est déclarée au registre : une vue survit au retrait de sa liste, mais aucune liste ne s'ouvre alors. */
 const isDeclared = (type: string) => findList(type) !== undefined;
 
-/** Vue par défaut d'une liste : aucun paramètre, donc la liste nue, sous le nom qu'elle déclare. */
+/** Vue par défaut d'une liste : l'état qu'elle déclare (la liste nue sinon), sous le nom qu'elle déclare. */
 export function defaultView(type: string): ViewSummary {
-  return { id: DEFAULT_VIEW, objectType: type, name: getList(type).defaultViewName, query: "" };
+  const list = getList(type);
+  return { id: DEFAULT_VIEW, objectType: type, name: list.defaultViewName, query: list.defaultViewQuery ?? "" };
 }
 
 const summarize = (row: SavedViewRow): ViewSummary => ({ id: row.id, objectType: row.objectType, name: row.name, query: row.query });
@@ -159,5 +160,7 @@ async function findView(type: string, id: string): Promise<SavedViewRow | null> 
 export async function listStateWithView(type: string, params: URLSearchParams): Promise<ListState> {
   const id = readViewId(params);
   const view = id === null ? null : await findView(type, id);
-  return parseListState(type, applyViewParams(view?.query ?? null, params));
+  /* Sans vue enregistrée (ou disparue), la liste part de sa vue par défaut, puces et tri compris (D10). */
+  if (view) return parseListState(type, applyViewParams(view.query, params));
+  return parseListState(type, applyDefaultView(type, applyViewParams(null, params)));
 }

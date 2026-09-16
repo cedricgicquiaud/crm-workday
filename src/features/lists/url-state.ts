@@ -31,6 +31,14 @@ const COLUMNS = "colonnes";
 const ARCHIVED = "archivees";
 const VIEW = "vue";
 
+/**
+ * Marqueur « aucun filtre » (D10) : une vue par défaut qui porte des puces se rouvre avec elles à
+ * l'adresse nue ; retirer toutes ses puces écrit `filtres=aucun`, sans quoi l'adresse redeviendrait
+ * nue et les puces reviendraient au rechargement.
+ */
+const NO_FILTER = "filtres";
+const NO_FILTER_VALUE = "aucun";
+
 /** Identifiant synthétique de la vue par défaut d'un objet : la liste nue, sans ligne en base (2.5b). */
 export const DEFAULT_VIEW = "default";
 
@@ -56,6 +64,22 @@ export function applyViewParams(viewQuery: string | null, params: URLSearchParam
   return merged;
 }
 
+/**
+ * Paramètres effectifs d'une liste ouverte sans vue enregistrée : ceux de sa vue par défaut déclarée
+ * (D10), chaque famille présente dans l'adresse remplaçant la sienne. `filtres=aucun` retire les puces
+ * de la vue par défaut. Une liste qui ne déclare rien rend l'adresse telle quelle.
+ */
+export function applyDefaultView(list: string, params: URLSearchParams): URLSearchParams {
+  const merged = new URLSearchParams(getList(list).defaultViewQuery ?? "");
+  for (const key of new Set(params.keys())) {
+    merged.delete(key);
+    for (const value of params.getAll(key)) merged.append(key, value);
+  }
+  if (merged.get(NO_FILTER) === NO_FILTER_VALUE) merged.delete(FILTER);
+  merged.delete(NO_FILTER);
+  return merged;
+}
+
 /** `champ:opérateur:valeur` ; la valeur garde ses deux-points (« avant 12:00 »). */
 function parseFilter(raw: string): RawFilter {
   const [field = "", operator = "", ...rest] = raw.split(":");
@@ -70,7 +94,7 @@ function parseSort(objectKey: string, raw: string | null): Sort {
   return { field, direction: direction as SortDirection };
 }
 
-const isDefaultSort = (sort: Sort) => sort.field === DEFAULT_SORT.field && sort.direction === DEFAULT_SORT.direction;
+const sameSort = (a: Sort, b: Sort) => a.field === b.field && a.direction === b.direction;
 
 /** Colonnes visibles après la colonne titre ; celle-ci ne se masque pas, elle n'est donc jamais dans l'URL. */
 function parseColumns(list: string, raw: string | null): string[] {
@@ -96,13 +120,28 @@ export function parseListState(list: string, params: URLSearchParams): ListState
   };
 }
 
-/** Réécrit l'état en paramètres d'URL ; ce qui vaut le défaut ne s'écrit pas, l'adresse reste lisible. */
-export function listStateToParams(list: string, state: ListState): URLSearchParams {
+/** Ce qu'une adresse sans paramètre donnerait : les puces et le tri contre lesquels l'état s'écrit. */
+type Baseline = { filters: readonly Filter[]; sort: Sort };
+
+const BARE: Baseline = { filters: [], sort: DEFAULT_SORT };
+
+/**
+ * Réécrit l'état en paramètres d'URL ; ce qui vaut le défaut ne s'écrit pas, l'adresse reste lisible.
+ * Sans vue enregistrée, le défaut est la vue par défaut de la liste (D10) : ses puces et son tri ne
+ * s'écrivent pas, et des puces toutes retirées s'écrivent `filtres=aucun`. `absolute` écrit l'état
+ * contre la liste nue — c'est ce qu'une vue enregistrée range, qui ne dépend pas de la vue par défaut.
+ */
+export function listStateToParams(list: string, state: ListState, { absolute = false }: { absolute?: boolean } = {}): URLSearchParams {
+  const baseline = absolute || state.view ? BARE : parseListState(list, applyDefaultView(list, new URLSearchParams()));
   const params = new URLSearchParams();
   /* La vue en tête : l'adresse dit d'abord d'où l'on part, puis ce qu'on y a changé. */
   if (state.view) params.set(VIEW, state.view);
-  for (const filter of state.filters) params.append(FILTER, serializeFilter(filter));
-  if (!isDefaultSort(state.sort)) params.set(SORT, `${state.sort.field}:${state.sort.direction}`);
+  const filters = state.filters.map(serializeFilter);
+  if (filters.join("\n") !== baseline.filters.map(serializeFilter).join("\n")) {
+    if (filters.length === 0) params.set(NO_FILTER, NO_FILTER_VALUE);
+    for (const filter of filters) params.append(FILTER, filter);
+  }
+  if (!sameSort(state.sort, baseline.sort)) params.set(SORT, `${state.sort.field}:${state.sort.direction}`);
   if (state.columns.join(",") !== defaultColumns(list).join(",")) params.set(COLUMNS, state.columns.join(","));
   if (state.includeArchived) params.set(ARCHIVED, "1");
   return params;

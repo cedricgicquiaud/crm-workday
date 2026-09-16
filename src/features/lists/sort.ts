@@ -5,20 +5,23 @@
  */
 import { fieldsOf } from "@/features/objects/fields";
 import { displayValue, type UserOption } from "@/features/objects/labels";
-import type { FieldType } from "@/features/objects/registry";
+import { BASE_COLUMN_KEYS, type FieldType } from "@/features/objects/registry";
 import type { ObjectRecord } from "@/features/objects/service";
 
 export type SortDirection = "asc" | "desc";
 export type Sort = { field: string; direction: SortDirection };
 
-/** Colonne de base toujours triable : elle ne vient pas des descripteurs de champs. */
+/** Colonnes de base toujours triables : elles ne viennent pas des descripteurs de champs (`BASE_COLUMN_KEYS` du registre). */
 export const UPDATED_AT = "updatedAt";
+export const CREATED_AT = "createdAt";
+
+export const isBaseColumn = (key: string): boolean => BASE_COLUMN_KEYS.includes(key);
 
 export const DEFAULT_SORT: Sort = { field: UPDATED_AT, direction: "desc" };
 
-/** Vrai si la liste sait trier sur ce champ : la dernière modification, ou un champ déclaré `sortable`. */
+/** Vrai si la liste sait trier sur ce champ : une colonne de base (création, modification), ou un champ déclaré `sortable`. */
 export function isSortable(type: string, key: string): boolean {
-  if (key === UPDATED_AT) return true;
+  if (isBaseColumn(key)) return true;
   return fieldsOf(type).some((field) => field.key === key && field.sortable === true);
 }
 

@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { defaultColumnKeys } from "@/features/lists/columns";
 import { DEFAULT_SORT } from "@/features/lists/sort";
 import { listStateToParams, parseListState } from "@/features/lists/url-state";
-import { registerTestObject, TEST_TYPE } from "./objet-de-test";
+import { registerTestObject, TEST_RECENT_LIST, TEST_TYPE } from "./objet-de-test";
 
 beforeAll(registerTestObject);
 
@@ -45,6 +46,13 @@ describe("état d'une liste dans son URL (CRM-47, CRM-48, D18)", () => {
     const moved = parseListState(TEST_TYPE, new URLSearchParams("colonnes=updatedAt,kind"));
     expect(moved.columns).toEqual(["updatedAt", "kind"]);
     expect(parseListState(TEST_TYPE, listStateToParams(TEST_TYPE, moved))).toEqual(moved);
+  });
+
+  /* D26 : une liste peut citer les colonnes de base ; « Modifiée le » ne s'ajoute d'office que si elle n'en cite aucune. */
+  it("garde les colonnes de base citées par une liste sans y ajouter « Modifiée le », et l'ajoute à une liste qui n'en cite aucune", () => {
+    expect(defaultColumnKeys(TEST_RECENT_LIST)).toEqual(["kind", "createdAt"]);
+    expect(parseListState(TEST_RECENT_LIST, new URLSearchParams()).columns).toEqual(["kind", "createdAt"]);
+    expect(defaultColumnKeys(TEST_TYPE)).toEqual(["kind", "city", "updatedAt"]);
   });
 
   it("ouvre une URL bricolée sans erreur : tri impossible ramené au défaut, colonne inconnue ignorée, première colonne jamais masquée, filtre signalé inactif", () => {

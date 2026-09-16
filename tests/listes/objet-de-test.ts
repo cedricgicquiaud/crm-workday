@@ -8,6 +8,9 @@ import { registerObject } from "@/features/objects/registry";
 
 export const TEST_TYPE = "test_liste";
 
+/** Liste déclarée de l'objet de test : ses colonnes citent une colonne de base, et sa vue par défaut porte filtre et tri. */
+export const TEST_RECENT_LIST = "test_liste_recentes";
+
 export function registerTestObject(): void {
   registerObject({
     key: TEST_TYPE,
@@ -57,5 +60,19 @@ export function registerTestObject(): void {
     ],
     relations: [],
     listColumns: ["kind", "city"],
+    /* Une liste déclarée qui cite une colonne de base (D26) : « Créé le » y est choisie, « Modifiée le » ne s'ajoute pas d'office. */
+    lists: [
+      {
+        key: TEST_RECENT_LIST,
+        label: "Fiches récentes",
+        icon: CircleDashedIcon,
+        href: "/fiches-recentes",
+        order: 951,
+        columns: ["kind", "createdAt"],
+        defaultViewName: "Fiches récentes",
+        /* Sa vue par défaut porte une puce et un tri (D10) : sans alerte, la plus récemment créée en tête. */
+        defaultViewQuery: "f=kind:n_est_pas:zzz&tri=createdAt:desc",
+      },
+    ],
   });
 }

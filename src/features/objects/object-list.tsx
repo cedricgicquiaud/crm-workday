@@ -11,8 +11,9 @@ import { columnsOf } from "@/features/lists/columns";
 import { FilterChips } from "@/features/lists/filter-chips";
 import { ListCell } from "@/features/lists/inline-edit";
 import { ListCards } from "@/features/lists/list-cards";
-import { isSortable, UPDATED_AT, type Sort } from "@/features/lists/sort";
+import { isBaseColumn, isSortable, UPDATED_AT, type Sort } from "@/features/lists/sort";
 import { listUrl, searchParamsOf, type ListState } from "@/features/lists/url-state";
+import { isLocked } from "@/features/objects/fields";
 import { cellText, createLabel as createButtonLabel, displayValue, formatDate } from "@/features/objects/labels";
 import { getList, getObject, type FieldDescriptor, type ListDefinition, type ObjectLabels } from "@/features/objects/registry";
 import { listObjectRecords, listUserOptions } from "@/features/objects/service";
@@ -106,7 +107,7 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
   const fields = columnsOf(listKey);
   const title = fields.find((field) => field.key === definition.titleField)!;
   const columns = state.columns.map((key) => fields.find((field) => field.key === key)!);
-  const valueShare = columnShare(columns.filter((column) => column.key !== UPDATED_AT).length);
+  const valueShare = columnShare(columns.filter((column) => !isBaseColumn(column.key)).length);
   const count = shown.length;
   const singular = (list.singular ?? definition.labels.singular).toLowerCase();
   /* La palette ouvre une création en menant ici avec ce paramètre (D12). */
@@ -150,7 +151,7 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
                 <TableRow className="hover:bg-transparent">
                   <ColumnHeader list={listKey} type={type} state={state} field={title.key} label={title.label} className="h-7" />
                   {columns.map((column) =>
-                    column.key === UPDATED_AT ? (
+                    isBaseColumn(column.key) ? (
                       <ColumnHeader key={column.key} list={listKey} type={type} state={state} field={column.key} label={column.label} className="h-7 w-28 text-right" />
                     ) : (
                       <ColumnHeader key={column.key} list={listKey} type={type} state={state} field={column.key} label={column.label} className="h-7" width={valueShare} />
@@ -173,10 +174,10 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
                         </span>
                       </TableCell>
                       {columns.map((column) =>
-                        /* La colonne de base ne se saisit pas : la liste la rend elle-même, en date courte alignée à droite. */
-                        column.key === UPDATED_AT ? (
+                        /* Une colonne de base ne se saisit pas : la liste la rend elle-même, en date courte alignée à droite. */
+                        isBaseColumn(column.key) ? (
                           <TableCell key={column.key} className="py-1 text-right tabular-nums text-muted-foreground">
-                            {formatDate(record.updatedAt)}
+                            {formatDate(record[column.key] as Date)}
                           </TableCell>
                         ) : column.display ? (
                           /* Un champ dérivé s'écrit ici, depuis la fiche entière (D19) : il ne s'édite pas, et sa règle ne voyage pas jusqu'au navigateur. */
@@ -185,7 +186,7 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
                           </TableCell>
                         ) : (
                           <TableCell key={column.key} className="truncate py-1 text-muted-foreground">
-                            <ListCell type={type} id={record.id} field={forClient(column)}value={rawValue(record[column.key])} marked={column.markedBy ? rawValue(record[column.markedBy.field]) : undefined} users={users} />
+                            <ListCell type={type} id={record.id} field={forClient(column)} value={rawValue(record[column.key])} marked={column.markedBy ? rawValue(record[column.markedBy.field]) : undefined} users={users} locked={isLocked(column, record)} />
                           </TableCell>
                         ),
                       )}

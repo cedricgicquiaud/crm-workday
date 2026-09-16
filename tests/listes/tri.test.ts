@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { columnsOf } from "@/features/lists/columns";
 import { DEFAULT_SORT, isSortable, sortRecords } from "@/features/lists/sort";
 import { parseListState } from "@/features/lists/url-state";
 import { fieldsOf } from "@/features/objects/fields";
@@ -42,6 +43,25 @@ describe("tri d'une liste (CRM-48, D6)", () => {
     expect(names(sortRecords(TEST_TYPE, records, { field: "kind", direction: "asc" }, users))).toEqual(["Première", "Seconde"]);
     /* « Ana Bello » avant « Zoé Alard » alors que l'identifiant « u1 » vient avant « u2 ». */
     expect(names(sortRecords(TEST_TYPE, records, { field: "ownerId", direction: "asc" }, users))).toEqual(["Seconde", "Première"]);
+  });
+});
+
+/** « Créé le » est une colonne de base de toute liste (D10, D21) : elle s'affiche, se trie et voyage dans l'URL comme « Modifiée le ». */
+describe("colonne et tri « Créé le » (CRM-92, D10)", () => {
+  const created = (name: string, createdAt: string, updatedAt: string) => ({ ...record(name, day(updatedAt)), createdAt: day(createdAt) }) as ObjectRecord;
+  const RECENT = [created("Ancienne modifiée hier", "2026-09-01", "2026-09-15"), created("Récente", "2026-09-10", "2026-09-10"), created("Moyenne", "2026-09-05", "2026-09-06")];
+
+  it("trie par date de création dans les deux sens, indépendamment de la dernière modification", () => {
+    expect(isSortable(TEST_TYPE, "createdAt")).toBe(true);
+    expect(names(sortRecords(TEST_TYPE, RECENT, { field: "createdAt", direction: "desc" }))).toEqual(["Récente", "Moyenne", "Ancienne modifiée hier"]);
+    expect(names(sortRecords(TEST_TYPE, RECENT, { field: "createdAt", direction: "asc" }))).toEqual(["Ancienne modifiée hier", "Moyenne", "Récente"]);
+  });
+
+  it("se propose comme colonne « Créé le » et se relit depuis l'URL, tri et colonnes", () => {
+    expect(columnsOf(TEST_TYPE).find((column) => column.key === "createdAt")).toMatchObject({ label: "Créé le", type: "date", editable: false });
+    const state = parseListState(TEST_TYPE, new URLSearchParams("tri=createdAt:desc&colonnes=createdAt,kind"));
+    expect(state.sort).toEqual({ field: "createdAt", direction: "desc" });
+    expect(state.columns).toEqual(["createdAt", "kind"]);
   });
 });
 

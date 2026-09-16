@@ -6,6 +6,7 @@
  */
 import type { PgTable } from "drizzle-orm/pg-core";
 import type { ReactNode } from "react";
+import type { SerializedRecord } from "@/features/objects/labels";
 import type { ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import type { Executor } from "@/lib/db";
@@ -63,6 +64,30 @@ export function defineSection<T>(section: ObjectSection<T>): ObjectSection {
   return section as ObjectSection;
 }
 
+/** Ce qu'une action d'en-tête reçoit pour se rendre : la fiche, prête pour un composant client. */
+export type ActionProps = { id: string; record: SerializedRecord };
+
+/**
+ * Geste propre à un objet, rendu dans l'en-tête de la fiche à côté du menu d'actions (D21) :
+ * « Écarter », « Rouvrir » d'un lead. Il dit quand la fiche le permet ; la fiche montre ceux qui
+ * le sont, par rang croissant, et aucun sur une fiche archivée, qui ne s'écrit plus. La route du
+ * geste refuse de son côté : cacher un bouton n'est jamais la protection.
+ */
+export type ObjectAction = {
+  /** clé de l'action, unique dans l'objet */
+  key: string;
+  /** rang d'affichage croissant ; l'ordre ne dépend jamais de l'ordre de déclaration */
+  order: number;
+  visible: (record: Record<string, unknown>) => boolean;
+  render: (props: ActionProps) => ReactNode;
+};
+
+/**
+ * Ce qu'une valeur saisie rappelle d'une autre fiche (l'email d'un lead déjà porté par une personne,
+ * D8) : la fiche, son adresse et la phrase qui la nomme. Un avertissement, jamais un refus.
+ */
+export type EntryWarning = { id: string; title: string; href: string; message: string };
+
 export type ServerObjectDefinition = {
   key: string;
   table: PgTable;
@@ -70,10 +95,18 @@ export type ServerObjectDefinition = {
   search: (query: string) => Promise<SearchHit[]>;
   /** clé de rapprochement des doublons probables (D19) : deux fiches de même clé sont signalées (2.6a) ; nulle si la fiche n'en a pas */
   duplicateKey: (record: Record<string, unknown>) => string | null;
+  /**
+   * Source déclarée d'avertissement de saisie (D8, D28), lue par la route des doublons de l'objet avec
+   * les valeurs du dialogue ou du champ de la fiche : ce qu'elles rappellent d'autres fiches, la fiche
+   * en cours de saisie exceptée. Absente, seule la clé de doublon parle.
+   */
+  entryWarnings?: (values: Record<string, unknown>, exceptId: string | null) => Promise<EntryWarning[]>;
   /** tables qui dépendent d'une fiche de cet objet, lues par la fusion (2.6a) ; absentes, la fiche n'en a pas */
   dependents?: readonly DependentTable[];
   /** sections propres à l'objet, rendues par la fiche sous « Champs » (D20) ; absentes, la fiche n'en montre aucune */
   sections?: readonly ObjectSection[];
+  /** gestes d'en-tête propres à l'objet, visibles selon la fiche (D21) ; absents, la fiche n'offre que le menu commun */
+  actions?: readonly ObjectAction[];
   /**
    * Lecture d'une fiche pour son écran, quand elle ne se résume pas aux colonnes de sa table : la
    * personne y joint ses autres adresses et le poste de son profil contact. Absent, la fiche est lue
@@ -112,6 +145,11 @@ export function registerServerObject(definition: ServerObjectDefinition): void {
     if (keys.has(section.key)) throw new Error(`Objet « ${definition.key} » : la section « ${section.key} » est déclarée deux fois.`);
     keys.add(section.key);
   }
+  const actionKeys = new Set<string>();
+  for (const action of definition.actions ?? []) {
+    if (actionKeys.has(action.key)) throw new Error(`Objet « ${definition.key} » : l'action « ${action.key} » est déclarée deux fois.`);
+    actionKeys.add(action.key);
+  }
   objects.set(definition.key, definition);
 }
 
@@ -120,6 +158,12 @@ export function getServerObject(key: string): ServerObjectDefinition {
   const definition = objects.get(key);
   if (!definition) throw new HttpError(404, "objet_inconnu", `Aucun objet « ${key} ».`);
   return definition;
+}
+
+/** Actions d'en-tête qu'une fiche permet, par rang croissant puis par clé ; aucune sur une fiche archivée (D21). */
+export function visibleActions(key: string, record: Record<string, unknown>): readonly ObjectAction[] {
+  if (record.archivedAt != null) return [];
+  return (getServerObject(key).actions ?? []).filter((action) => action.visible(record)).sort((a, b) => a.order - b.order || a.key.localeCompare(b.key));
 }
 
 /** Sections d'un objet, par rang croissant puis par clé ; vide si l'objet n'en déclare aucune. */

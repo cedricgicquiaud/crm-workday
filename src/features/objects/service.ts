@@ -12,7 +12,7 @@ import { loadCustomFields } from "@/features/custom-fields/definitions";
 import { allCustomFieldsOf, isCustomFieldKey } from "@/features/custom-fields/fields-source";
 import { attachCustomValues, splitCustomValues, writeCustomValues } from "@/features/custom-fields/values";
 import { recordHistory } from "@/features/history/history";
-import { fieldsOf, serializeValue, validateValues, writableFieldsOf, type FieldValues } from "@/features/objects/fields";
+import { fieldsOf, isLocked, serializeValue, validateValues, writableFieldsOf, type FieldValues } from "@/features/objects/fields";
 import { userName, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
@@ -218,6 +218,18 @@ export function assertWritable(type: string, record: ObjectRecord): void {
   if (record.archivedAt) throw new HttpError(409, "fiche_archivee", `${getObject(type).labels.singular} archivée : elle ne se modifie plus.`, { id: record.id });
 }
 
+/**
+ * Un champ que la fiche fige (D21, `lockedWhen`) ne s'écrit pas : 409 champ par champ, avant toute
+ * validation — l'état de la fiche est le refus, pas la valeur reçue. Les autres champs passent.
+ */
+function assertUnlocked(type: string, record: ObjectRecord, input: unknown): void {
+  const raw = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const locked = fieldsOf(type).filter((field) => field.key in raw && isLocked(field, record));
+  if (locked.length === 0) return;
+  const errors = Object.fromEntries(locked.map((field) => [field.key, field.lockedWhen!.message]));
+  throw new HttpError(409, "champ_fige", Object.values(errors)[0], { fields: errors });
+}
+
 /** Fiches non archivées, la dernière modifiée en tête (D6) ; `includeArchived` les rend toutes (filtre « archivées », 2.5a). */
 export async function listObjectRecords(type: string, { includeArchived = false } = {}): Promise<ObjectRecord[]> {
   const { table } = getServerObject(type);
@@ -263,6 +275,7 @@ export async function updateObject(type: string, id: string, patch: unknown, act
   const columns = getTableColumns(table);
   const current = await getObjectRecord(type, id);
   assertWritable(type, current);
+  assertUnlocked(type, current, patch);
   const values = await validateOrThrow(type, patch, { partial: true });
   await assertUnique(type, values, id);
   const changed = writableFieldsOf(type)

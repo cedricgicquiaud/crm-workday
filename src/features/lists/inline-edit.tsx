@@ -3,11 +3,15 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import "@/features/objects/manifest";
-import { displayValue, type SerializedRecord, type UserOption } from "@/features/objects/labels";
+import { displayValue, selectableValues, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 
-/** `marked` : les valeurs du champ compagnon déclaré (`markedBy`), qui portent sa marque dans la cellule. */
-type Props = { type: string; id: string; field: FieldDescriptor; value: string; marked?: string; users: readonly UserOption[] };
+/**
+ * `marked` : les valeurs du champ compagnon déclaré (`markedBy`), qui portent sa marque dans la cellule.
+ * `locked` : la fiche fige ce champ (D21) — la règle ne franchit pas la frontière client, la liste la lit
+ * côté serveur et la cellule se rend en texte.
+ */
+type Props = { type: string; id: string; field: FieldDescriptor; value: string; marked?: string; users: readonly UserOption[]; locked?: boolean };
 
 const FAILED = "La modification n'a pas pu être enregistrée.";
 
@@ -40,7 +44,7 @@ function nextCell(current: string): HTMLElement | undefined {
  * sous la cellule et la valeur enregistrée revient. Modifications concurrentes : le dernier écrit
  * gagne, sans verrou (D6). Les autres champs se lisent ici et se modifient sur la fiche.
  */
-export function ListCell({ type, id, field, value: initial, marked, users }: Props) {
+export function ListCell({ type, id, field, value: initial, marked, users, locked = false }: Props) {
   const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [editing, setEditing] = useState(false);
@@ -86,7 +90,7 @@ export function ListCell({ type, id, field, value: initial, marked, users }: Pro
     if (accepted) following?.focus();
   }
 
-  if (!isInlineEditable(field)) {
+  if (locked || !isInlineEditable(field)) {
     return (
       <span className="block truncate" title={text}>
         {text}
@@ -140,17 +144,12 @@ export function ListCell({ type, id, field, value: initial, marked, users }: Pro
         onBlur={() => setEditing(false)}
       >
         <option value="">—</option>
-        {(field.values ?? []).map((entry) => (
-          <option key={entry.value} value={entry.value}>
+        {/* Une valeur réservée (D21) ou retirée (2.4) reste lisible sur la fiche qui la porte, et ne se choisit pas. */}
+        {selectableValues(field, saved).map((entry) => (
+          <option key={entry.value} value={entry.value} disabled={entry.disabled}>
             {entry.label}
           </option>
         ))}
-        {/* Une valeur retirée de la liste (2.4) reste lisible sur la fiche qui la porte, et ne se choisit plus. */}
-        {field.retiredValues?.some((entry) => entry.value === saved) && (
-          <option value={saved} disabled>
-            {text}
-          </option>
-        )}
       </select>
     );
   }

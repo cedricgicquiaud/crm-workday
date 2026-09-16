@@ -29,7 +29,7 @@ test.describe("« Nouveau consultant » depuis la liste et la palette (CRM-83, C
 
     await memberPage.goto("/accueil");
     const objectsNav = memberPage.locator('[data-slot="sidebar"]').getByRole("navigation", { name: "Objets" });
-    await expect(objectsNav.getByRole("link")).toHaveText(["Entreprises", "Personnes", "Consultants"]);
+    await expect(objectsNav.getByRole("link")).toHaveText(["Entreprises", "Personnes", "Consultants", "Leads"]);
     await objectsNav.getByRole("link", { name: "Consultants" }).click();
     await expect(memberPage).toHaveURL("/consultants");
     await expect(memberPage.getByRole("heading", { level: 1, name: "Consultants" })).toBeVisible();

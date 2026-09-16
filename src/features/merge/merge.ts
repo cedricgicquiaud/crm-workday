@@ -51,6 +51,9 @@ const valuesOf = (type: string, id: string) => and(eq(customFieldValue.objectTyp
  * en croyant supprimer l'absorbée.
  */
 async function pairOf(type: string, keptId: string, absorbedId: string): Promise<{ kept: ObjectRecord; absorbed: ObjectRecord }> {
+  /* Un objet qui se déclare non fusionnable refuse le geste lui-même (405), avant toute lecture de fiche (D21) ; un type inconnu reste un 404. */
+  getServerObject(type);
+  if (getObject(type).mergeable === false) throw new HttpError(405, "fusion_impossible", `Les ${getObject(type).labels.plural.toLowerCase()} ne se fusionnent pas.`);
   const sameRecord = () => new HttpError(400, "meme_fiche", `${getObject(type).labels.singular} ne se fusionne pas avec elle-même.`);
   if (keptId === absorbedId) throw sameRecord();
   const [kept, absorbed] = await Promise.all([getObjectRecord(type, keptId), getObjectRecord(type, absorbedId)]);
