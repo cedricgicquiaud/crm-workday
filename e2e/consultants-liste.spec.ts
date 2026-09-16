@@ -31,6 +31,9 @@ function parisDayFromToday(days: number): string {
   return noon.toISOString().slice(0, 10);
 }
 
+/** « 5 oct. 2026 » : le format court des dates de contexte (idiome d'interface). */
+const shortDate = (day: string) => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Paris" }).format(new Date(`${day}T12:00:00Z`));
+
 type PersonSeed = { profile?: Record<string, unknown>; companyId?: string };
 
 /** Crée une personne — contact si on lui donne une entreprise — et, si on lui en donne un, son profil consultant ; rend son identifiant et son nom complet. */
@@ -234,7 +237,7 @@ test.describe("téléphone, 375 px : consultants en cartes et fiche en une colon
     await expect(card(remi)).toContainText("État");
     await expect(card(remi)).toContainText("Disponible · à replacer");
     await expect(card(remi)).toContainText("HCM ✔");
-    await expect(card(leo)).toContainText(`En mission · disponible le ${new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Paris" }).format(new Date(`${parisDayFromToday(20)}T12:00:00Z`))}`);
+    await expect(card(leo)).toContainText(`En mission · disponible le ${shortDate(parisDayFromToday(20))}`);
     await expect(memberPage.locator("[data-cell]:visible")).toHaveCount(0);
     await expect(memberPage.getByRole("button", { name: "Nouveau consultant" })).toBeInViewport();
     await fitsTheScreen(memberPage, "liste des consultants");
