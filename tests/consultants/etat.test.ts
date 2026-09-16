@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { parisDay } from "@/features/activities/overdue";
 import { closeDb } from "@/lib/db";
-import { consultantState } from "@/features/consultants/state";
+import { consultantState, stateLabel } from "@/features/consultants/state";
 
 /* `parisDay` vit à côté de la règle d'échéance, qui interroge la base : son module ouvre la connexion. */
 afterAll(closeDb);
@@ -30,5 +30,13 @@ describe("état dérivé d'un consultant (CRM-85, D6)", () => {
     const tomorrow = { unavailable: "non", availableFrom: "2026-10-05" };
     expect(consultantState(tomorrow, parisDay(new Date("2026-10-04T21:30:00Z")))).toBe("en_mission");
     expect(consultantState(tomorrow, parisDay(new Date("2026-10-04T22:00:00Z")))).toBe("disponible");
+  });
+});
+
+/** D6, contrats 11 et 13 : l'état se lit avec sa date, et un salarié disponible porte « à replacer » — un freelance non, un salarié en mission non plus. */
+describe("libellé de l'état et mention « à replacer » (CRM-85, D6)", () => {
+  it("écrit la date de retour d'un consultant en mission en format court", () => {
+    expect(stateLabel({ state: "en_mission", availableFrom: "2026-10-05", status: "freelance" })).toBe("En mission · disponible le 5 oct. 2026");
+    expect(stateLabel({ state: "indisponible", availableFrom: "2026-10-05", status: "freelance" })).toBe("Indisponible");
   });
 });
