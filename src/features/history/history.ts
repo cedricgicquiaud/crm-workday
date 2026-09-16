@@ -7,7 +7,11 @@ import { and, count, desc, eq } from "drizzle-orm";
 import { auditLog, user } from "@/db/schema";
 import { db, type Executor } from "@/lib/db";
 
-export type HistoryAction = "creee" | "modifiee" | "archivee" | "restauree" | "fusionnee";
+/**
+ * Actions communes, et celles qu'un objet déclare pour ses gestes (`historyActions` du registre) :
+ * le journal les range telles quelles, la fiche les lit par la phrase que l'objet a déclarée.
+ */
+export type HistoryAction = "creee" | "modifiee" | "archivee" | "restauree" | "fusionnee" | (string & {});
 
 export type HistoryInput = {
   objectType: string;
