@@ -276,3 +276,42 @@ for (const { personne, profil } of consultants) {
     throw new Error(`amorce-recette : profil consultant de ${nomComplet} refusé (${saisie.status}).`);
   }
 }
+
+// Livraison 4.1a — des leads pour la recette : un par avancement (sauf converti, qui arrive avec la
+// conversion en 4.1b), un à l'email d'un contact d'une autre entreprise (Claire Morvan, contact chez
+// Banque Solveige), un à l'email d'un consultant sans profil contact (Karim Benali), un sans email.
+// Même règle que les blocs précédents : on lit d'abord les leads (tous avancements) et on ne crée que
+// les titres absents ; l'avancement ne se pose que s'il n'est pas déjà le bon, pour qu'une relance
+// n'émette aucune requête refusée. Un lead écarté ou converti à la main en recette est laissé tel quel.
+const listeLeads = await fetch("/api/leads");
+if (!listeLeads.ok) {
+  throw new Error(`amorce-recette : lecture des leads refusée (${listeLeads.status}).`);
+}
+const leadsParTitre = new Map((await listeLeads.json()).leads.map((fiche) => [fiche.title, fiche]));
+const leads = [
+  { titre: "Julie Martin · Banque Arcadie", corps: { firstName: "Julie", lastName: "Martin", companyName: "Banque Arcadie", email: "julie.martin@banque-arcadie.fr", origin: "linkedin", score: 2, need: "Migration de la paie vers Workday en 2027." }, avancement: "nouveau" },
+  { titre: "Paul Durand · Mutuelle du Rhône", corps: { firstName: "Paul", lastName: "Durand", companyName: "Mutuelle du Rhône", email: "paul.durand@mutuelle-rhone.fr", phone: "04 72 00 11 22", origin: "recommandation", score: 3 }, avancement: "contacte" },
+  { titre: "Sophie Lambert · Groupe Hélios", corps: { firstName: "Sophie", lastName: "Lambert", companyName: "Groupe Hélios", jobTitle: "DRH", email: "s.lambert@groupe-helios.fr", origin: "linkedin", score: 3 }, avancement: "qualifie" },
+  { titre: "Thomas Roy · Transports Vireo", corps: { firstName: "Thomas", lastName: "Roy", companyName: "Transports Vireo", email: "thomas.roy@vireo.fr", origin: "partenaire", score: 1 }, avancement: "ecarte" },
+  { titre: "Claire Morvan · Assurances Vaubourg", corps: { firstName: "Claire", lastName: "Morvan", companyName: "Assurances Vaubourg", email: "claire.morvan@banque-solveige.fr", origin: "recommandation" }, avancement: "nouveau" },
+  { titre: "Karim Benali · Industries Ondine", corps: { firstName: "Karim", lastName: "Benali", companyName: "Industries Ondine", email: "karim.benali@exemple.fr", origin: "autre" }, avancement: "nouveau" },
+  { titre: "Laboratoires Sirius", corps: { companyName: "Laboratoires Sirius", origin: "appel_d_offres", need: "Appel d'offres Workday Finance annoncé pour le printemps." }, avancement: "nouveau" },
+];
+for (const { titre, corps, avancement } of leads) {
+  let fiche = leadsParTitre.get(titre);
+  if (!fiche) {
+    const creation = await fetch("/api/leads", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corps) });
+    if (!creation.ok) {
+      throw new Error(`amorce-recette : création du lead ${titre} refusée (${creation.status}).`);
+    }
+    fiche = { id: (await creation.json()).id, stage: "nouveau" };
+  }
+  if (fiche.stage === avancement || fiche.stage === "converti" || fiche.stage === "ecarte") continue;
+  const passage =
+    avancement === "ecarte"
+      ? await fetch(`/api/leads/${fiche.id}/ecarter`, { method: "POST" })
+      : await fetch(`/api/leads/${fiche.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ stage: avancement }) });
+  if (!passage.ok) {
+    throw new Error(`amorce-recette : avancement du lead ${titre} refusé (${passage.status}).`);
+  }
+}
