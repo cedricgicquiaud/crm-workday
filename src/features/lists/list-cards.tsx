@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { cellText, displayValue, EMPTY } from "@/features/objects/labels";
+import { isBaseColumn } from "@/features/lists/sort";
+import { cellText, displayValue, EMPTY, formatDate } from "@/features/objects/labels";
 import type { UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 import type { ObjectRecord } from "@/features/objects/service";
@@ -45,8 +46,8 @@ export function ListCards({ type, records, columns, users }: Props) {
             {columns.length > 0 && (
               <dl className="mt-1 grid min-w-0 grid-cols-[auto_1fr] gap-x-2 text-xs text-muted-foreground">
                 {columns.map((column) => {
-                  /* La phrase même du tableau : l'état avec sa date, les modules certifiés marqués ✔. */
-                  const value = cellText(column, record, users);
+                  /* La phrase même du tableau : l'état avec sa date, les modules certifiés marqués ✔, une colonne de base en date courte. */
+                  const value = isBaseColumn(column.key) ? formatDate(record[column.key] as Date) : cellText(column, record, users);
                   return (
                     <div key={column.key} className="col-span-2 grid min-w-0 grid-cols-subgrid">
                       <dt className="truncate">{column.label}</dt>
