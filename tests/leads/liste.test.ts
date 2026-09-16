@@ -1,9 +1,12 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { auditLog, lead, pinnedView, savedView, user } from "@/db/schema";
+import { auditLog, customFieldDefinition, customFieldValue, lead, pinnedView, savedView, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { createDefinition, loadCustomFields } from "@/features/custom-fields/definitions";
+import { customFieldKey } from "@/features/custom-fields/fields-source";
+import { updateLead } from "@/features/leads/leads";
 import { listForState } from "@/features/lists/apply-filters";
-import { defaultColumnKeys } from "@/features/lists/columns";
+import { columnsOf, defaultColumnKeys } from "@/features/lists/columns";
 import { listStateToParams, listUrl } from "@/features/lists/url-state";
 import { getList } from "@/features/objects/registry";
 import { createObject, listObjectRecords } from "@/features/objects/service";
@@ -33,6 +36,8 @@ const titlesFor = async (query: string) => {
 };
 
 async function cleanup() {
+  await db.delete(customFieldValue);
+  await db.delete(customFieldDefinition);
   await db.delete(pinnedView);
   await db.delete(savedView);
   await db.delete(auditLog);
@@ -105,6 +110,20 @@ describe("liste « Leads » et sa vue « Leads en cours » (CRM-92, D10, contrat
     await expect(updateView("default", { name: "Mes leads" })).rejects.toMatchObject({ status: 409 });
     await expect(deleteView("default")).rejects.toMatchObject({ status: 409 });
     await expect(createView({ objectType: LIST, name: "Leads en cours", query: "" }, { id: memberId })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("reçoit un champ personnalisé « Événement » : il se saisit sur un lead, devient colonne et filtre de la liste", async () => {
+    const definition = await createDefinition({ objectType: "lead", label: "Événement", type: "text" }, { id: memberId });
+    await loadCustomFields();
+    const key = customFieldKey(definition.id);
+    expect(columnsOf(LIST).map((column) => column.label)).toContain("Événement");
+
+    const id = await leadCreatedOn("2026-09-09", { companyName: "Banque du Salon", origin: "autre" });
+    await updateLead(id, { [key]: "Salon HR Tech 2026" }, { id: memberId });
+    expect(await titlesFor(`f=${key}:contient:hr tech`)).toEqual(["Banque du Salon"]);
+    await db.delete(customFieldValue);
+    await db.delete(customFieldDefinition);
+    await loadCustomFields();
   });
 
   it("écarte « Avancement est converti » de la liste des personnes avec un avertissement, jamais une erreur", async () => {
