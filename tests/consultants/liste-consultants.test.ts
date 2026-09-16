@@ -4,6 +4,7 @@ import "@/features/objects/manifest.server";
 import { PATCH as patchConsultant } from "@/app/api/personnes/[id]/profil-consultant/route";
 import { auditLog, company, consultantModule, consultantProfile, person, user } from "@/db/schema";
 import { parisDay } from "@/features/activities/overdue";
+import { archiveRecord } from "@/features/archive/archive";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { listForState } from "@/features/lists/apply-filters";
 import { columnsOf } from "@/features/lists/columns";
@@ -129,5 +130,22 @@ describe("adresse de la liste « Consultants » (CRM-86, contrat 14)", () => {
     const reopened = parseListState(LIST, new URL(url, "http://localhost").searchParams);
     expect(reopened).toEqual(state);
     expect(await shown(new URL(url, "http://localhost").search.slice(1))).toEqual(["Rémi", "Dina"]);
+  });
+});
+
+/** Contrat 17 (D10) : le filtre de base dit ce que la liste est ; aucune adresse ne le retire, et les archivées restent dehors sauf si on les demande. */
+describe("refus de la liste « Consultants » (CRM-87, contrat 17)", () => {
+  it("ne montre jamais une personne sans profil consultant, même par une URL bricolée ou sans filtre", async () => {
+    for (const query of ["", "f=profiles:est_vide:", "f=profiles:contient:contact", "f=status:est_vide:", "f=state:n_est_pas:disponible"]) {
+      expect(await shown(query), query).not.toContain("Simple");
+    }
+  });
+
+  it("laisse dehors un consultant archivé, sauf avec le filtre « archivées »", async () => {
+    const id = await seed("Zoé", { status: "freelance" });
+    await archiveRecord("person", id, { id: memberId });
+    expect(await shown("")).not.toContain("Zoé");
+    expect(await shown("archivees=1")).toContain("Zoé");
+    expect(await shown("archivees=1")).not.toContain("Simple");
   });
 });
