@@ -6,6 +6,10 @@ import { POST as postLead } from "@/app/api/leads/route";
 import { GET as getProfile } from "@/app/api/personnes/[id]/profil-contact/route";
 import { GET as getPerson } from "@/app/api/personnes/[id]/route";
 import { POST as postPerson } from "@/app/api/personnes/route";
+import { POST as postConsultant } from "@/app/api/consultants/route";
+import { createDefinition, loadCustomFields, updateDefinition } from "@/features/custom-fields/definitions";
+import { customFieldKey } from "@/features/custom-fields/fields-source";
+import { linkedGroups } from "@/features/objects/links-column";
 import { GET as getCompany } from "@/app/api/entreprises/[id]/route";
 import { activity, auditLog, company, customFieldDefinition, customFieldValue, lead, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
@@ -180,6 +184,53 @@ describe("convertir un lead dont la personne est déjà contact ailleurs (CRM-95
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ fields: { keepCompany: expect.stringContaining("Acme yves.garnier@acme-ter.fr") } });
     expect(await readLead(id)).toMatchObject({ stage: "nouveau" });
+  });
+});
+
+describe("convertir un lead vers un consultant, sans email, avec des champs personnalisés (CRM-95, D16, contrats 21 à 23)", () => {
+  it("donne un profil contact à une personne qui n'était que consultant : « Contact, Consultant », section consultant inchangée, et elle figure parmi les contacts de l'entreprise (contrat 21)", async () => {
+    const created = await postConsultant(jsonRequest("POST", "/api/consultants", { firstName: "Rémi", lastName: "Carré", email: "remi.carre@free.fr", status: "freelance", dailyCost: 650 }, memberCookie));
+    expect(created.status).toBe(201);
+    const { id: remiId } = (await created.json()) as { id: string };
+    const id = await createLead({ companyName: "Banque Consult", email: "remi.carre@free.fr", origin: "partenaire" });
+
+    const res = await convert(id, { companyName: "Banque Consult" });
+    expect(res.status).toBe(200);
+    const { companyId } = (await res.json()) as { companyId: string };
+
+    expect(await readPerson(remiId)).toMatchObject({ profiles: ["contact", "consultant"], status: "freelance", dailyCost: 650 });
+    const contacts = (await linkedGroups("company", companyId)).find((group) => group.label === "Contacts");
+    expect(contacts?.records.map((record) => record.id)).toEqual([remiId]);
+  });
+
+  it("crée une nouvelle personne pour un lead sans email au nom d'une personne existante, que le signal « doublon probable » rapproche (contrat 22)", async () => {
+    const existing = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Anne", lastName: "Lefèvre" }, memberCookie));
+    const { id: anneId } = (await existing.json()) as { id: string };
+    const id = await createLead({ firstName: "Anne", lastName: "Lefèvre", companyName: "Banque Homonyme", origin: "autre" });
+
+    const res = await convert(id, {});
+    expect(res.status).toBe(200);
+    const { personId } = (await res.json()) as { personId: string };
+
+    expect(personId).not.toBe(anneId);
+    expect((await duplicatesOfRecord("person", personId)).map((duplicate) => duplicate.id)).toEqual([anneId]);
+  });
+
+  it("ne recopie pas les champs personnalisés du lead, et un champ personnalisé obligatoire des personnes n'empêche pas la conversion et reste vide (contrat 23)", async () => {
+    const leadField = await createDefinition({ objectType: "lead", label: "Source précise", type: "text" }, { id: ownerId });
+    const personField = await createDefinition({ objectType: "person", label: "Matricule", type: "text" }, { id: ownerId });
+    await updateDefinition(personField.id, { required: true });
+    await loadCustomFields();
+    const id = await createLead({ firstName: "Iris", lastName: "Noël", companyName: "Banque Perso", origin: "autre", [customFieldKey(leadField.id)]: "Salon RH" });
+
+    const res = await convert(id, {});
+    expect(res.status).toBe(200);
+    const { personId, companyId } = (await res.json()) as { personId: string; companyId: string };
+
+    const personRead = await readPerson(personId);
+    expect(personRead[customFieldKey(personField.id)] ?? null).toBeNull();
+    expect(Object.values(personRead)).not.toContain("Salon RH");
+    expect(Object.values(await readCompany(companyId))).not.toContain("Salon RH");
   });
 });
 
