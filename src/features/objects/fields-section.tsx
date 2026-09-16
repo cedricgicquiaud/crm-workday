@@ -37,6 +37,12 @@ export function FieldsSection({ type, record: initial, users, readOnly = false }
   const router = useRouter();
   const definition = getObject(type);
   const [record, setRecord] = useState(initial);
+  /* La fiche relue par le serveur a changé ailleurs (un geste d'en-tête comme « Écarter », D21) : la section la suit, un champ figé se lit aussitôt en texte. */
+  const [seen, setSeen] = useState(initial);
+  if (seen !== initial) {
+    setSeen(initial);
+    setRecord(initial);
+  }
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [warnings, setWarnings] = useState<Record<string, DuplicateHint[]>>({});
 

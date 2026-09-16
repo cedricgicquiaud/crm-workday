@@ -7,7 +7,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { lead } from "@/db/schema";
 import { recordHistory } from "@/features/history/history";
-import { assertWritable, createObject, getObjectRecord, updateObject, type Actor, type ObjectRecord } from "@/features/objects/service";
+import { assertWritable, createObject, getObjectRecord, listObjectRecords, updateObject, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { DISCARDED_STAGE, lacksName, LEAD_NAME_ERROR_FIELD, LEAD_NAME_RULE, OPEN_STAGES, REOPENED_STAGE, TITLE_RULE } from "./schema";
@@ -34,6 +34,8 @@ export async function createLead(input: unknown, actor: Actor): Promise<ObjectRe
 }
 
 export const getLead = (id: string): Promise<ObjectRecord> => getObjectRecord(TYPE, id);
+
+export const listLeads = (): Promise<ObjectRecord[]> => listObjectRecords(TYPE);
 
 /** La règle des trois champs se lit sur la fiche telle qu'elle serait après la modification : vider le dernier est refusé. */
 export async function updateLead(id: string, patch: unknown, actor: Actor): Promise<ObjectRecord> {
