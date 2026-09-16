@@ -84,10 +84,18 @@ function assertNotProfileField(type: string, input: unknown): void {
   throw new HttpError(400, "champ_de_profil", Object.values(errors)[0], { fields: errors });
 }
 
-async function validateOrThrow(type: string, input: unknown, options: { partial: boolean }): Promise<FieldValues> {
+/**
+ * `customRequired: false` : un champ personnalisé obligatoire n'est pas exigé. Une écriture qui ne
+ * vient pas d'une saisie de la fiche (une fiche créée par le geste d'un autre objet) ne peut pas le
+ * connaître ; il reste vide jusqu'à ce qu'on le renseigne sur la fiche.
+ */
+type ValidationOptions = { partial: boolean; customRequired?: boolean };
+
+async function validateOrThrow(type: string, input: unknown, { partial, customRequired = true }: ValidationOptions): Promise<FieldValues> {
   assertNotArchived(type, input);
   assertNotProfileField(type, input);
-  const { values, errors } = validateValues(writableFieldsOf(type), input, options);
+  const fields = writableFieldsOf(type).map((field) => (!customRequired && isCustomFieldKey(field.key) ? { ...field, required: false } : field));
+  const { values, errors } = validateValues(fields, input, { partial });
   if (Object.keys(errors).length > 0) throw invalid(errors);
   await assertUsersExist(type, values);
   return values;
@@ -121,12 +129,13 @@ async function assertUnique(type: string, values: FieldValues, currentId: string
 
 /**
  * Crée une fiche. `exec` reçoit la transaction en cours quand cette création n'a de sens qu'avec une
- * autre écriture (une fiche et son profil, D12) : les deux aboutissent, ou aucune.
+ * autre écriture (une fiche et son profil, D12) : les deux aboutissent, ou aucune. `customRequired`
+ * à faux dispense des champs personnalisés obligatoires une fiche créée par un geste (D16).
  */
-export async function createObject(type: string, input: unknown, actor: Actor, exec: Executor = db): Promise<ObjectRecord> {
+export async function createObject(type: string, input: unknown, actor: Actor, exec: Executor = db, { customRequired = true }: { customRequired?: boolean } = {}): Promise<ObjectRecord> {
   const { table } = getServerObject(type);
   await loadCustomFields();
-  const values = withDefaults(type, await validateOrThrow(type, input, { partial: false }), actor);
+  const values = withDefaults(type, await validateOrThrow(type, input, { partial: false, customRequired }), actor);
   await assertUnique(type, values, null);
   const { base, custom } = splitCustomValues(values);
   const [row] = await exec

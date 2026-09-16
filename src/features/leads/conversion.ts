@@ -129,10 +129,13 @@ function assertConvertible(record: { stage: unknown; archivedAt: unknown }, id: 
   if (!OPEN_STAGES.includes(String(record.stage))) throw new HttpError(409, "avancement_incompatible", "Lead écarté : rouvrez-le avant de le convertir.", { id });
 }
 
+/** Les fiches que crée la conversion ne recopient aucun champ personnalisé, et n'en exigent aucun (D16). */
+const GESTURE = { customRequired: false };
+
 /** Nouvelle personne (D16) : prénom, nom, email, téléphone et LinkedIn du lead, au responsable du lead. */
 async function createPerson(person: { firstName: string; lastName: string }, current: ObjectRecord, actor: Actor, tx: Executor): Promise<string> {
   const values = { firstName: person.firstName, lastName: person.lastName, email: current.email ?? null, phone: current.phone ?? null, linkedin: current.linkedin ?? null, ownerId: current.ownerId };
-  return (await createObject("person", values, actor, tx)).id;
+  return (await createObject("person", values, actor, tx, GESTURE)).id;
 }
 
 /** Personne retrouvée (D16) : ses champs vides reçoivent ceux du lead, une ligne d'historique par champ ; rien n'est écrasé, son responsable ne change pas. */
@@ -175,7 +178,7 @@ export async function convertLead(id: string, input: unknown, actor: Actor): Pro
     assertConvertible(locked, current.id);
 
     /* Une entreprise existante garde son type et son responsable ; une nouvelle est un prospect au responsable du lead (D16). */
-    const target = plan.company.kind === "existing" ? plan.company : await createObject("company", { name: plan.company.name, type: "prospect", ownerId }, actor, tx);
+    const target = plan.company.kind === "existing" ? plan.company : await createObject("company", { name: plan.company.name, type: "prospect", ownerId }, actor, tx, GESTURE);
     const companyId = target.id;
     const companyName = String(target.name);
 
