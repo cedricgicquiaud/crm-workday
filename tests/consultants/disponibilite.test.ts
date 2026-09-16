@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PATCH as patchConsultant } from "@/app/api/personnes/[id]/profil-consultant/route";
-import { GET as getPerson } from "@/app/api/personnes/[id]/route";
+import { GET as getPerson, PATCH as patchPerson } from "@/app/api/personnes/[id]/route";
 import { POST as postPerson } from "@/app/api/personnes/route";
 import { auditLog, company, consultantModule, consultantProfile, person, user } from "@/db/schema";
 import { parisDay } from "@/features/activities/overdue";
@@ -93,5 +93,12 @@ describe("refus d'écrire l'état d'un consultant (CRM-85, D6)", () => {
     expect(refused.status).toBe(400);
     expect(await refused.json()).toMatchObject({ fields: { state: "« État » se déduit des autres champs du profil et ne se saisit pas." } });
     expect(await readPerson(id)).toMatchObject({ state: "disponible", languages: null });
+  });
+
+  it("répond 400 sur le champ « État » envoyé à l'API de la personne", async () => {
+    const id = await createConsultant("Personne", "freelance");
+    const refused = await patchPerson(jsonRequest("PATCH", `/api/personnes/${id}`, { state: "en_mission" }, memberCookie), byId(id));
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({ fields: { state: "« État » se règle sur le profil consultant." } });
   });
 });
