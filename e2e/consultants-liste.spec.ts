@@ -205,3 +205,56 @@ test.describe("profil consultant depuis la liste des personnes (CRM-87, contrat 
     await expect(memberPage.locator("[data-cell]")).toHaveCount(0);
   });
 });
+
+test.describe("téléphone, 375 px : consultants en cartes et fiche en une colonne (CRM-88, contrat 19)", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  /** Aucun défilement horizontal de la page, un seul h1, et aucun cadre qui défile en largeur (contrôle de `e2e/listes.spec.ts`). */
+  async function fitsTheScreen(page: Page, label: string) {
+    await expect(page.getByRole("heading", { level: 1 }), label).toHaveCount(1);
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+    expect(scrollWidth, label).toBeLessThanOrEqual(clientWidth);
+    const wider = await page.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>("body *"))
+        .filter((el) => el.clientWidth > 1 && el.scrollWidth > el.clientWidth + 1)
+        .filter((el) => getComputedStyle(el).overflowX !== "visible" && getComputedStyle(el).textOverflow !== "ellipsis")
+        .map((el) => `${el.tagName.toLowerCase()} ${el.scrollWidth}>${el.clientWidth}`),
+    );
+    expect(wider, label).toEqual([]);
+  }
+
+  test("la liste passe en cartes qui suivent les colonnes de la vue — état avec sa date et « à replacer », certifiés marqués ✔ — sans cellule ouvrable ni défilement horizontal, « Nouveau consultant » atteignable ; la fiche tient en une colonne et les modules se cochent encore", async ({ memberPage }) => {
+    const mark = tag();
+    const { remi, leo } = await seedConsultants(memberPage, mark);
+    const card = (name: string) => memberPage.getByRole("listitem").filter({ has: memberPage.getByRole("link", { name, exact: true }) });
+
+    await memberPage.goto(`/consultants?f=name:contient:${mark}`);
+    await expect(card(remi)).toBeVisible();
+    await expect(table(memberPage)).toBeHidden();
+    await expect(card(remi)).toContainText("État");
+    await expect(card(remi)).toContainText("Disponible · à replacer");
+    await expect(card(remi)).toContainText("HCM ✔");
+    await expect(card(leo)).toContainText(`En mission · disponible le ${new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Paris" }).format(new Date(`${parisDayFromToday(20)}T12:00:00Z`))}`);
+    await expect(memberPage.locator("[data-cell]:visible")).toHaveCount(0);
+    await expect(memberPage.getByRole("button", { name: "Nouveau consultant" })).toBeInViewport();
+    await fitsTheScreen(memberPage, "liste des consultants");
+
+    /* Les cartes suivent les colonnes de la vue : sans « Modules » dans l'adresse, la carte ne les montre plus. */
+    await memberPage.goto(`/consultants?f=name:contient:${mark}&colonnes=state`);
+    await expect(card(remi)).toContainText("Disponible · à replacer");
+    await expect(card(remi)).not.toContainText("HCM");
+
+    await card(remi).getByRole("link", { name: remi, exact: true }).click();
+    const section = memberPage.getByRole("region", { name: "Profil consultant" });
+    await expect(section).toBeVisible();
+    /* Une colonne : la section prend la largeur de l'écran, moins ses marges. */
+    expect((await section.boundingBox())!.width).toBeGreaterThan(300);
+    const [response] = await Promise.all([
+      memberPage.waitForResponse((res) => res.url().includes("/profil-consultant") && res.request().method() === "PATCH"),
+      section.getByRole("checkbox", { name: "Payroll", exact: true }).click().then(() => section.getByRole("checkbox", { name: "Payroll", exact: true }).press("Enter")),
+    ]);
+    expect(response.status()).toBe(200);
+    await expect(section.getByRole("checkbox", { name: "Payroll", exact: true })).toBeChecked();
+    await fitsTheScreen(memberPage, "fiche du consultant");
+  });
+});
