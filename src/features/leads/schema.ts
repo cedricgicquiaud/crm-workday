@@ -30,6 +30,9 @@ export const OPEN_STAGES: readonly string[] = ["nouveau", "contacte", "qualifie"
 
 export const DISCARDED_STAGE = "ecarte";
 
+/** Posé par la conversion (4.1b) seule. */
+export const CONVERTED_STAGE = "converti";
+
 /** « Rouvrir » remet un lead écarté à « contacté » (D7). */
 export const REOPENED_STAGE = "contacte";
 
