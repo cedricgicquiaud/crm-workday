@@ -57,7 +57,7 @@ describe("liste « Consultants » déclarée au registre (CRM-83, D10)", () => {
   });
 
   it("porte les colonnes par défaut de la décision 10, et écrit ses adresses sous son propre chemin", () => {
-    expect(defaultColumnKeys(LIST)).toEqual(["status", "modules", "dailyCost", "ownerId", "updatedAt"]);
+    expect(defaultColumnKeys(LIST)).toEqual(["status", "modules", "dailyCost", "state", "ownerId", "updatedAt"]);
     expect(listUrl(LIST, parseListState(LIST, new URLSearchParams("tri=status:asc")))).toBe("/consultants?tri=status%3Aasc");
     /* Les colonnes de la liste des personnes ne bougent pas : chaque liste a les siennes. */
     expect(defaultColumnKeys("person")).toEqual(["profiles", "ownerId", "updatedAt"]);
