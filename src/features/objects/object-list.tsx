@@ -34,6 +34,15 @@ const ARIA_SORT = { asc: "ascending", desc: "descending" } as const;
 /** Valeur brute d'un champ, telle que la cellule la renverra au serveur. */
 const rawValue = (value: unknown) => (value === null || value === undefined ? "" : String(value));
 
+/** Texte en lecture d'une cellule, tronqué, avec le texte complet au survol. */
+function ReadOnlyCell({ text }: { text: string }) {
+  return (
+    <span className="block truncate" title={text}>
+      {text}
+    </span>
+  );
+}
+
 /** Le tri suivant au clic : le même champ change de sens, un autre champ commence croissant. */
 const nextSort = (sort: Sort, field: string): Sort => ({ field, direction: sort.field === field && sort.direction === "asc" ? "desc" : "asc" });
 
@@ -146,9 +155,7 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
                         ) : column.display ? (
                           /* Un champ dérivé s'écrit ici, depuis la fiche entière (D19) : il ne s'édite pas, et sa règle ne voyage pas jusqu'au navigateur. */
                           <TableCell key={column.key} className="truncate py-1 text-muted-foreground">
-                            <span className="block truncate" title={cellText(column, record, users)}>
-                              {cellText(column, record, users)}
-                            </span>
+                            <ReadOnlyCell text={cellText(column, record, users)} />
                           </TableCell>
                         ) : (
                           <TableCell key={column.key} className="truncate py-1 text-muted-foreground">
