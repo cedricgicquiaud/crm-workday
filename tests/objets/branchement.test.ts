@@ -294,7 +294,7 @@ describe("refus de suppression déclaré (CRM-97, D18, D21)", () => {
 describe("relation gardée même archivée, et bloqueurs nommés (CRM-97, D19, D21, D27)", () => {
   it("liste une fiche fille archivée chez sa mère, marquée archivée, et le refus de supprimer la mère la nomme, trois titres au plus", async () => {
     const mere = await createObject(TYPE, { name: "Mère retenue" }, { id: actorId });
-    const filles = [];
+    const filles: Awaited<ReturnType<typeof createObject>>[] = [];
     for (const name of ["Fille A", "Fille B", "Fille C", "Fille D"]) filles.push(await createObject(TYPE, { name, parentId: mere.id }, { id: actorId }));
     await archiveRecord(TYPE, filles[0].id, { id: actorId });
 
