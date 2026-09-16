@@ -2,7 +2,11 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import "@/features/objects/manifest.server";
 import { PATCH as patchConsultant } from "@/app/api/personnes/[id]/profil-consultant/route";
-import { auditLog, company, consultantModule, consultantProfile, person, user } from "@/db/schema";
+import { GET as getViews, POST as postView } from "@/app/api/vues/route";
+import { DELETE as deleteViewRoute, PATCH as patchView } from "@/app/api/vues/[id]/route";
+import { POST as postPin } from "@/app/api/vues-epinglees/route";
+import { auditLog, company, consultantModule, consultantProfile, person, savedView, user } from "@/db/schema";
+import { listPinnedViews } from "@/features/views/pinned";
 import { parisDay } from "@/features/activities/overdue";
 import { archiveRecord } from "@/features/archive/archive";
 import { createUserWithPassword } from "@/features/auth/accounts";
@@ -42,6 +46,8 @@ async function seed(firstName: string, profile: Record<string, unknown> | null):
 
 /** Les enfants avant les parents : les clés étrangères de ces tables sont sans cascade côté personne. */
 async function cleanup() {
+  /* Les vues d'abord : leurs épingles partent avec elles (cascade). */
+  await db.delete(savedView);
   await db.delete(consultantModule);
   await db.delete(consultantProfile);
   await db.delete(auditLog);
@@ -130,6 +136,29 @@ describe("adresse de la liste « Consultants » (CRM-86, contrat 14)", () => {
     const reopened = parseListState(LIST, new URL(url, "http://localhost").searchParams);
     expect(reopened).toEqual(state);
     expect(await shown(new URL(url, "http://localhost").search.slice(1))).toEqual(["Rémi", "Dina"]);
+  });
+});
+
+/** Contrat 15 (D10) : la liste « Consultants » a ses vues et ses épingles comme toute liste ; sa vue par défaut est fixe. */
+describe("vues de la liste « Consultants » (CRM-87, contrat 15)", () => {
+  const QUERY = "f=status:est:freelance&f=modules:contient:hcm&f=state:est:disponible";
+
+  it("enregistre « Freelances HCM disponibles », l'épingle, et la retrouve après reconnexion, ouvrant les freelances HCM disponibles", async () => {
+    const created = await postView(jsonRequest("POST", "/api/vues", { objectType: LIST, name: "Freelances HCM disponibles", query: QUERY }, memberCookie));
+    expect(created.status).toBe(201);
+    const { id } = (await created.json()) as { id: string };
+    expect((await postPin(jsonRequest("POST", "/api/vues-epinglees", { viewId: id }, memberCookie))).status).toBe(201);
+
+    const reconnected = await sessionCookie(MEMBER.email, MEMBER.password);
+    const { views } = (await (await getViews(jsonRequest("GET", `/api/vues?objet=${LIST}`, undefined, reconnected))).json()) as { views: { name: string }[] };
+    expect(views.map((view) => view.name)).toEqual(["Tous les consultants", "Freelances HCM disponibles"]);
+    expect(await listPinnedViews(memberId)).toMatchObject([{ id, objectType: LIST, name: "Freelances HCM disponibles" }]);
+    expect(await shown(QUERY)).toEqual(["Dina"]);
+  });
+
+  it("refuse de renommer ou de supprimer la vue par défaut « Tous les consultants » (409)", async () => {
+    expect((await patchView(jsonRequest("PATCH", "/api/vues/default", { name: "Tout le monde" }, memberCookie), byId("default"))).status).toBe(409);
+    expect((await deleteViewRoute(jsonRequest("DELETE", "/api/vues/default", undefined, memberCookie), byId("default"))).status).toBe(409);
   });
 });
 
