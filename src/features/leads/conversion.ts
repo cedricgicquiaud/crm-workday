@@ -90,9 +90,19 @@ export async function convertLead(id: string, input: unknown, actor: Actor): Pro
 
     await writeContactProfile(personId, { values: { jobTitle: plan.jobTitle, decisionRole: plan.decisionRole }, company: { id: companyId, name: companyName, archivedAt: null } }, actor, tx);
 
+    /* Ce que la fenêtre a complété ne s'écrit sur le lead que dans ses champs vides (D15) : rien n'y est écrasé. */
+    const completed = Object.entries({ firstName: plan.firstName, lastName: plan.lastName, companyName: plan.companyName, jobTitle: plan.jobTitle }).filter(
+      ([key, value]) => value !== null && text(current[key]) === null,
+    ) as [string, string][];
     const now = new Date();
-    await tx.update(lead).set({ stage: CONVERTED_STAGE, convertedAt: now, convertedPersonId: personId, convertedCompanyId: companyId, updatedAt: now }).where(eq(lead.id, current.id));
-    const entries: HistoryInput[] = [{ objectType: TYPE, objectId: current.id, action: CONVERSION_ACTION, newValue: `${personName} · ${companyName}`, authorId: actor.id }];
+    await tx
+      .update(lead)
+      .set({ ...Object.fromEntries(completed), stage: CONVERTED_STAGE, convertedAt: now, convertedPersonId: personId, convertedCompanyId: companyId, updatedAt: now })
+      .where(eq(lead.id, current.id));
+    const entries: HistoryInput[] = [
+      { objectType: TYPE, objectId: current.id, action: CONVERSION_ACTION, newValue: `${personName} · ${companyName}`, authorId: actor.id },
+      ...completed.map(([field, value]) => ({ objectType: TYPE, objectId: current.id, action: "modifiee" as const, field, oldValue: null, newValue: value, authorId: actor.id })),
+    ];
     await recordHistory(entries, tx);
     return { leadId: current.id, personId, companyId };
   });
