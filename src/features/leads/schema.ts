@@ -25,6 +25,22 @@ export const LEAD_STAGES: readonly ListValue[] = [
   { value: "ecarte", label: "Écarté" },
 ];
 
+/** D4 : un lead nomme quelqu'un ou une entreprise — au moins un de ces trois champs, en création comme en modification. */
+export const LEAD_NAME_FIELDS: readonly string[] = ["firstName", "lastName", "companyName"];
+
+/** Le refus de la règle, écrit une fois sous le groupe des trois champs. */
+export const LEAD_NAME_RULE = "Renseignez un prénom, un nom ou une entreprise";
+
+/** Le champ sous lequel le refus s'affiche : le dernier du groupe, pour qu'il se lise sous les trois. */
+export const LEAD_NAME_ERROR_FIELD = "companyName";
+
+export const TITLE_RULE = "« Titre » se calcule depuis le prénom, le nom et le nom de l'entreprise, et ne se saisit pas.";
+
+const blank = (value: unknown): boolean => value === undefined || value === null || (typeof value === "string" && value.trim() === "");
+
+/** Vrai quand aucun des trois champs du nom ne porte de valeur une fois les espaces retirés. */
+export const lacksName = (values: Record<string, unknown>): boolean => LEAD_NAME_FIELDS.every((key) => blank(values[key]));
+
 export const LEAD_FIELDS: readonly FieldDescriptor[] = [
   /* Calculé par la base : titre de la fiche et première colonne de la liste, jamais saisi (D3). */
   { key: "title", label: "Titre", type: "text", editable: false, sortable: true, order: 5 },
