@@ -172,6 +172,17 @@ registerProfileSource({
   holds: async (personId, exec) => (await exec.select({ id: consultantProfile.id }).from(consultantProfile).where(eq(consultantProfile.personId, personId)).limit(1)).length > 0,
 });
 
+/**
+ * Un champ du profil qui se déduit (l'état, le nom de la société) ne se saisit pas : sa clé est refusée
+ * (400 par champ). `validateValues` ignore les clés qu'il ne valide pas — sans ce refus, la réponse
+ * dirait 200 et rien ne serait écrit.
+ */
+function refuseDerivedKeys(input: unknown): void {
+  const raw = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const claimed = CONSULTANT_PROFILE_FIELDS.filter((field) => field.editable === false && field.key in raw);
+  if (claimed.length > 0) throw invalid(Object.fromEntries(claimed.map((field) => [field.key, `« ${field.label} » se déduit des autres champs du profil et ne se saisit pas.`])));
+}
+
 /** Valeurs validées d'un profil, prêtes à écrire ; rien n'a encore été écrit. */
 export type PreparedConsultantProfile = { values: FieldValues };
 
@@ -180,6 +191,7 @@ export type PreparedConsultantProfile = { values: FieldValues };
  * nul) le statut est obligatoire, en modification seuls les champs présents comptent.
  */
 export function prepareConsultantProfile(input: unknown, existing: ConsultantProfile | null): PreparedConsultantProfile {
+  refuseDerivedKeys(input);
   const { values, errors } = validateValues(CONSULTANT_INPUT_FIELDS, input, { partial: existing !== null });
   if (Object.keys(errors).length > 0) throw invalid(errors);
   return { values };
