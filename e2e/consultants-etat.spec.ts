@@ -107,3 +107,32 @@ test.describe("état d'un consultant sur sa fiche (CRM-85, contrat 11)", () => {
     await expect(feed.getByText("Motif d'indisponibilité : congé parental → vide")).toBeVisible();
   });
 });
+
+/** Colonnes par défaut de la liste « Consultants » (contrat 14) : Nom, Statut, Modules, Coût journalier, État… — État est la cinquième cellule. */
+const STATE_CELL = 4;
+
+test.describe("mention « à replacer » sur la fiche et dans la liste (CRM-85, contrat 13)", () => {
+  test("un salarié disponible porte « à replacer » sur sa fiche et dans la colonne État ; un freelance disponible et un salarié en mission ne la portent pas", async ({ memberPage }) => {
+    const inTwentyDays = parisDayFromToday(20);
+    const employee = await createConsultant(memberPage, "Rémi", { status: "salarie" });
+    const freelance = await createConsultant(memberPage, "Dina", { status: "freelance", availableFrom: parisDayFromToday(-3) });
+    const onAssignment = await createConsultant(memberPage, "Léo", { status: "salarie", availableFrom: inTwentyDays });
+    const expected = [
+      [employee, "Disponible · à replacer"],
+      [freelance, "Disponible"],
+      [onAssignment, `En mission · disponible le ${shortDate(inTwentyDays)}`],
+    ] as const;
+
+    for (const [consultant, label] of expected) {
+      await memberPage.goto(`/personnes/${consultant.id}`);
+      await expect(memberPage.getByRole("region", { name: "Profil consultant" }).getByLabel("État", { exact: true }), consultant.name).toHaveText(label);
+    }
+
+    await memberPage.goto("/consultants");
+    const table = memberPage.getByRole("table", { name: "Consultants" });
+    for (const [consultant, label] of expected) {
+      const row = table.getByRole("row").filter({ has: memberPage.getByRole("link", { name: consultant.name, exact: true }) });
+      await expect(row.getByRole("cell").nth(STATE_CELL), consultant.name).toHaveText(label);
+    }
+  });
+});
