@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
+import { parisDay } from "@/features/activities/overdue";
+import { closeDb } from "@/lib/db";
 import { consultantState } from "@/features/consultants/state";
+
+/* `parisDay` vit à côté de la règle d'échéance, qui interroge la base : son module ouvre la connexion. */
+afterAll(closeDb);
 
 /**
  * D6 : l'état d'un consultant se déduit de deux champs saisis, jamais saisi lui-même. « Indisponible »
@@ -18,5 +23,12 @@ describe("état dérivé d'un consultant (CRM-85, D6)", () => {
     expect(consultantState({ unavailable: "non", availableFrom: "2026-09-15" }, "2026-09-16")).toBe("disponible");
     expect(consultantState({ unavailable: "non", availableFrom: "2026-09-16" }, "2026-09-16")).toBe("disponible");
     expect(consultantState({ unavailable: "non", availableFrom: null }, "2026-09-16")).toBe("disponible");
+  });
+
+  /* Contrat 12 : le 4 octobre 2026 à 23:30 heure de Paris (CEST, UTC+2) est 21:30 UTC ; minuit le 5 est 22:00 UTC. */
+  it("bascule de « en mission » à « disponible » à minuit heure de Paris, pas à minuit UTC", () => {
+    const tomorrow = { unavailable: "non", availableFrom: "2026-10-05" };
+    expect(consultantState(tomorrow, parisDay(new Date("2026-10-04T21:30:00Z")))).toBe("en_mission");
+    expect(consultantState(tomorrow, parisDay(new Date("2026-10-04T22:00:00Z")))).toBe("disponible");
   });
 });
