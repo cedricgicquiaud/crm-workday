@@ -5,6 +5,7 @@ import { GET as getLead, PATCH as patchLead } from "@/app/api/leads/[id]/route";
 import { POST as postLead } from "@/app/api/leads/route";
 import { GET as getProfile } from "@/app/api/personnes/[id]/profil-contact/route";
 import { GET as getPerson } from "@/app/api/personnes/[id]/route";
+import { POST as postPerson } from "@/app/api/personnes/route";
 import { GET as getCompany } from "@/app/api/entreprises/[id]/route";
 import { activity, auditLog, company, customFieldDefinition, customFieldValue, lead, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
@@ -111,6 +112,26 @@ describe("convertir un lead en nouvelle personne et nouvelle entreprise (CRM-95,
     expect(await readLead(id)).toMatchObject({ firstName: "Sarah", lastName: "Klein", title: "Sarah Klein · Banque Z" });
     const completed = (await listHistory("lead", id)).filter((entry) => entry.action === "modifiee").map((entry) => [entry.field, entry.oldValue, entry.newValue]);
     expect(completed).toEqual(expect.arrayContaining([["firstName", null, "Sarah"], ["lastName", null, "Klein"]]));
+  });
+});
+
+describe("convertir un lead vers une personne retrouvée par son email (CRM-95, D15, D16, contrat 19)", () => {
+  it("retrouve la personne par son autre adresse, remplit son téléphone vide sans toucher à son LinkedIn ni à son responsable, lui ajoute un profil contact et historise le téléphone", async () => {
+    const created = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Claire", lastName: "Dumas", email: "claire@perso.fr", otherEmails: "claire.dumas@banque-w.fr", linkedin: "https://www.linkedin.com/in/claire-dumas" }, memberCookie));
+    expect(created.status).toBe(201);
+    const { id: claireId, ownerId: claireOwner } = (await created.json()) as { id: string; ownerId: string };
+    const id = await createLead({ companyName: "Banque W", email: "Claire.Dumas@banque-w.fr", phone: "01 23 45 67 89", linkedin: "https://www.linkedin.com/in/autre-claire", origin: "linkedin", ownerId });
+
+    const res = await convert(id, { companyName: "Banque W" });
+    expect(res.status).toBe(200);
+    const { personId } = (await res.json()) as { personId: string };
+
+    expect(personId).toBe(claireId);
+    expect(await readPerson(claireId)).toMatchObject({ firstName: "Claire", lastName: "Dumas", phone: "01 23 45 67 89", linkedin: "https://www.linkedin.com/in/claire-dumas", ownerId: claireOwner, profiles: ["contact"] });
+    expect(await readProfile(claireId)).toMatchObject({ companyName: "Banque W" });
+    const phone = (await listHistory("person", claireId)).find((entry) => entry.field === "phone");
+    expect([phone?.oldValue, phone?.newValue]).toEqual([null, "01 23 45 67 89"]);
+    expect((await listHistory("lead", id)).find((entry) => entry.action === "conversion")?.newValue).toBe("Claire Dumas · Banque W");
   });
 });
 
