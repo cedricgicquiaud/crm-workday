@@ -160,4 +160,29 @@ test.describe("conversion à 375 px (CRM-96, contrat 30)", () => {
     await expect(dialog.getByRole("button", { name: "Convertir", exact: true })).toBeInViewport();
     expect(await memberPage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   });
+
+  test("le dialogue tient dans 375 px : sa phrase, ses champs et son pied restent dans son cadre, lui-même dans l'écran", async ({ memberPage }) => {
+    const mark = tag();
+    const id = await createLead(memberPage, { firstName: "Sophie", lastName: "Lambert", companyName: named("Groupe Hélios", mark), jobTitle: "DRH", origin: "linkedin" });
+
+    const dialog = await openConversion(memberPage, id);
+    await expect(dialog.getByRole("textbox", { name: "Prénom" })).toBeVisible();
+    /* Ce qui sort du cadre du dialogue (ou le cadre qui sort de l'écran), nommé ; vide quand tout tient. L'animation d'ouverture passe avant la mesure. */
+    const outside = () =>
+      dialog.evaluate((root) => {
+        const frame = root.getBoundingClientRect();
+        const escapes: string[] = [];
+        if (frame.left < 0 || frame.right > window.innerWidth) escapes.push("dialogue");
+        const inside = (box: DOMRect) => box.left >= frame.left - 0.5 && box.right <= frame.right + 0.5 && box.bottom <= frame.bottom + 0.5;
+        const parts: [string, Element | null][] = [
+          ["phrase", root.querySelector('[data-slot="dialog-description"]')],
+          ["pied", root.querySelector('[data-slot="dialog-footer"]')],
+          ...Array.from(root.querySelectorAll("input:not([type=radio]), select")).map((control) => [control.closest("label")?.querySelector("span")?.textContent ?? "champ", control] as [string, Element]),
+        ];
+        for (const [name, element] of parts) if (element && !inside(element.getBoundingClientRect())) escapes.push(name);
+        return escapes;
+      });
+    await expect.poll(outside).toEqual([]);
+    await expect(dialog.getByRole("button", { name: "Convertir", exact: true })).toBeInViewport();
+  });
 });
