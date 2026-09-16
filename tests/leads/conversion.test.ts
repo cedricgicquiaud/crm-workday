@@ -119,7 +119,9 @@ describe("convertir un lead vers une personne retrouvée par son email (CRM-95, 
   it("retrouve la personne par son autre adresse, remplit son téléphone vide sans toucher à son LinkedIn ni à son responsable, lui ajoute un profil contact et historise le téléphone", async () => {
     const created = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Claire", lastName: "Dumas", email: "claire@perso.fr", otherEmails: "claire.dumas@banque-w.fr", linkedin: "https://www.linkedin.com/in/claire-dumas" }, memberCookie));
     expect(created.status).toBe(201);
-    const { id: claireId, ownerId: claireOwner } = (await created.json()) as { id: string; ownerId: string };
+    const { id: claireId } = (await created.json()) as { id: string };
+    const claireOwner = (await readPerson(claireId)).ownerId;
+    expect(claireOwner).not.toBe(ownerId);
     const id = await createLead({ companyName: "Banque W", email: "Claire.Dumas@banque-w.fr", phone: "01 23 45 67 89", linkedin: "https://www.linkedin.com/in/autre-claire", origin: "linkedin", ownerId });
 
     const res = await convert(id, { companyName: "Banque W" });

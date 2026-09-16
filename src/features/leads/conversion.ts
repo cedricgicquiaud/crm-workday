@@ -6,14 +6,15 @@
  * La conversion réutilise les écritures des personnes : la création générique et le profil contact.
  */
 import { eq } from "drizzle-orm";
-import { company, lead } from "@/db/schema";
+import { company, lead, person } from "@/db/schema";
 import { recordHistory, type HistoryInput } from "@/features/history/history";
 import { validateValues } from "@/features/objects/fields";
 import { createObject, getObjectRecord, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { writeContactProfile } from "@/features/persons/contact-profile";
-import { DECISION_ROLE_FIELD, DEFAULT_DECISION_ROLE, JOB_TITLE_FIELD, PERSON_FIELDS } from "@/features/persons/schema";
+import { holderOf, type Holder } from "@/features/persons/emails";
+import { DECISION_ROLE_FIELD, DEFAULT_DECISION_ROLE, JOB_TITLE_FIELD, normalizeEmail, PERSON_FIELDS } from "@/features/persons/schema";
 import { HttpError } from "@/lib/auth/session";
-import { db } from "@/lib/db";
+import { db, type Executor } from "@/lib/db";
 import { CONVERTED_STAGE, OPEN_STAGES } from "./schema";
 
 const TYPE = "lead";
@@ -34,8 +35,20 @@ const invalid = (errors: Record<string, string>) => new HttpError(400, "donnees_
 /** L'entreprise de la conversion : une existante choisie dans les propositions, ou une nouvelle à créer sous ce nom. */
 type CompanyChoice = { kind: "existing"; id: string; name: string; archivedAt: Date | null } | { kind: "new"; name: string };
 
+/** La personne de la conversion : celle qui porte déjà l'email du lead (principale ou autre adresse), ou une nouvelle. */
+type PersonChoice = { kind: "found"; id: string; name: string; archivedAt: Date | null } | { kind: "new"; firstName: string; lastName: string };
+
 /** Ce que la fenêtre a confirmé, validé contre les descripteurs de la personne et du profil, avant toute écriture. */
-type Plan = { firstName: string; lastName: string; company: CompanyChoice; jobTitle: string | null; decisionRole: string };
+type Plan = { person: PersonChoice; firstName: string | null; lastName: string | null; company: CompanyChoice; jobTitle: string | null; decisionRole: string };
+
+/** Champs de la personne qu'une conversion vers une personne retrouvée remplit s'ils sont vides, sans jamais écraser (D16). */
+const FILLED_PERSON_FIELDS = ["phone", "linkedin"] as const;
+
+/** La personne qui porte l'email du lead, par toutes ses adresses, archivée comprise ; aucune sans email. */
+export async function foundPersonOf(record: Record<string, unknown>): Promise<Holder | null> {
+  const email = text(record.email);
+  return email ? holderOf(normalizeEmail(email), null) : null;
+}
 
 /** Le champ « Entreprise » de la fenêtre : c'est sous lui que s'affichent les refus sur l'entreprise. */
 export const COMPANY_INPUT = "companyName";
@@ -56,16 +69,22 @@ async function chosenCompany(id: unknown): Promise<CompanyChoice | null> {
 async function planOf(current: ObjectRecord, body: Record<string, unknown>): Promise<Plan> {
   const pick = (key: string) => (key in body ? body[key] : current[key]);
   const existing = await chosenCompany(body.companyId);
+  const found = await foundPersonOf(current);
+  /* Retrouvée, la personne garde son prénom et son nom : la fenêtre les montre en lecture, ils ne sont pas exigés (D15). */
+  const named = (key: string) => ({ ...personField(key), required: found === null });
   const companyField = { ...personField("lastName"), key: COMPANY_INPUT, label: "Entreprise", required: existing === null };
   const { values, errors } = validateValues(
-    [personField("firstName"), personField("lastName"), companyField, JOB_TITLE_FIELD, { ...DECISION_ROLE_FIELD, required: false }],
+    [named("firstName"), named("lastName"), companyField, JOB_TITLE_FIELD, { ...DECISION_ROLE_FIELD, required: false }],
     { firstName: pick("firstName") ?? "", lastName: pick("lastName") ?? "", [COMPANY_INPUT]: existing ? "" : pick(COMPANY_INPUT) ?? "", jobTitle: pick("jobTitle"), decisionRole: body.decisionRole },
     { partial: false },
   );
   if (Object.keys(errors).length > 0) throw invalid(errors);
+  const firstName = text(values.firstName);
+  const lastName = text(values.lastName);
   return {
-    firstName: String(values.firstName),
-    lastName: String(values.lastName),
+    person: found ? { kind: "found", ...found } : { kind: "new", firstName: firstName!, lastName: lastName! },
+    firstName,
+    lastName,
     company: existing ?? { kind: "new", name: String(values[COMPANY_INPUT]) },
     jobTitle: text(values.jobTitle),
     decisionRole: text(values.decisionRole) ?? DEFAULT_DECISION_ROLE,
@@ -77,6 +96,25 @@ function assertConvertible(record: { stage: unknown; archivedAt: unknown }, id: 
   if (record.archivedAt) throw new HttpError(409, "fiche_archivee", "Lead archivé : il ne se convertit pas. Restaurez-le d'abord.", { id });
   if (record.stage === CONVERTED_STAGE) throw new HttpError(409, "deja_converti", "Ce lead est déjà converti.", { id });
   if (!OPEN_STAGES.includes(String(record.stage))) throw new HttpError(409, "avancement_incompatible", "Lead écarté : rouvrez-le avant de le convertir.", { id });
+}
+
+/** Nouvelle personne (D16) : prénom, nom, email, téléphone et LinkedIn du lead, au responsable du lead. */
+async function createPerson(person: { firstName: string; lastName: string }, current: ObjectRecord, actor: Actor, tx: Executor): Promise<string> {
+  const values = { firstName: person.firstName, lastName: person.lastName, email: current.email ?? null, phone: current.phone ?? null, linkedin: current.linkedin ?? null, ownerId: current.ownerId };
+  return (await createObject("person", values, actor, tx)).id;
+}
+
+/** Personne retrouvée (D16) : ses champs vides reçoivent ceux du lead, une ligne d'historique par champ ; rien n'est écrasé, son responsable ne change pas. */
+async function completePerson(personId: string, current: ObjectRecord, actor: Actor, tx: Executor): Promise<string> {
+  const [row] = await tx.select({ phone: person.phone, linkedin: person.linkedin }).from(person).where(eq(person.id, personId)).limit(1);
+  const filled = FILLED_PERSON_FIELDS.filter((key) => text(row[key]) === null && text(current[key]) !== null).map((key) => [key, text(current[key])!] as const);
+  if (filled.length === 0) return personId;
+  await tx
+    .update(person)
+    .set({ ...Object.fromEntries(filled), updatedAt: new Date() })
+    .where(eq(person.id, personId));
+  await recordHistory(filled.map(([field, value]) => ({ objectType: "person", objectId: personId, action: "modifiee" as const, field, oldValue: null, newValue: value, authorId: actor.id })), tx);
+  return personId;
 }
 
 /**
@@ -98,14 +136,8 @@ export async function convertLead(id: string, input: unknown, actor: Actor): Pro
     const companyId = target.id;
     const companyName = String(target.name);
 
-    const createdPerson = await createObject(
-      "person",
-      { firstName: plan.firstName, lastName: plan.lastName, email: current.email ?? null, phone: current.phone ?? null, linkedin: current.linkedin ?? null, ownerId },
-      actor,
-      tx,
-    );
-    const personId = createdPerson.id;
-    const personName = `${plan.firstName} ${plan.lastName}`;
+    const personId = plan.person.kind === "found" ? await completePerson(plan.person.id, current, actor, tx) : await createPerson(plan.person, current, actor, tx);
+    const personName = plan.person.kind === "found" ? plan.person.name : `${plan.person.firstName} ${plan.person.lastName}`;
 
     await writeContactProfile(personId, { values: { jobTitle: plan.jobTitle, decisionRole: plan.decisionRole }, company: { id: companyId, name: companyName, archivedAt: null } }, actor, tx);
 
