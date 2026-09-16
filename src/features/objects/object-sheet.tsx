@@ -54,9 +54,11 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
   const headerFields = (definition.headerFields ?? []).map((key) => fields.find((field) => field.key === key)!);
   /* Fiche archivée : elle se lit, elle ne s'écrit plus (D21) — champs en texte, composeur et créations rapides retirés. */
   const archived = record.archivedAt != null;
+  /* Fiche figée par son objet (D21, `frozen`) : ses champs se lisent en texte, son fil et ses liens restent ouverts. */
+  const frozen = definition.frozen?.test(record) === true;
   const isAdmin = session.user.role === "administrateur";
   const serialized = serializeRecord(record);
-  const fieldsSection = <FieldsSection type={type} record={serialized} users={users} readOnly={archived} />;
+  const fieldsSection = <FieldsSection type={type} record={serialized} users={users} readOnly={archived || frozen} />;
   /* Gestes propres à l'objet (D21), visibles selon la fiche : à côté du menu commun, jamais dedans. */
   const actions = visibleActions(type, record);
   return (

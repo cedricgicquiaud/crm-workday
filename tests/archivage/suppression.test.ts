@@ -47,12 +47,12 @@ describe("ce qui retient une fiche (CRM-62, contrat 31)", () => {
 
     const held = await newCompany("Fonderie Retenue");
     await newContactOf(held.id, "Bonnet");
-    expect(await deleteBlockers("company", held.id)).toEqual([{ key: "person-companyId", label: "Contacts", count: 1 }]);
+    expect(await deleteBlockers("company", held.id)).toEqual([{ key: "person-companyId", label: "Contacts", count: 1, titles: ["Claire Bonnet"] }]);
 
     await createActivity("company", held.id, { type: "note", body: "Premier rendez-vous" }, { id: memberId });
     await db.insert(emailLog).values({ to: "compta@fonderie.fr", subject: "Devis", body: "<p>Devis</p>", template: "test", status: "envoye", objectType: "company", objectId: held.id });
     expect(await deleteBlockers("company", held.id)).toEqual([
-      { key: "person-companyId", label: "Contacts", count: 1 },
+      { key: "person-companyId", label: "Contacts", count: 1, titles: ["Claire Bonnet"] },
       { key: "activites", label: "Activités", count: 1 },
       { key: "emails", label: "Emails", count: 1 },
     ]);
@@ -62,7 +62,7 @@ describe("ce qui retient une fiche (CRM-62, contrat 31)", () => {
     const held = await newCompany("Fonderie Contact Archivé");
     const contactId = await newContactOf(held.id, "Roussel");
     await db.update(person).set({ archivedAt: new Date() }).where(eq(person.id, contactId));
-    expect(await deleteBlockers("company", held.id)).toEqual([{ key: "person-companyId", label: "Contacts", count: 1 }]);
+    expect(await deleteBlockers("company", held.id)).toEqual([{ key: "person-companyId", label: "Contacts", count: 1, titles: ["Claire Roussel"] }]);
   });
 });
 

@@ -90,8 +90,7 @@ beforeAll(async () => {
         order: 50,
       },
     ],
-    /* `keepArchived` (D21) : une fiche fille archivée reste listée chez sa mère, marquée — la trace prime. */
-    relations: [{ to: TYPE, fkColumn: "parentId", label: "Fiche mère", inverseLabel: "Fiches filles", prefill: "parentId", keepArchived: true }],
+    relations: [{ to: TYPE, fkColumn: "parentId", label: "Fiche mère", inverseLabel: "Fiches filles", prefill: "parentId" }],
     /* Une fiche figée selon son état (D21) : ses champs ne s'écrivent plus, son fil reste ouvert. */
     frozen: { test: (record) => String(record.name ?? "").startsWith("Gelée"), message: "Fiche gelée : ses champs ne se modifient plus." },
     /* Une action d'historique propre à l'objet, et la phrase qui la raconte. */
@@ -287,25 +286,6 @@ describe("refus de suppression déclaré (CRM-97, D18, D21)", () => {
 
     await expect(deleteRecord(TYPE, record.id)).rejects.toMatchObject({ status: 409, message: "Une fiche gelée s'archive." });
     expect((await getObjectRecord(TYPE, record.id)).name).toBe("Gelée indélébile");
-  });
-});
-
-/** D21, D27 : une relation déclarée « même archivée » garde ses fiches dans la colonne des liens, et le refus de suppression les nomme (CRM-97, contrat 29). */
-describe("relation gardée même archivée, et bloqueurs nommés (CRM-97, D19, D21, D27)", () => {
-  it("liste une fiche fille archivée chez sa mère, marquée archivée, et le refus de supprimer la mère la nomme, trois titres au plus", async () => {
-    const mere = await createObject(TYPE, { name: "Mère retenue" }, { id: actorId });
-    const filles = [];
-    for (const name of ["Fille A", "Fille B", "Fille C", "Fille D"]) filles.push(await createObject(TYPE, { name, parentId: mere.id }, { id: actorId }));
-    await archiveRecord(TYPE, filles[0].id, { id: actorId });
-
-    const group = (await linkedGroups(TYPE, mere.id)).find((candidate) => candidate.label === "Fiches filles");
-    expect(group?.records.find((linked) => linked.id === filles[0].id)).toMatchObject({ title: "Fille A", archived: true });
-
-    const refusal = await deleteRecord(TYPE, mere.id).catch((error: { status: number; details: { blockers: { label: string; count: number; titles?: string[] }[] } }) => error);
-    expect(refusal).toMatchObject({ status: 409 });
-    const blocker = (refusal as { details: { blockers: { label: string; count: number; titles?: string[] }[] } }).details.blockers.find((candidate) => candidate.label === "Fiches filles");
-    expect(blocker?.count).toBe(4);
-    expect(blocker?.titles).toHaveLength(3);
   });
 });
 

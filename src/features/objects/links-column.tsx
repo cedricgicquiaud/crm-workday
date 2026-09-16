@@ -9,28 +9,39 @@ import { listUserOptions } from "@/features/objects/service";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
-export type LinkedRecord = { id: string; title: string; href: string };
+/** `archived` : présent seulement sur une fiche liée archivée, avec la marque à écrire (« archivé », « archivée ») — une relation déclarée `keepArchived` en montre (D21). */
+export type LinkedRecord = { id: string; title: string; href: string; archived?: string };
 /** Création rapide depuis ce groupe (D7) : l'objet à créer et le champ pré-rempli avec la fiche courante. */
 export type LinkedCreate = { type: string; prefill: Record<string, string> };
 /** `more` : fiches liées au-delà de la borne, comptées mais pas chargées. */
 export type LinkedGroup = { key: string; label: string; records: LinkedRecord[]; more?: number; create?: LinkedCreate };
 
+/** Une fiche liée prête pour la colonne ; archivée, elle porte sa marque, accordée à l'article déclaré de son objet. */
+function linkedRecord(objectKey: string, row: { id: unknown; title: unknown; archivedAt: unknown }): LinkedRecord {
+  const definition = getObject(objectKey);
+  const record = { id: String(row.id), title: String(row.title ?? ""), href: definition.href(String(row.id)) };
+  return row.archivedAt == null ? record : { ...record, archived: definition.labels.article === "un" ? "archivé" : "archivée" };
+}
+
 /** Fiches liées chargées au plus dans un groupe : une entreprise à trois cents contacts n'en affiche pas trois cents. */
 export const LINKED_RECORDS_LIMIT = 20;
 
-/** Fiches d'un objet dont la colonne `fkColumn` vaut `id`, non archivées, la dernière modifiée en tête, bornées ; `more` compte celles qui restent. */
-async function recordsPointingTo(objectKey: string, fkColumn: string, id: string): Promise<{ records: LinkedRecord[]; more: number }> {
+/**
+ * Fiches d'un objet dont la colonne `fkColumn` vaut `id`, la dernière modifiée en tête, bornées ; `more`
+ * compte celles qui restent. Les archivées sortent, sauf pour une relation déclarée `keepArchived`.
+ */
+async function recordsPointingTo(objectKey: string, fkColumn: string, id: string, keepArchived: boolean): Promise<{ records: LinkedRecord[]; more: number }> {
   const definition = getObject(objectKey);
   const { table } = getServerObject(objectKey);
   const columns = getTableColumns(table);
-  const linked = and(eq(columns[fkColumn], id), isNull(columns.archivedAt));
+  const linked = keepArchived ? eq(columns[fkColumn], id) : and(eq(columns[fkColumn], id), isNull(columns.archivedAt));
   const rows = await db
-    .select({ id: columns.id, title: columns[definition.titleField] })
+    .select({ id: columns.id, title: columns[definition.titleField], archivedAt: columns.archivedAt })
     .from(table)
     .where(linked)
     .orderBy(desc(columns.updatedAt), desc(columns.id))
     .limit(LINKED_RECORDS_LIMIT);
-  const records = rows.map((row) => ({ id: String(row.id), title: String(row.title ?? ""), href: definition.href(String(row.id)) }));
+  const records = rows.map((row) => linkedRecord(objectKey, row));
   /* Le compte n'est demandé que si la borne est atteinte : en dessous, les fiches chargées sont toutes celles qui existent. */
   if (records.length < LINKED_RECORDS_LIMIT) return { records, more: 0 };
   const [total] = await db.select({ value: count() }).from(table).where(linked);
@@ -46,8 +57,8 @@ async function recordPointedBy(type: string, id: string, relation: Relation): Pr
   const target = getObject(relation.to);
   const targetTable = getServerObject(relation.to).table;
   const columns = getTableColumns(targetTable);
-  const [row] = await db.select({ id: columns.id, title: columns[target.titleField] }).from(targetTable).where(eq(columns.id, String(source.fk))).limit(1);
-  return row ? [{ id: String(row.id), title: String(row.title ?? ""), href: target.href(String(row.id)) }] : [];
+  const [row] = await db.select({ id: columns.id, title: columns[target.titleField], archivedAt: columns.archivedAt }).from(targetTable).where(eq(columns.id, String(source.fk))).limit(1);
+  return row ? [linkedRecord(relation.to, row)] : [];
 }
 
 /**
@@ -65,17 +76,21 @@ export async function linkedGroups(type: string, id: string): Promise<LinkedGrou
       .filter((object) => object.key !== type)
       .flatMap((object) => object.relations.filter((relation) => relation.to === type).map((relation) => ({ object, relation })))
       .map(async ({ object, relation }) => {
-        const { records, more } = await recordsPointingTo(object.key, relation.fkColumn, id);
+        const { records, more } = await recordsPointingTo(object.key, relation.fkColumn, id, relation.keepArchived === true);
         return {
-          key: `${object.key}-${relation.fkColumn}`,
-          label: relation.inverseLabel,
-          ...(relation.prefill ? { create: { type: object.key, prefill: { [relation.prefill]: id } } } : {}),
-          records,
-          ...(more > 0 ? { more } : {}),
+          group: {
+            key: `${object.key}-${relation.fkColumn}`,
+            label: relation.inverseLabel,
+            ...(relation.prefill ? { create: { type: object.key, prefill: { [relation.prefill]: id } } } : {}),
+            records,
+            ...(more > 0 ? { more } : {}),
+          },
+          /* Une relation de trace (`keepArchived`) ne dit rien quand la fiche n'en a pas : son groupe vide ne s'affiche pas. */
+          shown: relation.keepArchived !== true || records.length > 0,
         };
       }),
   );
-  return [...own, ...inverse];
+  return [...own, ...inverse.filter(({ shown }) => shown).map(({ group }) => group)];
 }
 
 /** « Ajouter une entreprise », « Ajouter une personne », « Ajouter un … » pour un objet masculin : le déterminant vient de l'article déclaré. */
@@ -109,10 +124,11 @@ export async function LinksColumn({ type, id, className, readOnly = false }: { t
             ) : (
               <ul className="grid gap-0.5">
                 {group.records.map((record) => (
-                  <li key={record.id} className="min-w-0 truncate text-sm" title={record.title}>
+                  <li key={record.id} className="min-w-0 truncate text-sm" title={record.archived ? `${record.title} (${record.archived})` : record.title}>
                     <Link href={record.href} className="hover:underline focus-visible:rounded-sm">
                       {record.title}
                     </Link>
+                    {record.archived && <span className="text-xs text-muted-foreground">{` (${record.archived})`}</span>}
                   </li>
                 ))}
               </ul>

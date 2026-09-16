@@ -5,7 +5,7 @@
  */
 import { TargetIcon } from "lucide-react";
 import { registerObject } from "@/features/objects/registry";
-import { LEAD_FIELDS } from "./schema";
+import { CONVERSION_ACTION, CONVERTED_RULE, CONVERTED_STAGE, LEAD_FIELDS } from "./schema";
 
 registerObject({
   key: "lead",
@@ -27,5 +27,13 @@ registerObject({
   defaultView: { name: "Leads en cours", query: "f=stage:n_est_pas:converti&f=stage:n_est_pas:ecarte&tri=createdAt:desc" },
   /** D9 : pas de fusion de leads — l'API répond 405 et le menu ne propose pas « Fusionner… ». */
   mergeable: false,
-  relations: [],
+  /** D21 : la conversion lie le lead à sa personne et à son entreprise ; elles le montrent « Issu du lead », même archivé (D18). */
+  relations: [
+    { to: "person", fkColumn: "convertedPersonId", label: "Personne", inverseLabel: "Issu du lead", keepArchived: true },
+    { to: "company", fkColumn: "convertedCompanyId", label: "Entreprise", inverseLabel: "Issu du lead", keepArchived: true },
+  ],
+  /** D18 : converti, le lead ne change plus — champs, champs personnalisés, avancement, responsable ; son fil reste vivant. */
+  frozen: { test: (record) => record.stage === CONVERTED_STAGE, message: CONVERTED_RULE },
+  /** D16 : « Converti en Julie Martin · Banque X ». */
+  historyActions: { [CONVERSION_ACTION]: (entry) => `Converti en ${entry.newValue ?? ""}` },
 });

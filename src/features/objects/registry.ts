@@ -108,7 +108,15 @@ export type Relation = {
   inverseLabel: string;
   /** champ du dialogue de création rapide pré-rempli depuis cette fiche (« ajouter un contact ») */
   prefill?: string;
+  /**
+   * La colonne des liens de la fiche désignée garde les fiches qui la désignent même archivées,
+   * marquées « archivée » (D21) : la trace d'origine prime (« Issu du lead … »). Défaut : elles sortent.
+   */
+  keepArchived?: boolean;
 };
+
+/** Ce qu'une phrase d'historique déclarée lit d'une entrée. */
+export type HistoryEntryText = { oldValue: string | null; newValue: string | null };
 
 export type ObjectLabels = { singular: string; plural: string; article: string };
 
@@ -184,6 +192,17 @@ export type ObjectDefinition = {
    */
   historyFields?: readonly FieldDescriptor[];
   relations: readonly Relation[];
+  /**
+   * La fiche entière se fige selon son état (D21) : tant que `test` est vrai, aucun de ses champs ne
+   * s'écrit (409 avec `message`) et la fiche les lit en texte ; à la différence d'une fiche archivée,
+   * son fil reste ouvert (notes, appels, tâches).
+   */
+  frozen?: { test: (record: Record<string, unknown>) => boolean; message: string };
+  /**
+   * Actions d'historique propres aux gestes de l'objet (« conversion »), et la phrase qui les raconte
+   * dans le fil (« Converti en … »). Le journal les range comme les actions communes.
+   */
+  historyActions?: Readonly<Record<string, (entry: HistoryEntryText) => string>>;
   /** `false` : les fiches de cet objet ne se fusionnent pas (un lead, D9) — la fusion répond 405 et le menu ne la propose pas ; défaut : vrai */
   mergeable?: boolean;
   /** objet parent dont le fil reprend les activités de celui-ci (2.3) */

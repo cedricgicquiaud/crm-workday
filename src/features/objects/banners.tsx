@@ -5,7 +5,8 @@ import { overdueTasks } from "@/features/activities/overdue";
 import { duplicatesOfRecord } from "@/features/duplicates/duplicates";
 import { duplicateMessage, MERGE_PARAM } from "@/features/duplicates/normalize";
 import { getObject } from "@/features/objects/registry";
-import { getObjectRecord } from "@/features/objects/service";
+import { getServerObject } from "@/features/objects/registry.server";
+import { getObjectRecord, type ObjectRecord } from "@/features/objects/service";
 
 /** Familles de teinte des signalements (fondations « Signalement ») : une par gravité, jamais une par valeur. */
 export type BannerTone = "danger" | "warning" | "info";
@@ -13,7 +14,8 @@ export type BannerTone = "danger" | "warning" | "info";
 /** Ce que la bannière propose de faire ; le lien reste sur la fiche et porte de quoi ouvrir le geste. */
 export type BannerAction = { label: string; href: string };
 
-export type Banner = { rank: string; tone: BannerTone; message: string; action?: BannerAction };
+/** `links` : les fiches que la bannière nomme, ouvertes à tous (« Converti le … » mène à deux fiches) ; `action` reste le geste réservé. */
+export type Banner = { rank: string; tone: BannerTone; message: string; action?: BannerAction; links?: readonly BannerAction[] };
 
 /**
  * Rangs de signalement d'une fiche (D5), du plus grave au moins grave : fiche archivée, doublon
@@ -26,13 +28,16 @@ export const BANNER_RANKS: readonly { key: string; order: number }[] = [
   { key: "tache_echue", order: 30 },
 ];
 
-const rankOrder = (rank: string) => BANNER_RANKS.find((declared) => declared.key === rank)?.order ?? Number.MAX_SAFE_INTEGER;
+/** Rang d'un signalement parmi les communs et ceux que l'objet déclare (D21). */
+const rankOrder = (rank: string, declared: readonly { rank: string; order: number }[]) =>
+  BANNER_RANKS.find((common) => common.key === rank)?.order ?? declared.find((own) => own.rank === rank)?.order ?? Number.MAX_SAFE_INTEGER;
 
-/** Signalements du plus grave au moins grave. */
-export const sortBanners = (banners: readonly Banner[]): Banner[] => [...banners].sort((a, b) => rankOrder(a.rank) - rankOrder(b.rank));
+/** Signalements du plus grave au moins grave ; `declared` range les bannières propres à l'objet parmi les communes. */
+export const sortBanners = (banners: readonly Banner[], declared: readonly { rank: string; order: number }[] = []): Banner[] =>
+  [...banners].sort((a, b) => rankOrder(a.rank, declared) - rankOrder(b.rank, declared));
 
-/** Une source de signalement : elle lit une fiche et rend les bannières qu'elle justifie. */
-type BannerSource = (type: string, id: string) => Promise<Banner[]>;
+/** Une source de signalement : elle lit une fiche (déjà chargée une fois pour toutes) et rend les bannières qu'elle justifie. */
+type BannerSource = (type: string, id: string, record: ObjectRecord) => Promise<Banner[]>;
 
 /** « 1 tâche échue. », « 3 tâches échues. » — une seule bannière quel que soit le nombre (contrat 12). */
 async function overdueTasksBanner(type: string, id: string): Promise<Banner[]> {
@@ -46,8 +51,7 @@ async function overdueTasksBanner(type: string, id: string): Promise<Banner[]> {
  * « Entreprise archivée : la fiche est en lecture seule. » (contrat 30). Le ton dit un état inerte,
  * pas un défaut : la fiche est intacte, seule l'écriture est fermée, et « restaurer » la rouvre.
  */
-async function archivedBanner(type: string, id: string): Promise<Banner[]> {
-  const record = await getObjectRecord(type, id);
+async function archivedBanner(type: string, _id: string, record: ObjectRecord): Promise<Banner[]> {
   if (!record.archivedAt) return [];
   return [{ rank: "archivee", tone: "info", message: `${getObject(type).labels.singular} archivée : la fiche est en lecture seule.` }];
 }
@@ -67,10 +71,12 @@ async function duplicateBanner(type: string, id: string): Promise<Banner[]> {
 /** Une ligne par source ; les livraisons suivantes ajoutent la leur ici. */
 const SOURCES: readonly BannerSource[] = [archivedBanner, duplicateBanner, overdueTasksBanner];
 
-/** Tous les signalements d'une fiche, du plus grave au moins grave. */
+/** Tous les signalements d'une fiche, communs et déclarés par son objet (D21), du plus grave au moins grave. */
 export async function collectBanners(type: string, id: string): Promise<Banner[]> {
-  const found = await Promise.all(SOURCES.map((source) => source(type, id)));
-  return sortBanners(found.flat());
+  const record = await getObjectRecord(type, id);
+  const declared = getServerObject(type).banners ?? [];
+  const found = await Promise.all([...SOURCES.map((source) => source(type, id, record)), ...declared.map((own) => own.source(record))]);
+  return sortBanners(found.flat(), declared);
 }
 
 const TONES: Record<BannerTone, string> = {
@@ -96,8 +102,13 @@ export async function SheetBanners({ type, id, showAction = false }: { type: str
   return (
     <Alert role="status" className={cn("border-l-[3px]", TONES[first.tone])}>
       <AlertTitle>{first.message}</AlertTitle>
-      {(action || others.length > 0) && (
+      {(action || others.length > 0 || (first.links?.length ?? 0) > 0) && (
         <AlertDescription>
+          {first.links?.map((link) => (
+            <Link key={link.href} href={link.href} title={link.label} className="min-w-0 truncate font-medium underline underline-offset-2 focus-visible:rounded-sm">
+              {link.label}
+            </Link>
+          ))}
           {action && (
             <Link href={action.href} className="font-medium underline underline-offset-2">
               {action.label}

@@ -64,11 +64,11 @@ describe("les fiches issues d'un lead (CRM-97, D18, D19, D21, contrats 15, 28, 2
     expect(leadGroups.find((group) => group.label === "Personne")?.records.map((record) => record.id)).toEqual([personId]);
     expect(leadGroups.find((group) => group.label === "Entreprise")?.records.map((record) => record.id)).toEqual([companyId]);
     const origin = (type: string, id: string) => linkedGroups(type, id).then((groups) => groups.find((group) => group.label === "Issu du lead")?.records);
-    expect(await origin("person", personId)).toMatchObject([{ id: leadId, title: "Julie Martin · Banque Liens", archived: false }]);
+    expect(await origin("person", personId)).toEqual([{ id: leadId, title: "Julie Martin · Banque Liens", href: `/leads/${leadId}` }]);
     expect(await origin("company", companyId)).toMatchObject([{ id: leadId, title: "Julie Martin · Banque Liens" }]);
 
     await archiveRecord("lead", leadId, { id: memberId });
-    expect(await origin("person", personId)).toMatchObject([{ id: leadId, archived: true }]);
+    expect(await origin("person", personId)).toMatchObject([{ id: leadId, archived: "archivé" }]);
   });
 
   it("refuse (409) de supprimer la personne ou l'entreprise issue d'un lead archivé, en nommant ce lead", async () => {

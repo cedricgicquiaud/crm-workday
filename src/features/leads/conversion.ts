@@ -16,12 +16,10 @@ import { holderOf, type Holder } from "@/features/persons/emails";
 import { DECISION_ROLE_FIELD, DEFAULT_DECISION_ROLE, JOB_TITLE_FIELD, normalizeEmail, PERSON_FIELDS } from "@/features/persons/schema";
 import { HttpError } from "@/lib/auth/session";
 import { db, type Executor } from "@/lib/db";
-import { CONVERTED_STAGE, OPEN_STAGES } from "./schema";
+import { CONVERSION_ACTION, CONVERTED_STAGE, OPEN_STAGES } from "./schema";
 
 const TYPE = "lead";
 
-/** L'action d'historique que la conversion écrit sur le lead, et que le registre du lead fait lire « Converti en … ». */
-export const CONVERSION_ACTION = "conversion";
 
 /** Ce que la conversion rend : le lead et les deux fiches qu'il désigne désormais. */
 export type ConversionResult = { leadId: string; personId: string; companyId: string };
@@ -127,7 +125,7 @@ function keepsContact(found: Holder | null, contact: ContactProfile | null, chos
 }
 
 /** 409 qui dit pourquoi un lead ne se convertit pas : archivé, déjà converti, écarté (D14). */
-function assertConvertible(record: { stage: unknown; archivedAt: unknown }, id: string): void {
+function assertConvertible(record: Record<string, unknown>, id: string): void {
   if (record.archivedAt) throw new HttpError(409, "fiche_archivee", "Lead archivé : il ne se convertit pas. Restaurez-le d'abord.", { id });
   if (record.stage === CONVERTED_STAGE) throw new HttpError(409, "deja_converti", "Ce lead est déjà converti.", { id });
   if (!OPEN_STAGES.includes(String(record.stage))) throw new HttpError(409, "avancement_incompatible", "Lead écarté : rouvrez-le avant de le convertir.", { id });

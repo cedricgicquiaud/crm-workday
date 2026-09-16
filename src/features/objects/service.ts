@@ -227,6 +227,12 @@ export function assertWritable(type: string, record: ObjectRecord): void {
   if (record.archivedAt) throw new HttpError(409, "fiche_archivee", `${getObject(type).labels.singular} archivée : elle ne se modifie plus.`, { id: record.id });
 }
 
+/** Une fiche que son objet déclare figée (D21, `frozen`) ne s'écrit plus champ par champ : 409, avant toute validation. Son fil, lui, reste ouvert. */
+export function assertNotFrozen(type: string, record: ObjectRecord): void {
+  const { frozen } = getObject(type);
+  if (frozen?.test(record)) throw new HttpError(409, "fiche_figee", frozen.message, { id: record.id });
+}
+
 /**
  * Un champ que la fiche fige (D21, `lockedWhen`) ne s'écrit pas : 409 champ par champ, avant toute
  * validation — l'état de la fiche est le refus, pas la valeur reçue. Les autres champs passent.
@@ -284,6 +290,7 @@ export async function updateObject(type: string, id: string, patch: unknown, act
   const columns = getTableColumns(table);
   const current = await getObjectRecord(type, id);
   assertWritable(type, current);
+  assertNotFrozen(type, current);
   assertUnlocked(type, current, patch);
   const values = await validateOrThrow(type, patch, { partial: true });
   await assertUnique(type, values, id);

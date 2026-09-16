@@ -9,7 +9,7 @@
  * plus nulle part. La fiche, ses entrées et ses valeurs de champs personnalisés partent donc dans la
  * même transaction.
  */
-import { and, count, eq, getTableColumns, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, or, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { activity, auditLog, customFieldValue, emailLog } from "@/db/schema";
 import { getObject, listObjects } from "@/features/objects/registry";
@@ -18,8 +18,11 @@ import { getObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
-/** Un lien qui retient une fiche : sa clé, ce qu'il est pour un lecteur, et combien de fois. */
-export type DeleteBlocker = { key: string; label: string; count: number };
+/** Un lien qui retient une fiche : sa clé, ce qu'il est pour un lecteur, combien de fois, et pour une relation les titres des fiches qui la retiennent (trois au plus, D27). */
+export type DeleteBlocker = { key: string; label: string; count: number; titles?: string[] };
+
+/** Titres nommés au plus par bloqueur : au-delà, le compte suffit (« et N autres »). */
+export const BLOCKER_TITLES_LIMIT = 3;
 
 async function countWhere(table: PgTable, where: SQL): Promise<number> {
   const [row] = await db.select({ value: count() }).from(table).where(where);
@@ -35,7 +38,11 @@ async function relationBlockers(type: string, id: string): Promise<DeleteBlocker
     pointing.map(async ({ object, relation }) => {
       const { table } = getServerObject(object.key);
       const columns = getTableColumns(table);
-      return { key: `${object.key}-${relation.fkColumn}`, label: relation.inverseLabel, count: await countWhere(table, eq(columns[relation.fkColumn], id)) };
+      const where = eq(columns[relation.fkColumn], id);
+      const count = await countWhere(table, where);
+      if (count === 0) return { key: `${object.key}-${relation.fkColumn}`, label: relation.inverseLabel, count, titles: [] };
+      const rows = await db.select({ title: columns[object.titleField] }).from(table).where(where).orderBy(desc(columns.updatedAt), desc(columns.id)).limit(BLOCKER_TITLES_LIMIT);
+      return { key: `${object.key}-${relation.fkColumn}`, label: relation.inverseLabel, count, titles: rows.map((row) => String(row.title ?? "")) };
     }),
   );
 }
@@ -62,7 +69,10 @@ export async function deleteBlockers(type: string, id: string): Promise<DeleteBl
  * qui n'a rien fait.
  */
 export async function deleteRecord(type: string, id: string): Promise<void> {
-  await getObjectRecord(type, id);
+  const record = await getObjectRecord(type, id);
+  /* L'état de la fiche d'abord (D21, `deletable`) : une fiche que son objet retient s'archive, quoi qu'on lui ait lié. */
+  const refusal = getServerObject(type).deletable?.(record) ?? null;
+  if (refusal) throw new HttpError(409, "suppression_refusee", refusal, { id: record.id });
   const blockers = await deleteBlockers(type, id);
   if (blockers.length > 0) {
     throw new HttpError(409, "fiche_liee", `${getObject(type).labels.singular} liée : elle ne se supprime pas tant que d'autres fiches ou entrées la retiennent.`, { blockers });
