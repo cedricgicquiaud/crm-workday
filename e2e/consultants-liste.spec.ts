@@ -91,3 +91,48 @@ test.describe("liste « Consultants » à l'écran (CRM-86, contrat 14)", () => 
     await other.close();
   });
 });
+
+const COLUMN_MENU = '[data-slot="column-menu"]';
+
+test.describe("profil consultant depuis la liste des personnes (CRM-87, contrat 16)", () => {
+  test("la colonne « Statut » s'ajoute depuis le menu et ne s'édite pas en place ; « Profils contient consultant », « contient contact » et « est vide » ramènent les bonnes personnes ; tous les champs du profil s'affichent en colonnes", async ({ memberPage }) => {
+    const mark = tag();
+    const company = await memberPage.request.post("/api/entreprises", { data: { name: named("Acme", mark), type: "client" } });
+    expect(company.status()).toBe(201);
+    const companyId = ((await company.json()) as { id: string }).id;
+    const carla = await createPerson(memberPage, "Carla", mark, { companyId });
+    const ugo = await createPerson(memberPage, "Ugo", mark, { profile: { status: "freelance", cvUrl: "https://exemple.fr/cv-ugo.pdf" } });
+    const bianca = await createPerson(memberPage, "Bianca", mark, { companyId, profile: { status: "salarie" } });
+    const sam = await createPerson(memberPage, "Sam", mark);
+    const mine = `f=name:contient:${mark}`;
+    const personNames = async () => (await memberPage.getByRole("table", { name: "Personnes" }).getByRole("row").filter({ hasNot: memberPage.getByRole("columnheader") }).getByRole("link").allTextContents()).map((text) => text.trim()).sort();
+
+    await memberPage.goto(`/personnes?${mine}`);
+    await memberPage.getByRole("button", { name: "Colonnes" }).click();
+    await memberPage.locator(COLUMN_MENU).getByRole("checkbox", { name: "Statut", exact: true }).click();
+    await expect(memberPage).toHaveURL(/colonnes=[^&]*status/);
+    await memberPage.keyboard.press("Escape");
+    const statusHeader = memberPage.getByRole("columnheader", { name: "Statut", exact: true });
+    await expect(statusHeader).toBeVisible();
+    const ugoRow = memberPage.getByRole("table", { name: "Personnes" }).getByRole("row").filter({ has: memberPage.getByRole("link", { name: ugo, exact: true }) });
+    await expect(ugoRow).toContainText("Freelance");
+    /* Aucun champ du profil ne s'édite dans une cellule (D10) : rien d'ouvrable dans cette liste. */
+    await expect(memberPage.locator("[data-cell]")).toHaveCount(0);
+
+    await memberPage.goto(`/personnes?${mine}&f=profiles:contient:consultant`);
+    expect(await personNames()).toEqual([bianca, ugo].sort());
+    await memberPage.goto(`/consultants?${mine}`);
+    expect((await names(memberPage)).sort()).toEqual([bianca, ugo].sort());
+    await memberPage.goto(`/personnes?${mine}&f=profiles:contient:contact`);
+    expect(await personNames()).toEqual([bianca, carla].sort());
+    await memberPage.goto(`/personnes?${mine}&f=profiles:est_vide:`);
+    expect(await personNames()).toEqual([sam]);
+
+    /* Les champs du profil sont colonnes de la liste des personnes (D10) : tous ensemble, la page s'ouvre. */
+    const profileColumns = "status,modules,certifiedModules,billingCompanyName,dailyCost,availableFrom,unavailable,unavailableReason,state,yearsExperience,languages,cvUrl";
+    await memberPage.goto(`/personnes?${mine}&f=profiles:contient:consultant&colonnes=${profileColumns}`);
+    await expect(memberPage.getByRole("columnheader", { name: "CV", exact: true })).toBeVisible();
+    await expect(ugoRow).toContainText("https://exemple.fr/cv-ugo.pdf");
+    await expect(memberPage.locator("[data-cell]")).toHaveCount(0);
+  });
+});
