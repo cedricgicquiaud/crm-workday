@@ -8,7 +8,9 @@ import { GET as getPerson } from "@/app/api/personnes/[id]/route";
 import { GET as getCompany } from "@/app/api/entreprises/[id]/route";
 import { activity, auditLog, company, customFieldDefinition, customFieldValue, lead, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { duplicatesOfRecord } from "@/features/duplicates/duplicates";
 import { listHistory } from "@/features/history/history";
+import { createObject } from "@/features/objects/service";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
@@ -109,5 +111,36 @@ describe("convertir un lead en nouvelle personne et nouvelle entreprise (CRM-95,
     expect(await readLead(id)).toMatchObject({ firstName: "Sarah", lastName: "Klein", title: "Sarah Klein · Banque Z" });
     const completed = (await listHistory("lead", id)).filter((entry) => entry.action === "modifiee").map((entry) => [entry.field, entry.oldValue, entry.newValue]);
     expect(completed).toEqual(expect.arrayContaining([["firstName", null, "Sarah"], ["lastName", null, "Klein"]]));
+  });
+});
+
+describe("convertir un lead vers une entreprise existante (CRM-95, D15, contrat 18)", () => {
+  it("rattache le contact au client choisi, qui reste client, sans créer d'entreprise, et le lead garde « Banque X SA » écrit", async () => {
+    const client = await createObject("company", { name: "Banque X", type: "client" }, { id: ownerId });
+    const id = await createLead({ firstName: "Léna", lastName: "Faure", companyName: "Banque X SA", origin: "linkedin" });
+    const companiesBefore = (await db.select({ id: company.id }).from(company)).length;
+
+    const res = await convert(id, { companyId: client.id });
+    expect(res.status).toBe(200);
+    const { personId, companyId } = (await res.json()) as { personId: string; companyId: string };
+
+    expect(companyId).toBe(client.id);
+    expect(await readCompany(client.id)).toMatchObject({ type: "client" });
+    expect((await db.select({ id: company.id }).from(company)).length).toBe(companiesBefore);
+    expect(await readProfile(personId)).toMatchObject({ companyId: client.id, companyName: "Banque X" });
+    expect(await readLead(id)).toMatchObject({ companyName: "Banque X SA", convertedCompanyId: client.id });
+  });
+
+  it("crée une nouvelle « Banque Y » à côté du client homonyme quand on le choisit, et les deux fiches portent le signal « doublon probable »", async () => {
+    const client = await createObject("company", { name: "Banque Y", type: "client" }, { id: ownerId });
+    const id = await createLead({ firstName: "Marc", lastName: "Blanc", companyName: "Banque Y", origin: "linkedin" });
+
+    const res = await convert(id, { companyName: "Banque Y" });
+    expect(res.status).toBe(200);
+    const { companyId } = (await res.json()) as { companyId: string };
+
+    expect(companyId).not.toBe(client.id);
+    expect((await duplicatesOfRecord("company", companyId)).map((duplicate) => duplicate.id)).toEqual([client.id]);
+    expect((await duplicatesOfRecord("company", client.id)).map((duplicate) => duplicate.id)).toEqual([companyId]);
   });
 });
