@@ -31,15 +31,20 @@ function parisDayFromToday(days: number): string {
   return noon.toISOString().slice(0, 10);
 }
 
-/** Crée une personne — contact si on lui donne une entreprise — et, si on lui en donne un, son profil consultant ; rend son nom complet. */
-async function createPerson(page: Page, firstName: string, mark: string, { profile, companyId }: { profile?: Record<string, unknown>; companyId?: string } = {}): Promise<string> {
+type PersonSeed = { profile?: Record<string, unknown>; companyId?: string };
+
+/** Crée une personne — contact si on lui donne une entreprise — et, si on lui en donne un, son profil consultant ; rend son identifiant et son nom complet. */
+async function seedPerson(page: Page, firstName: string, mark: string, { profile, companyId }: PersonSeed = {}): Promise<{ id: string; name: string }> {
   const lastName = named("Liste", mark);
   const created = await page.request.post("/api/personnes", { data: { firstName, lastName, ...(companyId ? { companyId } : {}) } });
   expect(created.status()).toBe(201);
   const { id } = (await created.json()) as { id: string };
   if (profile) expect((await page.request.patch(`/api/personnes/${id}/profil-consultant`, { data: profile })).status()).toBe(200);
-  return `${firstName} ${lastName}`;
+  return { id, name: `${firstName} ${lastName}` };
 }
+
+/** Comme `seedPerson`, quand le test ne lit que le nom. */
+const createPerson = async (page: Page, firstName: string, mark: string, seed: PersonSeed = {}): Promise<string> => (await seedPerson(page, firstName, mark, seed)).name;
 
 /** Les quatre consultants d'un test, un par case du rang de l'état (D6). */
 async function seedConsultants(page: Page, mark: string) {
@@ -125,6 +130,34 @@ test.describe("vue enregistrée et épinglée de la liste « Consultants » (CRM
     await expect(again).toHaveURL(/\/consultants\?vue=/);
     expect(await names(again)).toEqual([dina]);
     await context.close();
+  });
+});
+
+test.describe("refus d'adresse de la liste « Consultants » (CRM-87, contrats 17 et 18)", () => {
+  test("une adresse bricolée s'ouvre avec l'avertissement « filtre inactif », sans erreur ; une personne sans profil n'y entre jamais, un consultant archivé seulement avec « archivées »", async ({ memberPage }) => {
+    const mark = tag();
+    const consultant = await createPerson(memberPage, "Ugo", mark, { profile: { status: "freelance", modules: ["hcm"] } });
+    await createPerson(memberPage, "Sam", mark);
+    const archived = await seedPerson(memberPage, "Zoé", mark, { profile: { status: "portage" } });
+    expect((await memberPage.request.post(`/api/objets/person/${archived.id}/archiver`, { data: {} })).status()).toBe(200);
+    const mine = `f=name:contient:${mark}`;
+
+    /* « Modules est HCM », l'ancien « Profils est contact », un module hors liste : ignorés, et dits. */
+    const response = await memberPage.goto(`/consultants?${mine}&f=modules:est:hcm&f=profiles:est:contact&f=modules:contient:sap_hr&f=profiles:est_vide:`);
+    expect(response?.status()).toBe(200);
+    const warnings = memberPage.locator('[data-slot="list-warnings"]');
+    await expect(warnings.getByRole("status")).toHaveText([
+      "Filtre inactif : « est » ne s'applique pas au champ « Modules ».",
+      "Filtre inactif : « est » ne s'applique pas au champ « Profils ».",
+      "Filtre inactif : « sap_hr » n'est pas une valeur de « Modules ».",
+    ]);
+    /* « Profils est vide » s'applique, mais ne retire jamais le filtre de base : aucune personne sans profil n'entre. */
+    await expect(memberPage.getByText("Aucune fiche ne répond à ces filtres.")).toBeVisible();
+
+    await memberPage.goto(`/consultants?${mine}`);
+    expect(await names(memberPage)).toEqual([consultant]);
+    await memberPage.goto(`/consultants?${mine}&archivees=1`);
+    expect((await names(memberPage)).sort()).toEqual([consultant, archived.name].sort());
   });
 });
 
