@@ -315,3 +315,38 @@ for (const { titre, corps, avancement } of leads) {
     throw new Error(`amorce-recette : avancement du lead ${titre} refusé (${passage.status}).`);
   }
 }
+
+// Livraison 4.1b — un lead converti : sa fiche porte le bandeau « Converti le … », ses champs se lisent
+// en texte, et la personne « Hugo Lemaire » et l'entreprise « Énergies Norvel » (prospect) qu'il crée
+// montrent « Issu du lead ». Même règle que les blocs précédents : on relit les leads, et on ne convertit
+// que si le lead n'est ni converti ni écarté, pour qu'une relance n'émette aucune requête refusée. Le lead
+// est d'abord passé « Qualifié », l'avancement normal avant une conversion.
+const leadsAvantConversion = await fetch("/api/leads");
+if (!leadsAvantConversion.ok) {
+  throw new Error(`amorce-recette : lecture des leads refusée (${leadsAvantConversion.status}).`);
+}
+const titreConverti = "Hugo Lemaire · Énergies Norvel";
+let aConvertir = (await leadsAvantConversion.json()).leads.find((fiche) => fiche.title === titreConverti);
+if (!aConvertir) {
+  const creation = await fetch("/api/leads", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ firstName: "Hugo", lastName: "Lemaire", companyName: "Énergies Norvel", email: "hugo.lemaire@energies-norvel.fr", phone: "02 40 11 22 33", jobTitle: "Directeur SIRH", origin: "partenaire", score: 3 }),
+  });
+  if (!creation.ok) {
+    throw new Error(`amorce-recette : création du lead ${titreConverti} refusée (${creation.status}).`);
+  }
+  aConvertir = { id: (await creation.json()).id, stage: "nouveau" };
+}
+if (aConvertir.stage !== "converti" && aConvertir.stage !== "ecarte") {
+  if (aConvertir.stage !== "qualifie") {
+    const qualification = await fetch(`/api/leads/${aConvertir.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ stage: "qualifie" }) });
+    if (!qualification.ok) {
+      throw new Error(`amorce-recette : avancement du lead ${titreConverti} refusé (${qualification.status}).`);
+    }
+  }
+  const conversion = await fetch(`/api/leads/${aConvertir.id}/conversion`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decisionRole: "decideur" }) });
+  if (!conversion.ok) {
+    throw new Error(`amorce-recette : conversion du lead ${titreConverti} refusée (${conversion.status}).`);
+  }
+}
