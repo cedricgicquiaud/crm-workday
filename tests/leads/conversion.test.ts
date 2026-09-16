@@ -137,6 +137,52 @@ describe("convertir un lead vers une personne retrouvée par son email (CRM-95, 
   });
 });
 
+describe("convertir un lead dont la personne est déjà contact ailleurs (CRM-95, D15, contrat 20)", () => {
+  async function contactAtAcme(email: string): Promise<{ personId: string; acmeId: string }> {
+    const acme = await createObject("company", { name: `Acme ${email}`, type: "client" }, { id: ownerId });
+    const res = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Yves", lastName: "Garnier", email, companyId: acme.id, jobTitle: "Acheteur IT" }, memberCookie));
+    expect(res.status).toBe(201);
+    return { personId: ((await res.json()) as { id: string }).id, acmeId: acme.id };
+  }
+
+  it("garder « Acme » laisse le profil et son poste inchangés, lie le lead à Acme et ne crée pas « Banque X »", async () => {
+    const { personId, acmeId } = await contactAtAcme("yves.garnier@acme.fr");
+    const id = await createLead({ firstName: "Yves", lastName: "Garnier", companyName: "Banque Garde", jobTitle: "DSI", email: "yves.garnier@acme.fr", origin: "recommandation" });
+
+    const res = await convert(id, { companyName: "Banque Garde", keepCompany: true });
+    expect(res.status).toBe(200);
+
+    expect(await res.json()).toMatchObject({ personId, companyId: acmeId });
+    expect(await readProfile(personId)).toMatchObject({ companyId: acmeId, jobTitle: "Acheteur IT" });
+    expect((await db.select({ name: company.name }).from(company)).map((row) => row.name)).not.toContain("Banque Garde");
+    expect(await readLead(id)).toMatchObject({ convertedCompanyId: acmeId, companyName: "Banque Garde" });
+  });
+
+  it("choisir « Banque X » fait passer le profil contact chez elle, et l'historique de la personne garde « Acme »", async () => {
+    const { personId, acmeId } = await contactAtAcme("yves.garnier@acme-bis.fr");
+    const id = await createLead({ firstName: "Yves", lastName: "Garnier", companyName: "Banque Passage", email: "yves.garnier@acme-bis.fr", origin: "recommandation" });
+
+    const res = await convert(id, { companyName: "Banque Passage", keepCompany: false });
+    expect(res.status).toBe(200);
+    const { companyId } = (await res.json()) as { companyId: string };
+
+    expect(companyId).not.toBe(acmeId);
+    expect(await readProfile(personId)).toMatchObject({ companyId, companyName: "Banque Passage" });
+    const moved = (await listHistory("person", personId)).find((entry) => entry.field === "companyId" && entry.newValue === "Banque Passage");
+    expect(moved?.oldValue).toBe(`Acme yves.garnier@acme-bis.fr`);
+  });
+
+  it("refuse (400) de convertir sans dire quelle entreprise garder", async () => {
+    await contactAtAcme("yves.garnier@acme-ter.fr");
+    const id = await createLead({ firstName: "Yves", lastName: "Garnier", companyName: "Banque Choix", email: "yves.garnier@acme-ter.fr", origin: "recommandation" });
+
+    const res = await convert(id, { companyName: "Banque Choix" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ fields: { keepCompany: expect.stringContaining("Acme yves.garnier@acme-ter.fr") } });
+    expect(await readLead(id)).toMatchObject({ stage: "nouveau" });
+  });
+});
+
 describe("convertir un lead vers une entreprise existante (CRM-95, D15, contrat 18)", () => {
   it("rattache le contact au client choisi, qui reste client, sans créer d'entreprise, et le lead garde « Banque X SA » écrit", async () => {
     const client = await createObject("company", { name: "Banque X", type: "client" }, { id: ownerId });
