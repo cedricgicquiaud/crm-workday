@@ -7,7 +7,7 @@ import { parisDay } from "@/features/activities/overdue";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { listForState } from "@/features/lists/apply-filters";
 import { columnsOf } from "@/features/lists/columns";
-import { parseListState } from "@/features/lists/url-state";
+import { listUrl, parseListState } from "@/features/lists/url-state";
 import { getObject } from "@/features/objects/registry";
 import { createObject, listObjectRecords } from "@/features/objects/service";
 import { closeDb, db } from "@/lib/db";
@@ -116,5 +116,18 @@ describe("filtres de la liste « Consultants » (CRM-86, contrat 14)", () => {
 describe("tri de la liste « Consultants » sur l'état (CRM-86, contrat 14)", () => {
   it("range à replacer, puis disponibles, puis en mission par date de retour croissante, puis indisponibles", async () => {
     expect(await shown("tri=state:asc")).toEqual(["Rémi", "Dina", "Léo", "Marc", "Iris"]);
+  });
+});
+
+/** Contrat 14 (D18) : l'adresse porte tout l'état ; rouverte ailleurs (un autre onglet ne lit que l'adresse), elle rend la même liste. */
+describe("adresse de la liste « Consultants » (CRM-86, contrat 14)", () => {
+  it("écrit filtres, tri et colonnes dans l'URL, et la même adresse rouverte rend le même état et les mêmes fiches", async () => {
+    const state = parseListState(LIST, new URLSearchParams("f=modules:contient:hcm&f=state:est:disponible&tri=state:asc&colonnes=state,status"));
+    const url = listUrl(LIST, state);
+    expect(url).toBe("/consultants?f=modules%3Acontient%3Ahcm&f=state%3Aest%3Adisponible&tri=state%3Aasc&colonnes=state%2Cstatus");
+
+    const reopened = parseListState(LIST, new URL(url, "http://localhost").searchParams);
+    expect(reopened).toEqual(state);
+    expect(await shown(new URL(url, "http://localhost").search.slice(1))).toEqual(["Rémi", "Dina"]);
   });
 });
