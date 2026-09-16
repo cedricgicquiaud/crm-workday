@@ -13,7 +13,7 @@ import { ListCell } from "@/features/lists/inline-edit";
 import { ListCards } from "@/features/lists/list-cards";
 import { isSortable, UPDATED_AT, type Sort } from "@/features/lists/sort";
 import { listUrl, searchParamsOf, type ListState } from "@/features/lists/url-state";
-import { createLabel as createButtonLabel, displayValue, formatDate } from "@/features/objects/labels";
+import { cellText, createLabel as createButtonLabel, displayValue, formatDate } from "@/features/objects/labels";
 import { getList, getObject, type ListDefinition, type ObjectLabels } from "@/features/objects/registry";
 import { listObjectRecords, listUserOptions } from "@/features/objects/service";
 import { CREATE_PARAM } from "@/features/objects/palette-entries";
@@ -142,6 +142,13 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
                         column.key === UPDATED_AT ? (
                           <TableCell key={column.key} className="py-1 text-right tabular-nums text-muted-foreground">
                             {formatDate(record.updatedAt)}
+                          </TableCell>
+                        ) : column.display ? (
+                          /* Un champ dérivé s'écrit ici, depuis la fiche entière (D19) : il ne s'édite pas, et sa règle ne voyage pas jusqu'au navigateur. */
+                          <TableCell key={column.key} className="truncate py-1 text-muted-foreground">
+                            <span className="block truncate" title={cellText(column, record, users)}>
+                              {cellText(column, record, users)}
+                            </span>
                           </TableCell>
                         ) : (
                           <TableCell key={column.key} className="truncate py-1 text-muted-foreground">
