@@ -25,5 +25,7 @@ registerObject({
   listColumns: ["stage", "origin", "score", "ownerId", "createdAt"],
   /** D10 : « Leads en cours » — ni converti ni écarté, du plus récemment créé au plus ancien ; ses puces se retirent. */
   defaultView: { name: "Leads en cours", query: "f=stage:n_est_pas:converti&f=stage:n_est_pas:ecarte&tri=createdAt:desc" },
+  /** D9 : pas de fusion de leads — l'API répond 405 et le menu ne propose pas « Fusionner… ». */
+  mergeable: false,
   relations: [],
 });

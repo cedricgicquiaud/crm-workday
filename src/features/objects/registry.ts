@@ -184,6 +184,8 @@ export type ObjectDefinition = {
    */
   historyFields?: readonly FieldDescriptor[];
   relations: readonly Relation[];
+  /** `false` : les fiches de cet objet ne se fusionnent pas (un lead, D9) — la fusion répond 405 et le menu ne la propose pas ; défaut : vrai */
+  mergeable?: boolean;
   /** objet parent dont le fil reprend les activités de celui-ci (2.3) */
   feedParent?: string;
   /** clés des champs du dialogue de création rapide (cinq au plus, D7) ; défaut : le champ titre */
