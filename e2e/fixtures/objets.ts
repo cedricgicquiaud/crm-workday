@@ -15,6 +15,7 @@ function runDbCommand(...args: string[]): string {
 }
 
 export function resetObjects(): void {
+  execFileSync("npx", ["tsx", "e2e/fixtures/leads.ts", "reset"], { stdio: ["ignore", "pipe", "inherit"] }); // F10 : un lead converti retient son entreprise (clé sans cascade)
   runDbCommand("reset");
 }
 
