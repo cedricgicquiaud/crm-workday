@@ -12,4 +12,11 @@ describe("état dérivé d'un consultant (CRM-85, D6)", () => {
     expect(consultantState({ unavailable: "oui", availableFrom: "2026-09-01" }, "2026-09-16")).toBe("indisponible");
     expect(consultantState({ unavailable: "oui", availableFrom: null }, "2026-09-16")).toBe("indisponible");
   });
+
+  it("rend « en mission » pour une date après aujourd'hui, « disponible » pour une date vide, passée ou du jour", () => {
+    expect(consultantState({ unavailable: "non", availableFrom: "2026-10-01" }, "2026-09-16")).toBe("en_mission");
+    expect(consultantState({ unavailable: "non", availableFrom: "2026-09-15" }, "2026-09-16")).toBe("disponible");
+    expect(consultantState({ unavailable: "non", availableFrom: "2026-09-16" }, "2026-09-16")).toBe("disponible");
+    expect(consultantState({ unavailable: "non", availableFrom: null }, "2026-09-16")).toBe("disponible");
+  });
 });
