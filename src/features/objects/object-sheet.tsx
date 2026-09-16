@@ -80,7 +80,7 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
           </div>
         </div>
         <p className="tabular text-sm text-muted-foreground">
-          {/* L'accord suit l'article déclaré : « Créée le » pour une entreprise, « Créé le » pour un lead. */}
+          {/* L'accord suit l'article déclaré : « Créée le » pour un objet à l'article « une », « Créé le » pour « un ». */}
           {`${definition.labels.article === "un" ? "Créé le" : "Créée le"} ${formatDate(record.createdAt)} · ${definition.labels.article === "un" ? "modifié le" : "modifiée le"} ${formatDate(record.updatedAt)}`}
           {owner ? ` · responsable : ${displayValue(owner, record.ownerId, users)}` : ""}
         </p>
