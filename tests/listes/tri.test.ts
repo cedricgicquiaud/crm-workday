@@ -1,6 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_SORT, isSortable, sortRecords } from "@/features/lists/sort";
 import { parseListState } from "@/features/lists/url-state";
+import { fieldsOf } from "@/features/objects/fields";
+import { cellText } from "@/features/objects/labels";
 import type { ObjectRecord } from "@/features/objects/service";
 import { registerTestObject, TEST_TYPE } from "./objet-de-test";
 
@@ -61,6 +63,17 @@ describe("tri d'une liste sur un champ dérivé (CRM-86, D19)", () => {
     expect(isSortable(TEST_TYPE, "phase")).toBe(true);
     expect(isSortable(TEST_TYPE, "rank")).toBe(false);
     expect(parseListState(TEST_TYPE, new URLSearchParams("tri=rank:asc")).sort).toEqual(DEFAULT_SORT);
+  });
+});
+
+/** Ce qu'une cellule ou une carte écrit : `display` pour un champ dérivé, sinon la valeur affichée du champ (D19). */
+describe("lecture d'un champ dérivé dans une liste (CRM-86, D19)", () => {
+  const field = (key: string) => fieldsOf(TEST_TYPE).find((candidate) => candidate.key === key)!;
+
+  it("écrit un champ dérivé depuis la fiche entière, et un champ ordinaire par sa valeur", () => {
+    const fiche = record("Alpha", day("2026-09-01"), { phase: "ouverte", city: "Paris", kind: "zzz" });
+    expect(cellText(field("phase"), fiche, [])).toBe("Zèbre · Paris");
+    expect(cellText(field("kind"), fiche, [])).toBe("Alerte");
   });
 });
 
