@@ -145,6 +145,12 @@ export type ListDeclaration = {
   columns?: readonly string[];
   /** nom de la vue par défaut de cette liste (« Tous les consultants ») */
   defaultViewName: string;
+  /**
+   * État de la vue par défaut, en paramètres d'URL (« f=stage:n_est_pas:converti&tri=createdAt:desc »,
+   * D10) : l'adresse nue l'ouvre, et ce que l'adresse porte l'emporte famille par famille. Absent, la
+   * vue par défaut est la liste nue. Contrairement au filtre de base, ses puces se retirent.
+   */
+  defaultViewQuery?: string;
   /** `false` : la liste n'offre pas de création */
   create?: ListCreate | false;
 };
@@ -190,6 +196,8 @@ export type ObjectDefinition = {
    * adresse, un rang, un filtre de base, ses colonnes, le nom de sa vue par défaut et sa création.
    */
   lists?: readonly ListDeclaration[];
+  /** Vue par défaut de la liste de l'objet, quand elle n'est pas « Tous les … » sans puce (« Leads en cours », D10) : son nom et son état. */
+  defaultView?: { name: string; query: string };
 };
 
 /**
@@ -251,7 +259,8 @@ function ownList(definition: ObjectDefinition): ListDefinition {
     href: definition.listHref,
     order: definition.order,
     columns: definition.listColumns,
-    defaultViewName: allLabel(definition.labels),
+    defaultViewName: definition.defaultView?.name ?? allLabel(definition.labels),
+    defaultViewQuery: definition.defaultView?.query,
   };
 }
 

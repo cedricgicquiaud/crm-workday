@@ -71,7 +71,7 @@ export function ViewBar({ list, state, views, pinned }: Props) {
     pinnedIds.includes(view.id) ? write(`/api/vues-epinglees/${encodeURIComponent(view.id)}`, { method: "DELETE" }) : write("/api/vues-epinglees", { method: "POST", body: { viewId: view.id } });
 
   /** État affiché, tel qu'une vue le range : la vue courante n'y figure pas, une vue ne pointe pas une vue. */
-  const displayedQuery = () => listStateToParams(list, { ...state, view: null }).toString();
+  const displayedQuery = () => listStateToParams(list, { ...state, view: null }, { absolute: true }).toString();
 
   /** Suppression confirmée : la vue quitte la liste des vues et les barres latérales de chacun, l'écran revient à la vue par défaut. */
   async function remove() {
