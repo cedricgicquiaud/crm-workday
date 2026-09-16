@@ -39,3 +39,15 @@ export function stateLabel(record: StateRecord): string {
   if (isToRedeploy(record)) return `${LABELS.disponible} · à replacer`;
   return LABELS[state];
 }
+
+/**
+ * Clé de tri de l'état (D6) : à replacer, disponible, en mission par date de retour croissante,
+ * indisponible. Une chaîne comparable telle quelle — le rang d'abord, puis le jour `AAAA-MM-JJ` —
+ * pour qu'un tri croissant range les consultants dans l'ordre du métier, jamais dans celui des libellés.
+ */
+export function stateSortKey(record: StateRecord): string {
+  if (isToRedeploy(record)) return "0";
+  if (record.state === "disponible") return "1";
+  if (record.state === "en_mission") return `2-${record.availableFrom ?? ""}`;
+  return "3";
+}
