@@ -11,6 +11,7 @@ import { BillingCompanyPicker, type BillingCompanyOption } from "./billing-compa
 import type { ConsultantProfile } from "./consultant-profile";
 import { ModuleChecklist } from "./module-checklist";
 import { CONSULTANT_PROFILE_FIELDS, MODULES, RETIRED_MODULES, STATUSES } from "./schema";
+import { stateLabel } from "./state";
 
 /** `readOnly` : la personne ne s'écrit plus (fiche archivée, D21) ; le profil se lit, il ne se pose ni ne se change. */
 type Props = { personId: string; profile: ConsultantProfile | null; companies: readonly BillingCompanyOption[]; readOnly?: boolean };
@@ -184,6 +185,9 @@ export function ConsultantProfileSection({ personId, profile: initial, companies
               onSave={(next) => one("unavailableReason", next === "" ? null : next)}
             />
           )}
+
+          {/* Dérivé de la date et de la case (D6) : il se lit, il ne se saisit pas, et suit la réponse du serveur. */}
+          <FieldControl id={id("state")} label="État" placement="sheet" kind="text" value={stateLabel(profile)} readOnly />
 
           <FieldControl
             id={id("yearsExperience")}
