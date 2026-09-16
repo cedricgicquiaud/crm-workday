@@ -61,6 +61,16 @@ export function displayValue(field: FieldDescriptor, value: unknown, users: read
   return text;
 }
 
+/**
+ * Ce qu'une cellule ou une carte de liste écrit pour un champ d'une fiche : un champ dérivé par son
+ * `display`, lu depuis la fiche entière (D19) ; tout autre champ par sa valeur, avec la marque de son
+ * champ compagnon (« HCM ✔ », D10). Le tableau et les cartes lisent la même phrase.
+ */
+export function cellText(field: FieldDescriptor, record: Record<string, unknown>, users: readonly UserOption[]): string {
+  if (field.display) return field.display(record);
+  return displayValue(field, record[field.key], users, field.markedBy ? record[field.markedBy.field] : undefined);
+}
+
 /** « 650,00 € », « 6 » : décimales fixes quand le champ en déclare, unité après la valeur. */
 export function formatNumber(field: FieldDescriptor, value: number): string {
   if (!Number.isFinite(value)) return EMPTY;
