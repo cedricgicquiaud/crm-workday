@@ -19,5 +19,7 @@ registerObject({
   fields: LEAD_FIELDS,
   /** D11 : cinq champs ; score, besoin, poste, téléphone et LinkedIn se règlent sur la fiche. */
   quickCreate: ["firstName", "lastName", "companyName", "email", "origin"],
+  /** « Avancement : Écarté » en badge de tête : il se lit à côté de « Rouvrir » sans descendre dans les champs (D7). */
+  headerFields: ["stage"],
   relations: [],
 });
