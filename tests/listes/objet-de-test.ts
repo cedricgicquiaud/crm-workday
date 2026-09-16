@@ -70,6 +70,8 @@ export function registerTestObject(): void {
         order: 951,
         columns: ["kind", "createdAt"],
         defaultViewName: "Fiches récentes",
+        /* Sa vue par défaut porte une puce et un tri (D10) : sans alerte, la plus récemment créée en tête. */
+        defaultViewQuery: "f=kind:n_est_pas:zzz&tri=createdAt:desc",
       },
     ],
   });

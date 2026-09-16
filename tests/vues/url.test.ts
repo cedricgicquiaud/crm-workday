@@ -1,8 +1,11 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { applyViewParams, listStateToParams, listUrl, parseListState, readViewId } from "@/features/lists/url-state";
-import { registerTestObject, TEST_TYPE } from "../listes/objet-de-test";
+import { defaultView, listStateWithView } from "@/features/views/views";
+import { closeDb } from "@/lib/db";
+import { registerTestObject, TEST_RECENT_LIST, TEST_TYPE } from "../listes/objet-de-test";
 
 beforeAll(registerTestObject);
+afterAll(closeDb);
 
 /** État rangé dans la vue « Clients parisiens » : deux familles de paramètres sur trois. */
 const VIEW_QUERY = "f=kind:est:client&tri=name:asc&colonnes=city";
@@ -40,5 +43,47 @@ describe("la vue courante voyage dans l'URL de la liste (CRM-53, contrat 24)", (
     expect(gone.filters).toEqual([]);
     expect(gone.sort).toEqual({ field: "name", direction: "asc" });
     expect(gone.columns).toEqual(["kind", "city", "updatedAt"]);
+  });
+});
+
+/**
+ * D10, D21 : une vue par défaut peut porter des puces et un tri (« Leads en cours »). L'adresse nue
+ * l'ouvre ; retirer toutes ses puces montre toutes les fiches, et l'adresse le dit par un marqueur,
+ * sans quoi elle redeviendrait l'adresse nue et les puces reviendraient.
+ */
+describe("vue par défaut déclarée avec filtres et tri (CRM-92, D10)", () => {
+  const WITHOUT_ALERT = { field: "kind", operator: "n_est_pas", value: "zzz" };
+
+  it("s'ouvre filtrée et triée à l'adresse nue, et s'écrit sans paramètre", async () => {
+    expect(defaultView(TEST_RECENT_LIST)).toMatchObject({ id: "default", name: "Fiches récentes", query: "f=kind:n_est_pas:zzz&tri=createdAt:desc" });
+    const bare = await listStateWithView(TEST_RECENT_LIST, new URLSearchParams());
+    expect(bare.view).toBe(null);
+    expect(bare.filters).toEqual([WITHOUT_ALERT]);
+    expect(bare.sort).toEqual({ field: "createdAt", direction: "desc" });
+    expect(listUrl(TEST_RECENT_LIST, bare)).toBe("/fiches-recentes");
+  });
+
+  it("montre toutes les fiches quand on retire ses puces, et l'adresse le garde au rechargement", async () => {
+    const bare = await listStateWithView(TEST_RECENT_LIST, new URLSearchParams());
+    const url = listUrl(TEST_RECENT_LIST, { ...bare, filters: [] });
+    expect(url).toBe("/fiches-recentes?filtres=aucun");
+    const reloaded = await listStateWithView(TEST_RECENT_LIST, new URLSearchParams(url.split("?")[1]));
+    expect(reloaded.filters).toEqual([]);
+    expect(reloaded.inactive).toEqual([]);
+    expect(reloaded.sort).toEqual({ field: "createdAt", direction: "desc" });
+  });
+
+  it("garde une puce ajoutée et un autre tri dans l'adresse, et les relit à l'identique", async () => {
+    const bare = await listStateWithView(TEST_RECENT_LIST, new URLSearchParams());
+    const refined = { ...bare, filters: [...bare.filters, { field: "city", operator: "contient" as const, value: "Paris" }], sort: { field: "updatedAt", direction: "desc" as const } };
+    const url = listUrl(TEST_RECENT_LIST, refined);
+    expect(await listStateWithView(TEST_RECENT_LIST, new URLSearchParams(url.split("?")[1]))).toEqual(refined);
+  });
+
+  it("laisse la vue par défaut d'une liste qui ne déclare rien sans puce ni tri", async () => {
+    expect(defaultView(TEST_TYPE).query).toBe("");
+    const bare = await listStateWithView(TEST_TYPE, new URLSearchParams());
+    expect(bare.filters).toEqual([]);
+    expect(listUrl(TEST_TYPE, { ...bare, filters: [] })).toBe("/fiches-de-test");
   });
 });
