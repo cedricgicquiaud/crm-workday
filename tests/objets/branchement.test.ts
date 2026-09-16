@@ -8,7 +8,10 @@ import { listFeed } from "@/features/activities/feed";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createDefinition, loadCustomFields } from "@/features/custom-fields/definitions";
 import { customFieldKey } from "@/features/custom-fields/fields-source";
-import { listHistory } from "@/features/history/history";
+import { archiveRecord } from "@/features/archive/archive";
+import { deleteRecord } from "@/features/archive/delete";
+import { listHistory, recordHistory } from "@/features/history/history";
+import { collectBanners } from "@/features/objects/banners";
 import { fieldsOf, isLocked } from "@/features/objects/fields";
 import { selectableValues } from "@/features/objects/labels";
 import { linkedGroups } from "@/features/objects/links-column";
@@ -87,7 +90,12 @@ beforeAll(async () => {
         order: 50,
       },
     ],
-    relations: [{ to: TYPE, fkColumn: "parentId", label: "Fiche mère", inverseLabel: "Fiches filles", prefill: "parentId" }],
+    /* `keepArchived` (D21) : une fiche fille archivée reste listée chez sa mère, marquée — la trace prime. */
+    relations: [{ to: TYPE, fkColumn: "parentId", label: "Fiche mère", inverseLabel: "Fiches filles", prefill: "parentId", keepArchived: true }],
+    /* Une fiche figée selon son état (D21) : ses champs ne s'écrivent plus, son fil reste ouvert. */
+    frozen: { test: (record) => String(record.name ?? "").startsWith("Gelée"), message: "Fiche gelée : ses champs ne se modifient plus." },
+    /* Une action d'historique propre à l'objet, et la phrase qui la raconte. */
+    historyActions: { gel: (entry) => `Gelée en ${entry.newValue}` },
     quickCreate: ["name"],
     listColumns: ["ownerId"],
     /* Un objet qui ne se fusionne pas (D21) : il le déclare, la fusion commune le refuse. */
@@ -120,6 +128,17 @@ beforeAll(async () => {
       { key: "rouvrir", order: 20, visible: (record) => record.phase === "close", render: () => null },
       { key: "clore", order: 10, visible: (record) => record.phase !== "close", render: () => null },
       { key: "exporter", order: 5, visible: () => true, render: () => null },
+    ],
+    /* Refus de suppression selon la fiche (D21) : une fiche gelée s'archive, elle ne se supprime pas. */
+    deletable: (record) => (String(record.name ?? "").startsWith("Gelée") ? "Une fiche gelée s'archive." : null),
+    /* Une bannière déclarée, rangée entre « archivée » et « doublon probable » (D21), qui mène à deux fiches. */
+    banners: [
+      {
+        rank: "gelee",
+        order: 15,
+        source: async (record) =>
+          String(record.name ?? "").startsWith("Gelée") ? [{ rank: "gelee", tone: "info" as const, message: "Fiche gelée.", links: [{ label: "Fiche mère", href: `/fiches-branchees/${String(record.parentId)}` }] }] : [],
+      },
     ],
     /* Le service appelle ce chargeur à chaque lecture — une fiche, une liste — et lui passe toutes les fiches d'un coup : un complément ne coûte pas une requête par ligne. */
     attach: async (records) => {
@@ -245,6 +264,74 @@ describe("refus de fusion déclaré (CRM-93, D21)", () => {
     await expect(planMerge(TYPE, one.id, two.id)).rejects.toMatchObject({ status: 405 });
     await expect(mergeRecords(TYPE, one.id, two.id, [])).rejects.toMatchObject({ status: 405 });
     expect((await getObjectRecord(TYPE, two.id)).name).toBe("Jumelle non fusionnable");
+  });
+});
+
+/** D21 : une fiche figée selon son état ne s'écrit plus champ par champ, mais son fil reste ouvert (CRM-97, contrat 28). */
+describe("fiche figée par déclaration (CRM-97, D18, D21)", () => {
+  it("refuse (409) toute modification de champ d'une fiche figée, et y accepte encore une note", async () => {
+    const record = await createObject(TYPE, { name: "Gelée à la source" }, { id: actorId });
+
+    await expect(updateObject(TYPE, record.id, { ownerId: actorId, phase: "ouverte" }, { id: actorId })).rejects.toMatchObject({ status: 409, message: "Fiche gelée : ses champs ne se modifient plus." });
+    await createActivity(TYPE, record.id, { type: "note", body: "Note sur une fiche gelée" }, { id: actorId });
+
+    expect((await getObjectRecord(TYPE, record.id)).phase).toBeNull();
+    expect((await listFeed(TYPE, record.id, [])).items.map((item) => item.text)).toContain("Note sur une fiche gelée");
+  });
+});
+
+/** D21 : un objet déclare quand une fiche ne se supprime pas ; la suppression commune le lit (CRM-97, contrat 28). */
+describe("refus de suppression déclaré (CRM-97, D18, D21)", () => {
+  it("refuse (409) de supprimer une fiche que sa déclaration retient, avec la phrase déclarée", async () => {
+    const record = await createObject(TYPE, { name: "Gelée indélébile" }, { id: actorId });
+
+    await expect(deleteRecord(TYPE, record.id)).rejects.toMatchObject({ status: 409, message: "Une fiche gelée s'archive." });
+    expect((await getObjectRecord(TYPE, record.id)).name).toBe("Gelée indélébile");
+  });
+});
+
+/** D21, D27 : une relation déclarée « même archivée » garde ses fiches dans la colonne des liens, et le refus de suppression les nomme (CRM-97, contrat 29). */
+describe("relation gardée même archivée, et bloqueurs nommés (CRM-97, D19, D21, D27)", () => {
+  it("liste une fiche fille archivée chez sa mère, marquée archivée, et le refus de supprimer la mère la nomme, trois titres au plus", async () => {
+    const mere = await createObject(TYPE, { name: "Mère retenue" }, { id: actorId });
+    const filles = [];
+    for (const name of ["Fille A", "Fille B", "Fille C", "Fille D"]) filles.push(await createObject(TYPE, { name, parentId: mere.id }, { id: actorId }));
+    await archiveRecord(TYPE, filles[0].id, { id: actorId });
+
+    const group = (await linkedGroups(TYPE, mere.id)).find((candidate) => candidate.label === "Fiches filles");
+    expect(group?.records.find((linked) => linked.id === filles[0].id)).toMatchObject({ title: "Fille A", archived: true });
+
+    const refusal = await deleteRecord(TYPE, mere.id).catch((error: { status: number; details: { blockers: { label: string; count: number; titles?: string[] }[] } }) => error);
+    expect(refusal).toMatchObject({ status: 409 });
+    const blocker = (refusal as { details: { blockers: { label: string; count: number; titles?: string[] }[] } }).details.blockers.find((candidate) => candidate.label === "Fiches filles");
+    expect(blocker?.count).toBe(4);
+    expect(blocker?.titles).toHaveLength(3);
+  });
+});
+
+/** D21 : une bannière déclarée par l'objet se range parmi les communes, et une seule s'affiche (CRM-97, contrat 28). */
+describe("bannière déclarée (CRM-97, D18, D21)", () => {
+  it("range la bannière déclarée après « archivée » et avant « doublon probable », avec ses liens", async () => {
+    const mere = await createObject(TYPE, { name: "Mère d'une gelée" }, { id: actorId });
+    const gelee = await createObject(TYPE, { name: "Gelée jumelle", parentId: mere.id }, { id: actorId });
+    await createObject(TYPE, { name: "Gelée jumelle" }, { id: actorId });
+
+    const live = await collectBanners(TYPE, gelee.id);
+    expect(live.map((banner) => banner.rank)).toEqual(["gelee", "doublon"]);
+    expect(live[0].links).toEqual([{ label: "Fiche mère", href: `/fiches-branchees/${mere.id}` }]);
+
+    await archiveRecord(TYPE, gelee.id, { id: actorId });
+    expect((await collectBanners(TYPE, gelee.id))[0].rank).toBe("archivee");
+  });
+});
+
+/** D21 : une action d'historique déclarée par l'objet se lit dans le fil par la phrase qu'il déclare (CRM-97, contrat 15). */
+describe("action d'historique déclarée (CRM-97, D16, D21)", () => {
+  it("écrit l'entrée d'une action propre à l'objet dans le fil avec la phrase déclarée", async () => {
+    const record = await createObject(TYPE, { name: "Fiche racontée" }, { id: actorId });
+    await recordHistory([{ objectType: TYPE, objectId: record.id, action: "gel", newValue: "glace", authorId: actorId }]);
+
+    expect((await listFeed(TYPE, record.id, [])).items.map((item) => item.text)).toContain("Gelée en glace");
   });
 });
 
