@@ -52,6 +52,8 @@ export function registerTestObject(): void {
         sortKey: (record) => (record.phase === "ouverte" ? "0" : record.phase === "close" ? "1" : null),
         order: 80,
       },
+      /* Un rang déclaré sans `sortable` : la liste ne trie pas dessus (CRM-86). */
+      { key: "rank", label: "Rang", type: "text", editable: false, sortKey: (record) => String(record.rank ?? ""), order: 90 },
     ],
     relations: [],
     listColumns: ["kind", "city"],

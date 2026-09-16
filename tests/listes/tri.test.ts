@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_SORT, isSortable, sortRecords } from "@/features/lists/sort";
+import { parseListState } from "@/features/lists/url-state";
 import type { ObjectRecord } from "@/features/objects/service";
 import { registerTestObject, TEST_TYPE } from "./objet-de-test";
 
@@ -54,6 +55,12 @@ describe("tri d'une liste sur un champ dérivé (CRM-86, D19)", () => {
     /* Sur le libellé, « Abeille » (close) passerait avant « Zèbre » (ouverte). */
     expect(names(sortRecords(TEST_TYPE, PHASES, { field: "phase", direction: "asc" }))).toEqual(["Ouverte", "Close", "Sans phase"]);
     expect(names(sortRecords(TEST_TYPE, PHASES, { field: "phase", direction: "desc" }))).toEqual(["Close", "Ouverte", "Sans phase"]);
+  });
+
+  it("ne trie pas sur un rang déclaré sans `sortable` : l'URL qui le demande retombe sur le tri par défaut", () => {
+    expect(isSortable(TEST_TYPE, "phase")).toBe(true);
+    expect(isSortable(TEST_TYPE, "rank")).toBe(false);
+    expect(parseListState(TEST_TYPE, new URLSearchParams("tri=rank:asc")).sort).toEqual(DEFAULT_SORT);
   });
 });
 
