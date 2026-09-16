@@ -43,6 +43,9 @@ export function sheetFieldsOf(type: string, record: Record<string, unknown>): re
   return [...shown, ...archived].sort((a, b) => a.order - b.order);
 }
 
+/** Vrai quand la fiche fige ce champ (D21) : il se lit en texte et ne s'écrit plus tant qu'elle est dans cet état. */
+export const isLocked = (field: FieldDescriptor, record: Record<string, unknown>): boolean => field.lockedWhen?.test(record) === true;
+
 /** Valeur validée d'un champ : texte pour `text`, `list`, `user` et `date` (jour ISO), nombre pour `number`, tableau de clés pour `multilist`, `null` pour un champ vidé. */
 export type FieldValue = string | number | string[] | null;
 export type FieldValues = Record<string, FieldValue>;

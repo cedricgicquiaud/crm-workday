@@ -31,6 +31,12 @@ export type FieldDescriptor = {
   default?: string;
   /** faux : lecture seule sur la fiche (défaut : vrai) */
   editable?: boolean;
+  /**
+   * Le champ se fige selon la fiche (D21) : l'avancement d'un lead écarté. Tant que `test` est vrai,
+   * la fiche le lit en texte, sa cellule ne s'édite pas, et l'écriture le refuse (409) avec `message` ;
+   * les autres champs de la fiche restent modifiables, à la différence d'une fiche archivée.
+   */
+  lockedWhen?: { test: (record: Record<string, unknown>) => boolean; message: string };
   /** un `multilist` se trie sur ses libellés joints (D11) */
   sortable?: boolean;
   maxLength?: number;

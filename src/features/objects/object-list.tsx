@@ -13,6 +13,7 @@ import { ListCell } from "@/features/lists/inline-edit";
 import { ListCards } from "@/features/lists/list-cards";
 import { isSortable, UPDATED_AT, type Sort } from "@/features/lists/sort";
 import { listUrl, searchParamsOf, type ListState } from "@/features/lists/url-state";
+import { isLocked } from "@/features/objects/fields";
 import { cellText, createLabel as createButtonLabel, displayValue, formatDate } from "@/features/objects/labels";
 import { getList, getObject, type FieldDescriptor, type ListDefinition, type ObjectLabels } from "@/features/objects/registry";
 import { listObjectRecords, listUserOptions } from "@/features/objects/service";
@@ -185,7 +186,7 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
                           </TableCell>
                         ) : (
                           <TableCell key={column.key} className="truncate py-1 text-muted-foreground">
-                            <ListCell type={type} id={record.id} field={forClient(column)}value={rawValue(record[column.key])} marked={column.markedBy ? rawValue(record[column.markedBy.field]) : undefined} users={users} />
+                            <ListCell type={type} id={record.id} field={forClient(column)} value={rawValue(record[column.key])} marked={column.markedBy ? rawValue(record[column.markedBy.field]) : undefined} users={users} locked={isLocked(column, record)} />
                           </TableCell>
                         ),
                       )}

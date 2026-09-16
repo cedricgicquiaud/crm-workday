@@ -6,8 +6,12 @@ import "@/features/objects/manifest";
 import { displayValue, selectableValues, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 
-/** `marked` : les valeurs du champ compagnon déclaré (`markedBy`), qui portent sa marque dans la cellule. */
-type Props = { type: string; id: string; field: FieldDescriptor; value: string; marked?: string; users: readonly UserOption[] };
+/**
+ * `marked` : les valeurs du champ compagnon déclaré (`markedBy`), qui portent sa marque dans la cellule.
+ * `locked` : la fiche fige ce champ (D21) — la règle ne franchit pas la frontière client, la liste la lit
+ * côté serveur et la cellule se rend en texte.
+ */
+type Props = { type: string; id: string; field: FieldDescriptor; value: string; marked?: string; users: readonly UserOption[]; locked?: boolean };
 
 const FAILED = "La modification n'a pas pu être enregistrée.";
 
@@ -40,7 +44,7 @@ function nextCell(current: string): HTMLElement | undefined {
  * sous la cellule et la valeur enregistrée revient. Modifications concurrentes : le dernier écrit
  * gagne, sans verrou (D6). Les autres champs se lisent ici et se modifient sur la fiche.
  */
-export function ListCell({ type, id, field, value: initial, marked, users }: Props) {
+export function ListCell({ type, id, field, value: initial, marked, users, locked = false }: Props) {
   const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [editing, setEditing] = useState(false);
@@ -86,7 +90,7 @@ export function ListCell({ type, id, field, value: initial, marked, users }: Pro
     if (accepted) following?.focus();
   }
 
-  if (!isInlineEditable(field)) {
+  if (locked || !isInlineEditable(field)) {
     return (
       <span className="block truncate" title={text}>
         {text}

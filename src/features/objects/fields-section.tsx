@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import "@/features/objects/manifest";
 import { FieldControl, type FieldControlKind, type FieldControlOption } from "@/features/objects/field-control";
-import { sheetFieldsOf } from "@/features/objects/fields";
+import { isLocked, sheetFieldsOf } from "@/features/objects/fields";
 import { displayValue, selectableValues, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 
@@ -73,7 +73,8 @@ export function FieldsSection({ type, record: initial, users, readOnly = false }
           <h2 className="text-base font-medium">{section.name}</h2>
           <div className="grid gap-3">
             {section.fields.map((field) => (
-              <EditableField key={field.key} type={type} field={field} value={asString(record[field.key])} error={errors[field.key]} users={users} readOnly={readOnly} onSave={(value) => save(field, value)} />
+              /* Un champ que la fiche fige (D21) se lit comme sur une fiche archivée ; ses voisins restent modifiables. */
+              <EditableField key={field.key} type={type} field={field} value={asString(record[field.key])} error={errors[field.key]} users={users} readOnly={readOnly || isLocked(field, record)} onSave={(value) => save(field, value)} />
             ))}
           </div>
         </section>
