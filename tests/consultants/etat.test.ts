@@ -45,6 +45,11 @@ describe("libellé de l'état et mention « à replacer » (CRM-85, D6)", () => 
     expect(stateLabel({ state: "disponible", availableFrom: "2026-09-01", status: "freelance" })).toBe("Disponible");
     expect(stateLabel({ state: "en_mission", availableFrom: "2026-10-05", status: "salarie" })).toBe("En mission · disponible le 5 oct. 2026");
   });
+
+  /* Contrat 16, D10 : une personne sans profil consultant n'a pas d'état ; sa cellule s'écrit comme toute cellule vide. */
+  it("une fiche sans état s'écrit “—”", () => {
+    expect(stateLabel({ state: null, availableFrom: null, status: null })).toBe("—");
+  });
 });
 
 /** D6, contrat 14 : le tri sur l'état suit un rang, jamais l'alphabet des libellés (qui mettrait « Disponible » avant « Disponible · à replacer »). */
