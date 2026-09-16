@@ -6,7 +6,7 @@
  * La conversion réutilise les écritures des personnes : la création générique et le profil contact.
  */
 import { eq } from "drizzle-orm";
-import { lead } from "@/db/schema";
+import { company, lead } from "@/db/schema";
 import { recordHistory, type HistoryInput } from "@/features/history/history";
 import { validateValues } from "@/features/objects/fields";
 import { createObject, getObjectRecord, type Actor, type ObjectRecord } from "@/features/objects/service";
@@ -31,24 +31,42 @@ const text = (value: unknown): string | null => (typeof value === "string" && va
 /** 400 dont le message est la première erreur, et toutes les erreurs par champ pour la fenêtre. */
 const invalid = (errors: Record<string, string>) => new HttpError(400, "donnees_invalides", Object.values(errors)[0], { fields: errors });
 
+/** L'entreprise de la conversion : une existante choisie dans les propositions, ou une nouvelle à créer sous ce nom. */
+type CompanyChoice = { kind: "existing"; id: string; name: string; archivedAt: Date | null } | { kind: "new"; name: string };
+
 /** Ce que la fenêtre a confirmé, validé contre les descripteurs de la personne et du profil, avant toute écriture. */
-type Plan = { firstName: string; lastName: string; companyName: string; jobTitle: string | null; decisionRole: string };
+type Plan = { firstName: string; lastName: string; company: CompanyChoice; jobTitle: string | null; decisionRole: string };
+
+/** Le champ « Entreprise » de la fenêtre : c'est sous lui que s'affichent les refus sur l'entreprise. */
+export const COMPANY_INPUT = "companyName";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const personField = (key: string) => PERSON_FIELDS.find((field) => field.key === key)!;
 
+/** Une entreprise choisie par son identifiant ; un identifiant qui ne désigne aucune entreprise est un refus sous le champ (400), jamais une panne. */
+async function chosenCompany(id: unknown): Promise<CompanyChoice | null> {
+  if (id === undefined || id === null || id === "") return null;
+  const [row] = typeof id === "string" && UUID.test(id) ? await db.select({ id: company.id, name: company.name, archivedAt: company.archivedAt }).from(company).where(eq(company.id, id)).limit(1) : [];
+  if (!row) throw invalid({ [COMPANY_INPUT]: "« Entreprise » ne désigne aucune entreprise." });
+  return { kind: "existing", ...row };
+}
+
 /** Valide l'entrée de la fenêtre : prénom, nom et entreprise obligatoires pour une nouvelle personne, rôle dans sa liste (400 par champ). */
-function planOf(current: ObjectRecord, body: Record<string, unknown>): Plan {
+async function planOf(current: ObjectRecord, body: Record<string, unknown>): Promise<Plan> {
   const pick = (key: string) => (key in body ? body[key] : current[key]);
+  const existing = await chosenCompany(body.companyId);
+  const companyField = { ...personField("lastName"), key: COMPANY_INPUT, label: "Entreprise", required: existing === null };
   const { values, errors } = validateValues(
-    [personField("firstName"), personField("lastName"), { ...personField("lastName"), key: "companyName", label: "Entreprise" }, JOB_TITLE_FIELD, { ...DECISION_ROLE_FIELD, required: false }],
-    { firstName: pick("firstName") ?? "", lastName: pick("lastName") ?? "", companyName: pick("companyName") ?? "", jobTitle: pick("jobTitle"), decisionRole: body.decisionRole },
+    [personField("firstName"), personField("lastName"), companyField, JOB_TITLE_FIELD, { ...DECISION_ROLE_FIELD, required: false }],
+    { firstName: pick("firstName") ?? "", lastName: pick("lastName") ?? "", [COMPANY_INPUT]: existing ? "" : pick(COMPANY_INPUT) ?? "", jobTitle: pick("jobTitle"), decisionRole: body.decisionRole },
     { partial: false },
   );
   if (Object.keys(errors).length > 0) throw invalid(errors);
   return {
     firstName: String(values.firstName),
     lastName: String(values.lastName),
-    companyName: String(values.companyName),
+    company: existing ?? { kind: "new", name: String(values[COMPANY_INPUT]) },
     jobTitle: text(values.jobTitle),
     decisionRole: text(values.decisionRole) ?? DEFAULT_DECISION_ROLE,
   };
@@ -68,16 +86,17 @@ function assertConvertible(record: { stage: unknown; archivedAt: unknown }, id: 
 export async function convertLead(id: string, input: unknown, actor: Actor): Promise<ConversionResult> {
   const current = await getObjectRecord(TYPE, id);
   assertConvertible(current, current.id);
-  const plan = planOf(current, asObject(input));
+  const plan = await planOf(current, asObject(input));
   const ownerId = String(current.ownerId);
 
   return db.transaction(async (tx) => {
     const [locked] = await tx.select({ stage: lead.stage, archivedAt: lead.archivedAt }).from(lead).where(eq(lead.id, current.id)).for("update");
     assertConvertible(locked, current.id);
 
-    const createdCompany = await createObject("company", { name: plan.companyName, type: "prospect", ownerId }, actor, tx);
-    const companyId = createdCompany.id;
-    const companyName = String(createdCompany.name);
+    /* Une entreprise existante garde son type et son responsable ; une nouvelle est un prospect au responsable du lead (D16). */
+    const target = plan.company.kind === "existing" ? plan.company : await createObject("company", { name: plan.company.name, type: "prospect", ownerId }, actor, tx);
+    const companyId = target.id;
+    const companyName = String(target.name);
 
     const createdPerson = await createObject(
       "person",
@@ -91,7 +110,7 @@ export async function convertLead(id: string, input: unknown, actor: Actor): Pro
     await writeContactProfile(personId, { values: { jobTitle: plan.jobTitle, decisionRole: plan.decisionRole }, company: { id: companyId, name: companyName, archivedAt: null } }, actor, tx);
 
     /* Ce que la fenêtre a complété ne s'écrit sur le lead que dans ses champs vides (D15) : rien n'y est écrasé. */
-    const completed = Object.entries({ firstName: plan.firstName, lastName: plan.lastName, companyName: plan.companyName, jobTitle: plan.jobTitle }).filter(
+    const completed = Object.entries({ firstName: plan.firstName, lastName: plan.lastName, companyName, jobTitle: plan.jobTitle }).filter(
       ([key, value]) => value !== null && text(current[key]) === null,
     ) as [string, string][];
     const now = new Date();
