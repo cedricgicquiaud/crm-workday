@@ -10,6 +10,7 @@ import { createDefinition, loadCustomFields } from "@/features/custom-fields/def
 import { customFieldKey } from "@/features/custom-fields/fields-source";
 import { listHistory } from "@/features/history/history";
 import { fieldsOf } from "@/features/objects/fields";
+import { selectableValues } from "@/features/objects/labels";
 import { linkedGroups } from "@/features/objects/links-column";
 import { listForState } from "@/features/lists/apply-filters";
 import { defaultColumnKeys } from "@/features/lists/columns";
@@ -34,6 +35,7 @@ const testTable = pgTable(TYPE, {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   parentId: uuid("parent_id"),
+  phase: text("phase"),
   ownerId: text("owner_id").notNull(),
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -51,7 +53,7 @@ async function cleanup() {
 
 beforeAll(async () => {
   await rawSql().unsafe(
-    `CREATE TABLE IF NOT EXISTS ${TYPE} (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, parent_id uuid, owner_id text NOT NULL, created_by text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), archived_at timestamptz)`,
+    `CREATE TABLE IF NOT EXISTS ${TYPE} (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, parent_id uuid, phase text, owner_id text NOT NULL, created_by text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), archived_at timestamptz)`,
   );
   await cleanup();
   await db.delete(user).where(eq(user.email, ACTOR.email));
@@ -73,6 +75,8 @@ beforeAll(async () => {
       { key: "parentId", label: "Fiche mère", type: "text", order: 30 },
       /* Complément : la fiche ne porte pas ce nom dans sa table, le chargeur `attach` le joint à chaque lecture (D19). */
       { key: "parentName", label: "Nom de la fiche mère", type: "text", editable: false, sortable: true, order: 40 },
+      /* Une valeur réservée (D21) : elle se lit et se filtre, mais aucune écriture ne la pose — un geste de l'objet la posera. */
+      { key: "phase", label: "Phase", type: "list", values: [{ value: "ouverte", label: "Ouverte" }, { value: "close", label: "Close", reserved: true }], order: 50 },
     ],
     relations: [{ to: TYPE, fkColumn: "parentId", label: "Fiche mère", inverseLabel: "Fiches filles", prefill: "parentId" }],
     quickCreate: ["name"],
@@ -172,5 +176,24 @@ describe("un objet déclaré obtient les mécanismes communs (CRM-57, contrat 33
     const groups = await linkedGroups(TYPE, record.id);
     expect(groups.map((group) => group.label)).toContain("Fiche mère");
     expect(groups.find((group) => group.label === "Fiche mère")?.records.map((linked) => linked.id)).toEqual([mere.id]);
+  });
+});
+
+/**
+ * D21 : une valeur de liste peut être réservée à un geste de l'objet (« converti », « écarté » d'un
+ * lead). Le mécanisme la connaît par déclaration : le sélecteur ne la propose pas, et l'écriture la
+ * refuse, sans qu'un fichier des mécanismes nomme l'objet.
+ */
+describe("valeur de liste réservée, par déclaration (CRM-91, D21)", () => {
+  it("n'est pas proposée au choix, se lit quand la fiche la porte, et l'écriture la refuse (400) sous le champ", async () => {
+    const phase = fieldsOf(TYPE).find((field) => field.key === "phase")!;
+    expect(selectableValues(phase, "ouverte").map((option) => option.value)).toEqual(["ouverte"]);
+    /* Portée par la fiche, elle reste affichée, inerte : le sélecteur dit ce que la fiche porte sans le proposer. */
+    expect(selectableValues(phase, "close")).toEqual([{ value: "ouverte", label: "Ouverte" }, { value: "close", label: "Close", disabled: true }]);
+
+    const record = await createObject(TYPE, { name: "Fiche à phase", phase: "ouverte" }, { id: actorId });
+    await expect(updateObject(TYPE, record.id, { phase: "close" }, { id: actorId })).rejects.toMatchObject({ status: 400, details: { fields: { phase: "« Close » ne se pose pas à la main dans « Phase »." } } });
+    await expect(createObject(TYPE, { name: "Fiche close", phase: "close" }, { id: actorId })).rejects.toMatchObject({ status: 400 });
+    expect((await getObjectRecord(TYPE, record.id)).phase).toBe("ouverte");
   });
 });
