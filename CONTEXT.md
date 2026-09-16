@@ -63,3 +63,29 @@ _Éviter_ : statut (réservé au lien salarié / freelance / portage), disponibi
 **À replacer** :
 Mention portée par un salarié disponible : un coût qui court sans mission.
 _Éviter_ : en intercontrat, en attente
+
+### La prospection
+
+**Lead** :
+Une piste commerciale notée en texte libre : quelqu'un ou un besoin repéré, qui n'est ni une personne ni une entreprise du CRM tant qu'il n'est pas converti.
+_Éviter_ : prospect (c'est un type d'entreprise), piste, contact froid
+
+**Origine** :
+Le canal par lequel un lead est arrivé : LinkedIn, recommandation, appel d'offres, partenaire ou autre.
+_Éviter_ : source, canal
+
+**Avancement** :
+Où en est un lead : nouveau, contacté, qualifié, converti ou écarté. Converti et écarté sont des fins.
+_Éviter_ : statut (réservé au consultant), étape (réservée au pipeline)
+
+**Score** :
+L'appréciation, de 1 à 3, que l'équipe porte sur les chances d'un lead.
+_Éviter_ : note, priorité, chaleur
+
+**Besoin** :
+Ce que le lead laisse entrevoir d'une demande Workday, en texte libre, avant qu'il existe une opportunité.
+_Éviter_ : demande, projet, opportunité (c'est l'objet qualifié)
+
+**Conversion** :
+Le passage d'un lead à une personne avec un profil contact, rattachée à une entreprise. Le lead converti reste comme trace et ne se modifie plus.
+_Éviter_ : transformation, qualification (c'est un avancement)
