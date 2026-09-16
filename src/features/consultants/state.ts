@@ -3,7 +3,7 @@
  * saisi. Seule source de la règle, lue par la fiche, la liste, le filtre et le tri. Ce fichier est
  * importable côté client : aucune base, aucune horloge — le jour courant se passe en paramètre.
  */
-import { formatDate } from "@/features/objects/labels";
+import { EMPTY, formatDate } from "@/features/objects/labels";
 import type { ListValue } from "@/features/objects/registry";
 
 export type ConsultantState = "disponible" | "en_mission" | "indisponible";
@@ -23,7 +23,7 @@ export function consultantState(profile: AvailabilityInput, today: string): Cons
 }
 
 /** Ce que le libellé lit d'une fiche : l'état déjà calculé, la date qu'il cite, et le statut. */
-export type StateRecord = { state: string | null; availableFrom: string | null; status: string | null };
+export type StateRecord = { state: ConsultantState | null; availableFrom: string | null; status: string | null };
 
 const LABELS: Readonly<Record<ConsultantState, string>> = { disponible: "Disponible", en_mission: "En mission", indisponible: "Indisponible" };
 
@@ -32,7 +32,7 @@ export const STATES: readonly ListValue[] = (Object.keys(LABELS) as ConsultantSt
 
 /** Ce qu'une fiche de liste porte, lu comme un `StateRecord` : l'état, la date et le statut, ou rien. */
 export const asStateRecord = (record: Record<string, unknown>): StateRecord => ({
-  state: (record.state as string | null | undefined) ?? null,
+  state: (record.state as ConsultantState | null | undefined) ?? null,
   availableFrom: (record.availableFrom as string | null | undefined) ?? null,
   status: (record.status as string | null | undefined) ?? null,
 });
@@ -45,10 +45,11 @@ export const isToRedeploy = (record: StateRecord): boolean => record.state === "
 
 /** « En mission · disponible le 5 oct. 2026 », « Disponible · à replacer » : l'état se lit avec ce qui le fera changer. */
 export function stateLabel(record: StateRecord): string {
-  const state = record.state as ConsultantState;
+  const { state } = record;
   if (state === "en_mission" && record.availableFrom) return `${LABELS.en_mission} · disponible le ${formatDate(record.availableFrom)}`;
   if (isToRedeploy(record)) return `${LABELS.disponible} · à replacer`;
-  return LABELS[state];
+  /* Une personne sans profil consultant (D10) n'a pas d'état : la cellule vide s'écrit comme les autres. */
+  return state !== null && Object.hasOwn(LABELS, state) ? LABELS[state] : EMPTY;
 }
 
 /**

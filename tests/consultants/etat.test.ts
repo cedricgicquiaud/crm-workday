@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { parisDay } from "@/features/activities/overdue";
 import { closeDb } from "@/lib/db";
-import { consultantState, stateLabel, stateSortKey } from "@/features/consultants/state";
+import { consultantState, stateLabel, stateSortKey, type StateRecord } from "@/features/consultants/state";
 
 /* `parisDay` vit à côté de la règle d'échéance, qui interroge la base : son module ouvre la connexion. */
 afterAll(closeDb);
@@ -55,7 +55,7 @@ describe("libellé de l'état et mention « à replacer » (CRM-85, D6)", () => 
 /** D6, contrat 14 : le tri sur l'état suit un rang, jamais l'alphabet des libellés (qui mettrait « Disponible » avant « Disponible · à replacer »). */
 describe("rang de tri de l'état (CRM-86, D6)", () => {
   it("range à replacer, disponible, en mission par date de retour croissante, puis indisponible", () => {
-    const records = [
+    const records: (StateRecord & { name: string })[] = [
       { name: "Iris", state: "indisponible", availableFrom: "2026-09-01", status: "salarie" },
       { name: "Marc", state: "en_mission", availableFrom: "2026-12-01", status: "freelance" },
       { name: "Dina", state: "disponible", availableFrom: null, status: "freelance" },
