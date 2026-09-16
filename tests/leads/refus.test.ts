@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET as getLead, PATCH as patchLead } from "@/app/api/leads/[id]/route";
 import { POST as postLead } from "@/app/api/leads/route";
+import { POST as postMerge } from "@/app/api/objets/[type]/fusion/route";
 import { auditLog, lead, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { closeDb, db } from "@/lib/db";
@@ -11,7 +12,10 @@ const MEMBER = { email: "membre-refus-lead@exemple.fr", firstName: "Hugo", lastN
 
 const NAME_RULE = "Renseignez un prénom, un nom ou une entreprise";
 
+const ADMIN = { email: "admin-refus-lead@exemple.fr", firstName: "Ada", lastName: "Garnier", password: "MotDePasse-Refus-2", role: "administrateur" as const };
+
 let memberCookie: string;
+let adminCookie: string;
 
 const byId = (id: string) => ({ params: Promise.resolve({ id }) });
 const create = (input: Record<string, unknown>) => postLead(jsonRequest("POST", "/api/leads", input, memberCookie));
@@ -35,6 +39,9 @@ beforeAll(async () => {
   await db.delete(user).where(eq(user.email, MEMBER.email));
   await createUserWithPassword(MEMBER);
   memberCookie = await sessionCookie(MEMBER.email, MEMBER.password);
+  await db.delete(user).where(eq(user.email, ADMIN.email));
+  await createUserWithPassword(ADMIN);
+  adminCookie = await sessionCookie(ADMIN.email, ADMIN.password);
 });
 
 afterAll(async () => {
@@ -80,6 +87,17 @@ describe("refus de la règle des trois champs (CRM-91, D4, contrat 10)", () => {
     const res = await create({ firstName: "Julie", origin: "linkedin", title: "Autre titre" });
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ fields: { title: "« Titre » se calcule depuis le prénom, le nom et le nom de l'entreprise, et ne se saisit pas." } });
+  });
+});
+
+/** D9, contrat 13 : un lead ne se fusionne pas, même par un administrateur. */
+describe("refus de fusion d'un lead (CRM-93, D9, contrat 13)", () => {
+  it("répond 405 à la fusion de deux leads de même titre, et les laisse tous deux intacts", async () => {
+    const one = await createdId({ firstName: "Julie", lastName: "Martin", companyName: "Banque X", origin: "linkedin" });
+    const two = await createdId({ firstName: "Julie", lastName: "Martin", companyName: "Banque X", origin: "linkedin" });
+    const res = await postMerge(jsonRequest("POST", "/api/objets/lead/fusion", { keptId: one, absorbedId: two }, adminCookie), { params: Promise.resolve({ type: "lead" }) });
+    expect(res.status).toBe(405);
+    expect(await read(two)).toMatchObject({ title: "Julie Martin · Banque X" });
   });
 });
 

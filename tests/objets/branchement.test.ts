@@ -13,6 +13,7 @@ import { fieldsOf, isLocked } from "@/features/objects/fields";
 import { selectableValues } from "@/features/objects/labels";
 import { linkedGroups } from "@/features/objects/links-column";
 import { listForState } from "@/features/lists/apply-filters";
+import { mergeRecords, planMerge } from "@/features/merge/merge";
 import { defaultColumnKeys } from "@/features/lists/columns";
 import { parseListState } from "@/features/lists/url-state";
 import { listLists, registerObject } from "@/features/objects/registry";
@@ -89,6 +90,8 @@ beforeAll(async () => {
     relations: [{ to: TYPE, fkColumn: "parentId", label: "Fiche mère", inverseLabel: "Fiches filles", prefill: "parentId" }],
     quickCreate: ["name"],
     listColumns: ["ownerId"],
+    /* Un objet qui ne se fusionne pas (D21) : il le déclare, la fusion commune le refuse. */
+    mergeable: false,
     /* Une liste déclarée (D10) : un objet la pose comme le reste, sans qu'un mécanisme la nomme. */
     lists: [
       {
@@ -231,6 +234,17 @@ describe("champ figé selon la fiche, par déclaration (CRM-91, D21)", () => {
     await expect(updateObject(TYPE, record.id, { phase: "ouverte" }, { id: actorId })).rejects.toMatchObject({ status: 409, details: { fields: { phase: "Fiche close : la rouvrir d'abord." } } });
     expect((await updateObject(TYPE, record.id, { name: "Fiche close renommée" }, { id: actorId })).name).toBe("Fiche close renommée");
     expect((await getObjectRecord(TYPE, record.id)).phase).toBe("close");
+  });
+});
+
+/** D21 : un objet peut déclarer qu'il ne se fusionne pas ; l'aperçu comme la fusion répondent 405, avant de lire les fiches. */
+describe("refus de fusion déclaré (CRM-93, D21)", () => {
+  it("refuse (405) l'aperçu et la fusion de deux fiches d'un objet non fusionnable, sans rien écrire", async () => {
+    const one = await createObject(TYPE, { name: "Jumelle non fusionnable" }, { id: actorId });
+    const two = await createObject(TYPE, { name: "Jumelle non fusionnable" }, { id: actorId });
+    await expect(planMerge(TYPE, one.id, two.id)).rejects.toMatchObject({ status: 405 });
+    await expect(mergeRecords(TYPE, one.id, two.id, [])).rejects.toMatchObject({ status: 405 });
+    expect((await getObjectRecord(TYPE, two.id)).name).toBe("Jumelle non fusionnable");
   });
 });
 
