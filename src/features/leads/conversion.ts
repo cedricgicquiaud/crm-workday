@@ -82,10 +82,13 @@ async function planOf(current: ObjectRecord, body: Record<string, unknown>): Pro
   const found = await foundPersonOf(current);
   /* D17 : une fiche archivée ne reçoit rien ; le refus la nomme et dit comment la rouvrir, avant toute écriture. */
   if (found?.archivedAt) throw new HttpError(409, "fiche_archivee", `Personne archivée : « ${found.name} » porte cet email. Restaurez-la pour convertir ce lead.`, { personId: found.id });
-  if (chosen?.kind === "existing" && chosen.archivedAt) throw new HttpError(409, "fiche_archivee", `Entreprise archivée : « ${chosen.name} » ne reçoit plus de contact. Restaurez-la pour convertir ce lead.`, { companyId: chosen.id });
+  const archivedCompany = (target: CompanyChoice) => new HttpError(409, "fiche_archivee", `Entreprise archivée : « ${target.name} » ne reçoit plus de contact. Restaurez-la pour convertir ce lead.`, { companyId: target.kind === "existing" ? target.id : null });
+  if (chosen?.kind === "existing" && chosen.archivedAt) throw archivedCompany(chosen);
   const contact = found ? await readContactProfile(found.id) : null;
   const keeps = keepsContact(found, contact, chosen, body.keepCompany);
-  const existing: CompanyChoice | null = keeps && contact ? { kind: "existing", id: contact.companyId, name: contact.companyName, archivedAt: null } : chosen;
+  /* L'entreprise gardée est relue comme une choisie : son archivage compte autant (D17). */
+  const existing: CompanyChoice | null = keeps && contact ? await chosenCompany(contact.companyId) : chosen;
+  if (existing?.kind === "existing" && existing.archivedAt) throw archivedCompany(existing);
   /* Retrouvée, la personne garde son prénom et son nom : la fenêtre les montre en lecture, ils ne sont pas exigés (D15). */
   const named = (key: string) => ({ ...personField(key), required: found === null });
   const companyField = { ...personField("lastName"), key: COMPANY_INPUT, label: "Entreprise", required: existing === null };
