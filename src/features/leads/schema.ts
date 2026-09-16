@@ -21,9 +21,19 @@ export const LEAD_STAGES: readonly ListValue[] = [
   { value: "nouveau", label: "Nouveau" },
   { value: "contacte", label: "Contacté" },
   { value: "qualifie", label: "Qualifié" },
-  { value: "converti", label: "Converti" },
-  { value: "ecarte", label: "Écarté" },
+  { value: "converti", label: "Converti", reserved: true },
+  { value: "ecarte", label: "Écarté", reserved: true },
 ];
+
+/** Les avancements d'un lead en cours : ceux d'où l'on écarte, entre lesquels on passe librement (D7). */
+export const OPEN_STAGES: readonly string[] = ["nouveau", "contacte", "qualifie"];
+
+export const DISCARDED_STAGE = "ecarte";
+
+/** « Rouvrir » remet un lead écarté à « contacté » (D7). */
+export const REOPENED_STAGE = "contacte";
+
+export const DISCARDED_RULE = "Lead écarté : rouvrir d'abord pour changer son avancement.";
 
 /** D4 : un lead nomme quelqu'un ou une entreprise — au moins un de ces trois champs, en création comme en modification. */
 export const LEAD_NAME_FIELDS: readonly string[] = ["firstName", "lastName", "companyName"];
@@ -53,7 +63,18 @@ export const LEAD_FIELDS: readonly FieldDescriptor[] = [
   { key: "linkedin", label: "LinkedIn", type: "text", maxLength: 200, pattern: { regex: /^https?:\/\/\S+$/, message: LINKEDIN_RULE }, order: 70 },
   { key: "origin", label: "Origine", type: "list", required: true, values: LEAD_ORIGINS, sortable: true, order: 80 },
   { key: "score", label: "Score", type: "number", integer: true, min: 1, max: 3, sortable: true, order: 90 },
-  { key: "stage", label: "Avancement", type: "list", required: true, default: "nouveau", values: LEAD_STAGES, sortable: true, order: 100 },
+  {
+    key: "stage",
+    label: "Avancement",
+    type: "list",
+    required: true,
+    default: "nouveau",
+    values: LEAD_STAGES,
+    /* Écarté, l'avancement se lit en texte à côté de « Rouvrir » ; les autres champs restent modifiables (D7). */
+    lockedWhen: { test: (record) => record.stage === DISCARDED_STAGE, message: DISCARDED_RULE },
+    sortable: true,
+    order: 100,
+  },
   { key: "ownerId", label: "Responsable", type: "user", required: true, default: "actor", sortable: true, order: 110 },
   { key: "need", label: "Besoin", type: "text", maxLength: 2000, multiline: true, wide: true, order: 200 },
 ];
