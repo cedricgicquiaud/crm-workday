@@ -178,3 +178,18 @@ describe("refus de la liste « Consultants » (CRM-87, contrat 17)", () => {
     expect(await shown("archivees=1")).not.toContain("Simple");
   });
 });
+
+/** Contrat 18 (D11) : un filtre que la liste ne sait pas appliquer est ignoré et le dit, la liste s'ouvre quand même. */
+describe("filtres inactifs de la liste « Consultants » (CRM-87, contrat 18)", () => {
+  it("ignore « Modules est HCM », « Profils est contact » et un module hors liste avec l'avertissement « filtre inactif », et rend la liste sans eux", async () => {
+    const query = "f=modules:est:hcm&f=profiles:est:contact&f=modules:contient:sap_hr";
+    const state = parseListState(LIST, new URLSearchParams(query));
+    expect(state.filters).toEqual([]);
+    expect(state.inactive.map((entry) => entry.message)).toEqual([
+      "Filtre inactif : « est » ne s'applique pas au champ « Modules ».",
+      "Filtre inactif : « est » ne s'applique pas au champ « Profils ».",
+      "Filtre inactif : « sap_hr » n'est pas une valeur de « Modules ».",
+    ]);
+    expect((await shown(query)).sort()).toEqual(["Dina", "Iris", "Léo", "Marc", "Rémi"]);
+  });
+});
