@@ -67,6 +67,8 @@ test.describe("convertir un lead depuis sa fiche (CRM-96, contrats 15, 19, 20, 2
     const banner = memberPage.getByRole("status").filter({ hasText: "Converti le" });
     await expect(banner.getByRole("link", { name: "Julie Martin" })).toBeVisible();
     await expect(banner.getByRole("link", { name: company })).toBeVisible();
+    /* Les deux liens du bandeau se lisent séparés, jamais collés (« Julie MartinBanque X »). */
+    await expect(banner).toContainText(`Julie Martin · ${company}`);
     await expect(memberPage.getByRole("button", { name: "Convertir" })).toHaveCount(0);
     await expect(memberPage.getByRole("region", { name: "Champs", exact: true }).getByRole("textbox")).toHaveCount(0);
     await expect(memberPage.getByRole("region", { name: "Fil d'activité" }).getByText(`Converti en Julie Martin · ${company}`)).toBeVisible();
