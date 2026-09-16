@@ -9,8 +9,13 @@ export type ConsultantState = "disponible" | "en_mission" | "indisponible";
 /** Ce que l'état lit d'un profil : la case et la date, telles que l'API du profil les rend. */
 export type AvailabilityInput = { unavailable: string | null; availableFrom: string | null };
 
-/** « Indisponible » prime sur la date. */
-export function consultantState(profile: AvailabilityInput, _today: string): ConsultantState {
+/**
+ * « Indisponible » prime sur la date ; sinon « En mission » tant que la date est après aujourd'hui ;
+ * sinon « Disponible ». `today` est le jour civil Europe/Paris en `AAAA-MM-JJ`, la forme même de la
+ * date enregistrée : l'ordre alphabétique est l'ordre chronologique, jamais minuit UTC.
+ */
+export function consultantState(profile: AvailabilityInput, today: string): ConsultantState {
   if (profile.unavailable === "oui") return "indisponible";
+  if (profile.availableFrom !== null && profile.availableFrom > today) return "en_mission";
   return "disponible";
 }
