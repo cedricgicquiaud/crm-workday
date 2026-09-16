@@ -54,6 +54,17 @@ export type FieldDescriptor = {
    * colonne, filtre et tri de la liste. Le libellé sert au refus (« … se règle sur le profil consultant »).
    */
   profile?: { key: string; label: string };
+  /**
+   * Champ dérivé (D19) : ce que la liste et la fiche écrivent, rendu depuis la fiche entière (un état
+   * qui cite sa date lit les deux). La valeur du champ reste celle que filtrent les opérateurs ;
+   * `display` ne dit que comment elle se lit.
+   */
+  display?: (record: Record<string, unknown>) => string;
+  /**
+   * Clé de tri d'un champ dérivé, lue depuis la fiche entière (D19) : la liste trie sur elle plutôt que
+   * sur le libellé. `null` range la fiche en dernier. Sans `sortable`, elle n'est jamais lue.
+   */
+  sortKey?: (record: Record<string, unknown>) => string | number | null;
   /** texte : espaces retirés, casse… appliquée avant la validation et l'enregistrement */
   normalize?: (value: string) => string;
   /** texte : forme attendue après normalisation, et message de la règle */
