@@ -24,7 +24,7 @@ const on = (type: string, id: string) => ({ params: Promise.resolve({ type, id }
 
 const patch = (id: string, input: Record<string, unknown>) => patchLead(jsonRequest("PATCH", `/api/leads/${id}`, input, memberCookie), byId(id));
 const read = async (id: string) => (await getLead(jsonRequest("GET", `/api/leads/${id}`, undefined, memberCookie), byId(id))).json() as Promise<Record<string, unknown>>;
-const discard = (id: string, cookie: string | undefined = memberCookie) => postDiscard(jsonRequest("POST", `/api/leads/${id}/ecarter`, undefined, cookie), byId(id));
+const discard = (id: string) => postDiscard(jsonRequest("POST", `/api/leads/${id}/ecarter`, undefined, memberCookie), byId(id));
 const reopen = (id: string) => postReopen(jsonRequest("POST", `/api/leads/${id}/rouvrir`, undefined, memberCookie), byId(id));
 
 async function create(input: Record<string, unknown>): Promise<string> {
@@ -138,6 +138,6 @@ describe("refus d'écarter et de rouvrir (CRM-91, D7, contrat 12)", () => {
     expect((await discard("00000000-0000-4000-8000-000000000000")).status).toBe(404);
     expect((await discard("pas-un-uuid")).status).toBe(404);
     const id = await create({ firstName: "Anonyme", origin: "autre" });
-    expect((await discard(id, undefined)).status).toBe(401);
+    expect((await postDiscard(jsonRequest("POST", `/api/leads/${id}/ecarter`), byId(id))).status).toBe(401);
   });
 });
