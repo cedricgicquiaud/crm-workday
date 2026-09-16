@@ -119,6 +119,23 @@ describe("refus de convertir vers une fiche archivée (CRM-95, D17, contrat 25)"
     expect(await readLead(id)).toMatchObject({ stage: "nouveau" });
     expect(await personNames()).not.toContain("Victor Lambert");
   });
+
+  it("refuse (409) de garder l'entreprise actuelle d'un contact quand elle est archivée : le message la nomme et propose de la restaurer, rien n'est écrit", async () => {
+    const acme = await createObject("company", { name: "Acme Archivée", type: "client" }, { id: memberId });
+    const created = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Yves", lastName: "Garnier", email: "yves.garnier@acme-archivee.fr", companyId: acme.id }, memberCookie));
+    expect(created.status).toBe(201);
+    await archive("company", acme.id);
+    const id = await createLead({ firstName: "Yves", lastName: "Garnier", companyName: "Banque Gardée", email: "yves.garnier@acme-archivee.fr", origin: "autre" });
+
+    const res = await convert(id, { companyName: "Banque Gardée", keepCompany: true });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string; message: string };
+    expect(body.error).toBe("fiche_archivee");
+    expect(body.message).toContain("« Acme Archivée »");
+    expect(body.message).toMatch(/restaur/i);
+    expect(await readLead(id)).toMatchObject({ stage: "nouveau", convertedCompanyId: null });
+    expect(await companyNames()).not.toContain("Banque Gardée");
+  });
 });
 
 describe("refus de la saisie de la fenêtre (CRM-95, D15, contrat 26)", () => {
