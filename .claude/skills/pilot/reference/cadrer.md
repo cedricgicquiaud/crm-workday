@@ -200,4 +200,7 @@ fabrique et dans quel fichier.
    ses fichiers et ses numéros de contrat (c'est ce que `run` recopie dans les `MISSION.md`).
    Passer la feature « Planifiée ». Mettre le lien recette (`UAT.md#<slug>` ou Notion).
 7. Compter : annoncé / créé. Sonder une fiche au hasard contre le moule (`fiches.md`).
+   Écrire dans `.pilot/calibration.md`, sous le nom de la feature, la durée du cadrage : heure
+   du lancement de `feature`, heure de la validation du découpage, nombre de questions posées
+   (entretien et contradicteur). `sync` en a besoin pour la ligne de la feature.
 8. Suite proposée : `run <feature>`.

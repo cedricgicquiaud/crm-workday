@@ -27,7 +27,13 @@ suivante. On peut le taper à tout moment, y compris après une semaine d'absenc
 | Terminée | Les leçons à graver → `sync` puis la feature suivante |
 
    Si l'utilisateur dit « tâches isolées » : la première tâche « À faire » sans feature → `fix`.
-3. S'arrêter sur la proposition. Ne lancer l'étape que sur « oui ». Rester court : l'état
+3. **Quand la proposition est `run` ou `feature`**, la faire précéder d'une ligne : « ouvre une
+   session neuve pour cette commande, ou tape `/compact` avant ». La session qui mène `run` est
+   le lead : chaque rapport d'agent, chaque fiche lue reste dans son contexte. Le 15/09, une
+   session a enchaîné `next`, deux tâches, un cadrage, deux runs, deux `update` et un `sync` en
+   sept heures ; le lead ne pesait que 8 % des jetons du second run, mais il portait toute la
+   journée avant lui.
+4. S'arrêter sur la proposition. Ne lancer l'étape que sur « oui ». Rester court : l'état
    en cinq lignes, la proposition en une. Les tâches isolées en attente et les idées non
    classées se signalent en une ligne chacune, pas en paragraphe.
 
@@ -56,7 +62,10 @@ terminées → jalon terminé (ses tâches le sont) ; s'il reste des livraisons 
 agents de la livraison, corrections comprises ; jamais l'horloge : l'horloge contient les attentes de
 permission et les agents en veille, et le 05/09 elle a fait passer une livraison de 81 minutes
 pour 6 heures). Une durée que l'outil n'a pas mesurée s'écrit « estimée » et n'entre pas dans
-la médiane. Puis recalculer `feature_hours_<T>` du projet = médiane
+la médiane. Une livraison **fusionnée** (deux livraisons du découpage produites en une) s'écrit
+« fusion de n » et n'entre pas non plus dans la médiane de sa taille : elle mesure deux
+livraisons collées, pas une livraison plus grosse (3.1 de crm-workday, deux L fusionnées :
+2,92 h, contre 1,37 et 1,47 h pour les deux XL d'avant). Puis recalculer `feature_hours_<T>` du projet = médiane
 des heures réelles de cette taille (dès 2 mesures ; sinon garder le barème global) et
 `days_per_week` observé = jours avec au moins un merge / semaines depuis la première feature.
 **Dates réelles** : à chaque livraison mergée, poser sur le jalon `targetDate` = date du merge
@@ -96,6 +105,21 @@ disproportionnément (à raccourcir) ; une **information** a-t-elle manqué à l
 du serveur, accès en lecture à un service) ; une décision a-t-elle été **réinventée** faute
 d'ADR. Feature → « Rétro faite ». Supprimer les worktrees de la feature
 (`git worktree remove`).
+**Le temps de la feature, pas seulement celui des runs.** Quand la feature passe « Terminée »,
+écrire sous le tableau des livraisons de `.pilot/calibration.md` une ligne par feature, en
+heures d'horloge :
+
+| Feature | Calendrier (jours) | Cadrage | Runs | Attente de merge | Le reste |
+|---|---|---|---|---|---|
+
+Calendrier : du lancement de `feature` au dernier merge. Cadrage : la durée notée par
+`feature` à sa fin. Runs : la somme des horloges de run déjà écrites par livraison. Attente de
+merge : pour chaque PR de livraison, de son ouverture à son merge (`gh pr view <n> --json
+createdAt,mergedAt`). Le reste : calendrier moins les trois autres, soit les jours sans
+session, la méthode, les tâches isolées. Puis une phrase qui compare à la feature précédente :
+quelle colonne a grossi. Les runs ne mesurent que la production ; le 16/09, les heures
+d'agents par livraison étaient stables depuis dix jours alors que chaque feature prenait plus
+de jours que la précédente, et rien ne disait où passait le temps.
 **Les tâches isolées aussi.** `sync` ne regarde pas que les features : lister les tâches de la
 team sans feature, encore ouvertes, et chercher leur PR (`gh pr list --search "<CODE>-<n>"`).
 PR mergée et tâche ouverte → la passer « Terminée » et joindre l'URL de la PR (`save_issue`,

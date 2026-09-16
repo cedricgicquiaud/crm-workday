@@ -262,7 +262,10 @@ les suivantes. Moins de 200 caractères, ce qu'il doit faire en premier.
    Reporte cette ligne dans `.pilot/calibration.md` à côté de la livraison. La ligne « Le
    lead » dit ce que la coordination a coûté sur ce run, en part des jetons : entre 15 et
    25 % sur crm-workday ; si elle monte quand on ajoute un producteur, c'est la loi de Brooks
-   qui parle, et un producteur de plus ne paie pas. **Si un agent ressort au-dessus des seuils, dis-le en clair** : quel
+   qui parle, et un producteur de plus ne paie pas. **Une livraison fusionnée** dépasse le seuil du producteur par construction : le seuil
+   vaut pour une livraison, compare-le au seuil multiplié par le nombre de livraisons fusionnées,
+   et dis-le dans le rapport. Au-delà de ce multiple, c'est un dépassement comme un autre.
+   **Si un agent ressort au-dessus des seuils, dis-le en clair** : quel
    agent, quel écart, et ce qu'il faisait — un agent qui dérape est un symptôme (consigne
    floue, test qui résiste, écran introuvable), pas une fatalité. C'est la seule occasion où
    la dépense est visible : après, plus personne ne regarde.
