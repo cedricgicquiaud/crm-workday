@@ -111,3 +111,10 @@ describe("filtres de la liste « Consultants » (CRM-86, contrat 14)", () => {
     expect(await shown("f=state:est:indisponible")).toEqual(["Iris"]);
   });
 });
+
+/** Contrat 14 (D6) : le tri sur l'état suit le rang du métier ; l'alphabet mettrait « Disponible » (Dina) avant « Disponible · à replacer » (Rémi). */
+describe("tri de la liste « Consultants » sur l'état (CRM-86, contrat 14)", () => {
+  it("range à replacer, puis disponibles, puis en mission par date de retour croissante, puis indisponibles", async () => {
+    expect(await shown("tri=state:asc")).toEqual(["Rémi", "Dina", "Léo", "Marc", "Iris"]);
+  });
+});
