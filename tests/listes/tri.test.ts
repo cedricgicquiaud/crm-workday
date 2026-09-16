@@ -42,6 +42,21 @@ describe("tri d'une liste (CRM-48, D6)", () => {
   });
 });
 
+/** Un champ dérivé se trie sur le rang qu'il déclare (`sortKey`, D19), jamais sur l'alphabet de ses libellés (CRM-86). */
+describe("tri d'une liste sur un champ dérivé (CRM-86, D19)", () => {
+  const PHASES = [
+    record("Close", day("2026-09-03"), { phase: "close" }),
+    record("Sans phase", day("2026-09-02"), { phase: null }),
+    record("Ouverte", day("2026-09-01"), { phase: "ouverte" }),
+  ];
+
+  it("trie sur la clé de rang déclarée, et laisse une fiche sans rang en dernier", () => {
+    /* Sur le libellé, « Abeille » (close) passerait avant « Zèbre » (ouverte). */
+    expect(names(sortRecords(TEST_TYPE, PHASES, { field: "phase", direction: "asc" }))).toEqual(["Ouverte", "Close", "Sans phase"]);
+    expect(names(sortRecords(TEST_TYPE, PHASES, { field: "phase", direction: "desc" }))).toEqual(["Close", "Ouverte", "Sans phase"]);
+  });
+});
+
 /** Un ensemble se trie sur ses libellés joints (D11) ; sans valeur, la fiche passe en dernier. */
 describe("tri d'une liste sur un champ à plusieurs valeurs (CRM-80, D11)", () => {
   const SETS = [
