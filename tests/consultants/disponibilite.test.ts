@@ -6,6 +6,7 @@ import { POST as postPerson } from "@/app/api/personnes/route";
 import { auditLog, company, consultantModule, consultantProfile, person, user } from "@/db/schema";
 import { parisDay } from "@/features/activities/overdue";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { listHistory } from "@/features/history/history";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
@@ -66,5 +67,20 @@ describe("état d'un consultant lu sur sa fiche (CRM-85, contrat 11)", () => {
 
     expect((await patchProfile(id, { availableFrom: dayFromToday(-1) })).status).toBe(200);
     expect(await readPerson(id)).toMatchObject({ state: "disponible" });
+  });
+
+  it("passe « indisponible » quelle que soit la date quand la case est cochée, efface le motif au décochage, et écrit une ligne d'historique par champ", async () => {
+    const id = await createConsultant("Parental", "salarie");
+    expect((await patchProfile(id, { availableFrom: dayFromToday(15) })).status).toBe(200);
+    expect((await patchProfile(id, { unavailable: "oui", unavailableReason: "congé parental" })).status).toBe(200);
+    expect(await readPerson(id)).toMatchObject({ state: "indisponible", unavailableReason: "congé parental" });
+
+    expect((await patchProfile(id, { unavailable: "non" })).status).toBe(200);
+    expect(await readPerson(id)).toMatchObject({ state: "en_mission", unavailable: "non", unavailableReason: null });
+
+    const lines = (await listHistory("person", id)).filter((entry) => entry.action === "modifiee" && ["availableFrom", "unavailable", "unavailableReason"].includes(entry.field ?? ""));
+    expect(lines.map((entry) => `${entry.field}: ${entry.oldValue} → ${entry.newValue}`).sort()).toEqual(
+      [`availableFrom: null → ${dayFromToday(15)}`, "unavailable: non → oui", "unavailable: oui → non", "unavailableReason: null → congé parental", "unavailableReason: congé parental → null"].sort(),
+    );
   });
 });
