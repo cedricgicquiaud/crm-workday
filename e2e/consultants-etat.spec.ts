@@ -17,7 +17,12 @@ function parisDayFromToday(days: number): string {
 /** « 5 oct. 2026 » : le format court des dates de contexte (idiome d'interface). */
 const shortDate = (day: string) => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Paris" }).format(new Date(`${day}T12:00:00Z`));
 
-test.beforeAll(() => seedAccounts());
+/* Les personnes d'abord : une personne créée par un compte de test retient ce compte, qui ne s'effacerait plus. */
+test.beforeAll(() => {
+  resetPersons();
+  resetObjects();
+  seedAccounts();
+});
 /* Chaque test pose ses consultants : ceux du test d'avant fausseraient la colonne État et son tri. */
 test.beforeEach(() => {
   resetPersons();
@@ -37,10 +42,36 @@ async function createConsultant(page: Page, firstName: string, profile: Record<s
   return { id, name: `${firstName} ${lastName}` };
 }
 
-/** Une écriture du profil part et revient : on attend la réponse du serveur, jamais le texte saisi. */
-async function saveProfile(page: Page, action: () => Promise<void>) {
-  const [response] = await Promise.all([page.waitForResponse((res) => res.url().includes("/profil-consultant") && res.request().method() === "PATCH"), action()]);
-  expect(response.status()).toBe(200);
+/** Une écriture du profil part au geste qui enregistre (Entrée, clic) ; on attend la réponse du serveur, jamais le texte saisi. */
+async function saveProfile(page: Page, commit: () => Promise<void>) {
+  const response = page.waitForResponse((res) => res.url().includes("/profil-consultant") && res.request().method() === "PATCH");
+  await commit();
+  expect((await response).status()).toBe(200);
+}
+
+/** Saisit un champ du profil, puis l'enregistre par Entrée. */
+async function fillProfile(page: Page, field: ReturnType<Page["getByLabel"]>, value: string) {
+  await field.fill(value);
+  await saveProfile(page, () => field.press("Enter"));
+}
+
+/**
+ * Tape une date `AAAA-MM-JJ` au clavier, comme un membre, puis l'enregistre par Entrée. `fill` pose la
+ * valeur sans que le champ de la fiche l'enregistre, et l'ordre des segments suit la langue du
+ * système (jj/mm ou mm/jj) : on tape jj/mm/aaaa, et si le champ lit autre chose on revient au premier
+ * segment par les flèches — sans quitter le champ, qui enregistrerait la mauvaise date — pour taper mm/jj/aaaa.
+ */
+async function typeDate(page: Page, field: ReturnType<Page["getByLabel"]>, day: string) {
+  const [year, month, date] = day.split("-");
+  await field.focus();
+  await field.pressSequentially(`${date}${month}${year}`);
+  if ((await field.inputValue()) !== day) {
+    await field.press("ArrowLeft");
+    await field.press("ArrowLeft");
+    await field.pressSequentially(`${month}${date}${year}`);
+  }
+  await expect(field).toHaveValue(day);
+  await saveProfile(page, () => field.press("Enter"));
 }
 
 test.describe("état d'un consultant sur sa fiche (CRM-85, contrat 11)", () => {
@@ -51,15 +82,16 @@ test.describe("état d'un consultant sur sa fiche (CRM-85, contrat 11)", () => {
     const state = section.getByLabel("État", { exact: true });
     await expect(state).toHaveText("Disponible");
 
+    const date = section.getByLabel("Disponible à partir du", { exact: true });
     const inFifteenDays = parisDayFromToday(15);
-    await saveProfile(memberPage, () => section.getByLabel("Disponible à partir du").fill(inFifteenDays).then(() => section.getByLabel("Disponible à partir du").press("Enter")));
+    await typeDate(memberPage, date, inFifteenDays);
     await expect(state).toHaveText(`En mission · disponible le ${shortDate(inFifteenDays)}`);
 
-    await saveProfile(memberPage, () => section.getByLabel("Disponible à partir du").fill(parisDayFromToday(-1)).then(() => section.getByLabel("Disponible à partir du").press("Enter")));
+    await typeDate(memberPage, date, parisDayFromToday(-1));
     await expect(state).toHaveText("Disponible");
 
     await saveProfile(memberPage, () => section.getByRole("checkbox", { name: "Indisponible" }).click());
-    await saveProfile(memberPage, () => section.getByLabel("Motif d'indisponibilité").fill("congé parental").then(() => section.getByLabel("Motif d'indisponibilité").press("Enter")));
+    await fillProfile(memberPage, section.getByLabel("Motif d'indisponibilité"), "congé parental");
     await expect(state).toHaveText("Indisponible");
 
     await saveProfile(memberPage, () => section.getByRole("checkbox", { name: "Indisponible" }).click());
