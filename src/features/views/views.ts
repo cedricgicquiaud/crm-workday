@@ -10,7 +10,7 @@ import { and, asc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { savedView } from "@/db/schema";
 import { applyViewParams, DEFAULT_VIEW, parseListState, readViewId, type ListState } from "@/features/lists/url-state";
-import { getObject, listObjects } from "@/features/objects/registry";
+import { findList, getList } from "@/features/objects/registry";
 import type { Actor } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -25,20 +25,19 @@ export { DEFAULT_VIEW };
 
 export const VIEW_NAME_MAX = 120;
 
-/** Vrai si l'objet est déclaré au registre : une vue survit au retrait de son objet, mais aucune liste ne s'ouvre alors. */
-const isDeclared = (type: string) => listObjects().some((object) => object.key === type);
+/** Vrai si la liste est déclarée au registre : une vue survit au retrait de sa liste, mais aucune liste ne s'ouvre alors. */
+const isDeclared = (type: string) => findList(type) !== undefined;
 
-/** Vue par défaut d'un objet : aucun paramètre, donc la liste nue, sous « Toutes les … ». */
+/** Vue par défaut d'une liste : aucun paramètre, donc la liste nue, sous le nom qu'elle déclare. */
 export function defaultView(type: string): ViewSummary {
-  const { labels } = getObject(type);
-  return { id: DEFAULT_VIEW, objectType: type, name: `${labels.article === "un" ? "Tous les" : "Toutes les"} ${labels.plural.toLowerCase()}`, query: "" };
+  return { id: DEFAULT_VIEW, objectType: type, name: getList(type).defaultViewName, query: "" };
 }
 
 const summarize = (row: SavedViewRow): ViewSummary => ({ id: row.id, objectType: row.objectType, name: row.name, query: row.query });
 
-/** Vues d'un objet : la vue par défaut, puis les vues enregistrées par ordre alphabétique ; 404 sur une liste qui n'existe pas (D24). */
+/** Vues d'une liste : la vue par défaut, puis les vues enregistrées par ordre alphabétique ; 404 sur une liste qui n'existe pas (D24). */
 export async function listViews(type: string): Promise<ViewSummary[]> {
-  if (!isDeclared(type)) throw new HttpError(404, "objet_inconnu", `Aucun objet « ${type} ».`);
+  if (!isDeclared(type)) throw new HttpError(404, "objet_inconnu", `Aucune liste « ${type} ».`);
   const rows = await db.select().from(savedView).where(eq(savedView.objectType, type)).orderBy(asc(savedView.name));
   return [defaultView(type), ...rows.map(summarize)];
 }
@@ -53,7 +52,7 @@ function invalid(field: string, message: string): never {
   throw new HttpError(400, "donnees_invalides", message, { fields: { [field]: message } });
 }
 
-/** Clé d'objet du registre : une vue est toujours la vue d'une liste. */
+/** Clé de la liste : une vue est toujours la vue d'une liste (celle d'un objet, ou une liste déclarée). */
 function parseObjectType(value: unknown): string {
   const parsed = z.string().trim().min(1).safeParse(value);
   return parsed.success ? parsed.data : invalid("objectType", "Une vue se range sous la liste d'un objet.");

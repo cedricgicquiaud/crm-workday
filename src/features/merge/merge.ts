@@ -15,7 +15,7 @@ import type { PgTable } from "drizzle-orm/pg-core";
 import { activity, auditLog, customFieldValue, emailLog, objectRedirect } from "@/db/schema";
 import { deleteBlockers } from "@/features/archive/delete";
 import { customFieldKey, isCustomFieldKey } from "@/features/custom-fields/fields-source";
-import { fieldsOf, serializeValue } from "@/features/objects/fields";
+import { serializeValue, writableFieldsOf } from "@/features/objects/fields";
 import { displayValue } from "@/features/objects/labels";
 import { getObject, listObjects } from "@/features/objects/registry";
 import { getServerObject, type DependentTable } from "@/features/objects/registry.server";
@@ -54,12 +54,14 @@ async function pairOf(type: string, keptId: string, absorbedId: string): Promise
   const sameRecord = () => new HttpError(400, "meme_fiche", `${getObject(type).labels.singular} ne se fusionne pas avec elle-même.`);
   if (keptId === absorbedId) throw sameRecord();
   const [kept, absorbed] = await Promise.all([getObjectRecord(type, keptId), getObjectRecord(type, absorbedId)]);
-  if (kept.id === absorbed.id) throw sameRecord();
   for (const [announced, record] of [[keptId, kept] as const, [absorbedId, absorbed] as const]) {
-    /* L'identifiant annoncé désigne une fiche déjà absorbée : la fusion porterait sur une fiche disparue. */
+    /* L'identifiant annoncé désigne une fiche déjà absorbée : la fusion porterait sur une fiche disparue.
+       Ce refus passe avant la comparaison des identifiants résolus, sinon rejouer une fusion se lirait
+       « la même fiche » (400) au lieu de dire ce qui s'est passé (409, contrat 29). */
     if (record.id !== announced) throw new HttpError(409, "fiche_absorbee", `${getObject(type).labels.singular} déjà fusionnée avec une autre : elle n'entre pas dans une nouvelle fusion.`, { id: record.id });
     if (record.archivedAt) throw new HttpError(409, "fiche_archivee", `${getObject(type).labels.singular} archivée : elle n'entre pas dans une fusion.`, { id: record.id });
   }
+  if (kept.id === absorbed.id) throw sameRecord();
   return { kept, absorbed };
 }
 
@@ -110,7 +112,8 @@ export async function planMerge(type: string, keptId: string, absorbedId: string
  */
 async function differingFields(type: string, kept: ObjectRecord, absorbed: ObjectRecord): Promise<MergeField[]> {
   const users = await listUserOptions();
-  return fieldsOf(type)
+  /* Un champ de profil ne se tranche pas ici : il suit son profil, qui est une famille à part (D20). */
+  return writableFieldsOf(type)
     .filter((field) => field.editable !== false)
     .filter((field) => serializeValue(field, kept[field.key]) !== serializeValue(field, absorbed[field.key]))
     .map((field) => ({ key: field.key, label: field.label, kept: displayValue(field, kept[field.key], users), absorbed: displayValue(field, absorbed[field.key], users) }));
@@ -159,6 +162,8 @@ const TECHNICAL = new Set(["id", "createdAt", "updatedAt"]);
  * identifiant ne se lit pas. Les colonnes de la fiche que la ligne tient à jour en font partie.
  */
 async function droppedNote(type: string, absorbed: ObjectRecord, { dependent, row }: DroppedDependent): Promise<string> {
+  /* Une famille qui sait se dire elle-même le fait : ses colonnes brutes ne se lisent pas (D16). */
+  if (dependent.describe) return `${dependent.label} : ${await dependent.describe(row, absorbed)}`;
   const own = Object.entries(row).filter(([key, value]) => !TECHNICAL.has(key) && key !== dependent.fkColumn && value !== null && value !== "");
   const carried = (dependent.carries ?? []).filter((key) => absorbed[key] != null).map((key) => [key, absorbed[key]] as [string, unknown]);
   const written = await Promise.all([...own, ...carried].map(async ([key, value]) => `${key} = ${await readableValue(type, key, value)}`));
@@ -193,7 +198,7 @@ async function carriedColumns(type: string, absorbed: ObjectRecord, dropped: rea
  * déplacement de leurs valeurs, pas par cette mise à jour.
  */
 function chosenColumns(type: string, absorbed: ObjectRecord, taken: readonly string[]): Record<string, unknown> {
-  const writable = fieldsOf(type).filter((field) => field.editable !== false && !isCustomFieldKey(field.key));
+  const writable = writableFieldsOf(type).filter((field) => field.editable !== false && !isCustomFieldKey(field.key));
   return Object.fromEntries(writable.filter((field) => taken.includes(field.key)).map((field) => [field.key, absorbed[field.key] ?? null]));
 }
 
@@ -253,6 +258,8 @@ export async function mergeRecords(type: string, keptId: string, absorbedId: str
     /* L'absorbée part avant que la conservée prenne ses valeurs : une valeur unique (le SIREN) serait sinon refusée. */
     await tx.delete(table).where(eq(columns.id, absorbed.id));
     await tx.update(table).set({ ...carried, ...columnValues, updatedAt: new Date() }).where(eq(columns.id, kept.id));
+    /* Les champs dérivés de la conservée se recalculent depuis ce qu'elle porte maintenant : « Profils » ne se recopie pas (D8). */
+    await getServerObject(type).recompute?.(kept.id, tx);
     /* L'entrée est écrite ici, et non par `recordHistory`, pour rester dans la transaction : une fusion sans sa trace serait une fusion muette. */
     await tx.insert(auditLog).values({ objectType: type, objectId: kept.id, action: "fusionnee", newValue: title, oldValue: notes.join(" ; ") || null, authorId: null });
   });

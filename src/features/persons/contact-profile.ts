@@ -14,6 +14,7 @@ import type { FieldDescriptor } from "@/features/objects/registry";
 import { assertWritable, getObjectRecord, type Actor } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { profilesLabel, recomputeProfiles, registerProfileSource } from "./profiles";
 import { COMPANY_FIELD, DECISION_ROLES, DECISION_ROLE_FIELD, DEFAULT_DECISION_ROLE, JOB_TITLE_FIELD } from "./schema";
 
 const TYPE = "person";
@@ -99,13 +100,17 @@ export async function writeContactProfile(personId: string, prepared: PreparedCo
 
   if (!existing) {
     if (!target) throw invalid({ companyId: "« Entreprise » est obligatoire." });
-    changes.push({ field: "profiles", oldValue: String(current.profiles), newValue: "contact" });
-    /* Les deux écritures sont indissociables : un profil resté sans entreprise parce que la seconde a échoué
-       violerait le contrat 10 et ne serait plus lisible (contrat 10, défaut d'audit 2.2). */
+    const before = profilesLabel((current.profiles as string[] | undefined) ?? []);
+    /* Les trois écritures sont indissociables : un profil resté sans entreprise parce que la suivante a
+       échoué violerait le contrat 10 et ne serait plus lisible (contrat 10, défaut d'audit 2.2). « Profils »
+       se recalcule depuis les profils présents, il ne se recopie pas (D8). */
+    let after: string[] = [];
     await db.transaction(async (tx) => {
       await tx.insert(contactProfile).values({ personId, jobTitle: (values.jobTitle as string | null) ?? null, decisionRole: String(values.decisionRole) });
-      await tx.update(person).set({ companyId: target.id, profiles: "contact", updatedAt: now }).where(eq(person.id, personId));
+      await tx.update(person).set({ companyId: target.id, updatedAt: now }).where(eq(person.id, personId));
+      after = await recomputeProfiles(personId, tx);
     });
+    changes.push({ field: "profiles", oldValue: before, newValue: profilesLabel(after) });
     changes.push({ field: "companyId", oldValue: await companyNameOf(current.companyId as string | null), newValue: target.name });
     changes.push({ field: "jobTitle", oldValue: null, newValue: (values.jobTitle as string | null) ?? null });
     changes.push({ field: "decisionRole", oldValue: null, newValue: roleLabel(values.decisionRole) });
@@ -131,6 +136,13 @@ export async function writeContactProfile(personId: string, prepared: PreparedCo
   await recordHistory(changes.filter((c) => c.oldValue !== c.newValue).map((c) => ({ objectType: TYPE, objectId: personId, action: "modifiee" as const, ...c, authorId: actor.id })));
   return (await readContactProfile(personId))!;
 }
+
+/** Le profil contact compte dans « Profils » (D8), en premier : la personne le porte dès qu'une ligne existe. */
+registerProfileSource({
+  value: "contact",
+  order: 10,
+  holds: async (personId, exec) => (await exec.select({ id: contactProfile.id }).from(contactProfile).where(eq(contactProfile.personId, personId)).limit(1)).length > 0,
+});
 
 /** Ajoute ou modifie le profil contact d'une personne : 400 sans entreprise à la création, 409 entreprise archivée ou personne archivée. */
 export async function upsertContactProfile(personId: string, input: unknown, actor: Actor): Promise<ContactProfile> {

@@ -198,3 +198,81 @@ for (const jumelle of jumelles) {
     throw new Error(`amorce-recette : création de ${jumelle.name} refusée (${creation.status}).`);
   }
 }
+
+// Livraison 3.1 — deux sociétés de facturation et quatre consultants, pour que « Consultants », la
+// fiche d'un consultant et la palette aient de quoi se regarder. Même règle que les blocs précédents :
+// on lit d'abord ce qui existe et on ne crée que ce qui manque, pour qu'une relance n'émette aucune
+// requête refusée. Le profil, lui, se repose sans risque : un PATCH qui ne change rien n'écrit rien.
+// Note : « en mission » est un état dérivé des missions, qui arrivent en 3.2 ; ici le consultant
+// correspondant porte une date de disponibilité future, ce qui est ce qu'on saurait en dire à ce stade.
+const societesDeFacturation = [
+  { name: "Dupont Conseil", type: "societe_de_consultant", siren: "911234567", city: "Nantes", postalCode: "44000", sector: "Conseil" },
+  { name: "Portage Atlantique", type: "societe_de_portage", siren: "922345678", city: "Rennes", postalCode: "35000", sector: "Portage salarial" },
+];
+const listeSocietes = await fetch("/api/entreprises");
+if (!listeSocietes.ok) {
+  throw new Error(`amorce-recette : lecture des entreprises refusée (${listeSocietes.status}).`);
+}
+const societesPresentes = new Set((await listeSocietes.json()).companies.map((entreprise) => entreprise.name));
+for (const societe of societesDeFacturation) {
+  if (societesPresentes.has(societe.name)) continue;
+  const creation = await fetch("/api/entreprises", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(societe) });
+  if (!creation.ok && creation.status !== 409) {
+    throw new Error(`amorce-recette : création de ${societe.name} refusée (${creation.status}).`);
+  }
+}
+
+const societesAvecIds = await fetch("/api/entreprises");
+if (!societesAvecIds.ok) {
+  throw new Error(`amorce-recette : lecture des entreprises refusée (${societesAvecIds.status}).`);
+}
+const societesParNom = new Map((await societesAvecIds.json()).companies.map((entreprise) => [entreprise.name, entreprise.id]));
+
+const jour = (decalage) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + decalage * 86_400_000));
+const consultants = [
+  {
+    personne: { firstName: "Chloé", lastName: "Dupont", email: "chloe.dupont@dupont-conseil.fr", phone: "06 11 22 33 44", linkedin: "https://www.linkedin.com/in/chloe-dupont" },
+    profil: { status: "freelance", societe: "Dupont Conseil", dailyCost: 650, modules: ["hcm", "integration"], certifiedModules: ["hcm"], yearsExperience: 8, languages: "français, anglais", cvUrl: "https://exemple.fr/cv/chloe-dupont.pdf", unavailable: "oui", unavailableReason: "Congé sabbatique jusqu'en janvier" },
+  },
+  {
+    personne: { firstName: "Karim", lastName: "Benali", email: "karim.benali@exemple.fr", phone: "06 55 66 77 88" },
+    profil: { status: "salarie", dailyCost: 480, modules: ["payroll", "absence", "time_tracking"], certifiedModules: ["payroll"], yearsExperience: 5, languages: "français, anglais", availableFrom: jour(0) },
+  },
+  {
+    personne: { firstName: "Julie", lastName: "Castel", email: "julie.castel@exemple.fr" },
+    profil: { status: "salarie", dailyCost: 520, modules: ["finance", "adaptive_planning"], yearsExperience: 11, languages: "français, anglais, espagnol", availableFrom: jour(60) },
+  },
+  {
+    personne: { firstName: "Marc", lastName: "Oliveira", email: "marc.oliveira@portage-atlantique.fr" },
+    profil: { status: "portage", societe: "Portage Atlantique", dailyCost: 700, modules: ["recruiting", "talent", "learning"], certifiedModules: ["recruiting", "talent"], yearsExperience: 14, languages: "français, portugais" },
+  },
+];
+
+const listeAvantConsultants = await fetch("/api/personnes");
+if (!listeAvantConsultants.ok) {
+  throw new Error(`amorce-recette : lecture des personnes refusée (${listeAvantConsultants.status}).`);
+}
+const personnesParNomPourProfil = new Map((await listeAvantConsultants.json()).persons.map((personne) => [personne.name, personne]));
+for (const { personne, profil } of consultants) {
+  const nomComplet = `${personne.firstName} ${personne.lastName}`;
+  let fiche = personnesParNomPourProfil.get(nomComplet);
+  if (!fiche) {
+    const creation = await fetch("/api/personnes", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(personne) });
+    if (!creation.ok) {
+      // Une adresse déjà portée par une fiche renommée à la main en recette : on n'insiste pas.
+      if (creation.status !== 409) {
+        throw new Error(`amorce-recette : création de ${nomComplet} refusée (${creation.status}).`);
+      }
+      continue;
+    }
+    fiche = await creation.json();
+  }
+  const { societe, ...champs } = profil;
+  const billingCompanyId = societe ? societesParNom.get(societe) : undefined;
+  if (societe && !billingCompanyId) continue;
+  const corps = billingCompanyId ? { ...champs, billingCompanyId } : champs;
+  const saisie = await fetch(`/api/personnes/${fiche.id}/profil-consultant`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(corps) });
+  if (!saisie.ok) {
+    throw new Error(`amorce-recette : profil consultant de ${nomComplet} refusé (${saisie.status}).`);
+  }
+}

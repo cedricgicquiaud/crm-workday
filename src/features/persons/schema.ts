@@ -4,6 +4,7 @@
  * de colonnes Drizzle en camelCase ; `otherEmails` n'est pas une colonne mais la table
  * `person_email`, lue et écrite par `emails.ts`. Ce fichier est importable côté client : aucune base.
  */
+import { CONSULTANT_PROFILE_FIELDS } from "@/features/consultants/schema";
 import type { FieldDescriptor, ListValue } from "@/features/objects/registry";
 
 export const EMAIL_RULE = "Cette adresse n'est pas valide.";
@@ -12,10 +13,14 @@ export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Minuscules, espaces retirés : « Jean.Dupont@Acme.fr » et « jean.dupont@acme.fr » sont la même adresse. */
 export const normalizeEmail = (value: string): string => value.toLowerCase().replace(/\s+/g, "");
 
-/** Valeurs du champ dérivé Profils ; la feature 3 ajoutera « consultant ». */
+/**
+ * Valeurs du champ dérivé Profils (D8) : un ensemble, dans cet ordre fixe. « Aucun » n'est plus une
+ * valeur enregistrée — une personne sans profil porte l'ensemble vide, que la fiche écrit « Aucun »
+ * et que la liste retrouve par « Profils est vide ».
+ */
 export const PROFILES: readonly ListValue[] = [
-  { value: "aucun", label: "Aucun" },
   { value: "contact", label: "Contact" },
+  { value: "consultant", label: "Consultant" },
 ];
 
 export const DECISION_ROLES: readonly ListValue[] = [
@@ -54,10 +59,11 @@ export const PERSON_FIELDS: readonly FieldDescriptor[] = [
   { key: "otherEmails", label: "Autres emails", type: "text", maxLength: 1000, wide: true, order: 40 },
   { key: "phone", label: "Téléphone", type: "text", maxLength: 40, order: 50 },
   { key: "linkedin", label: "LinkedIn", type: "text", maxLength: 200, pattern: { regex: /^https?:\/\/\S+$/, message: LINKEDIN_RULE }, order: 60 },
-  /* Dérivé des profils attachés : lecture seule sur la fiche, colonne de liste, filtre en 2.5a. */
-  { key: "profiles", label: "Profils", type: "list", values: PROFILES, default: "aucun", editable: false, sortable: true, order: 70 },
+  /* Dérivé des profils attachés : lecture seule sur la fiche, colonne de liste, filtre « contient » (D8). */
+  { key: "profiles", label: "Profils", type: "multilist", values: PROFILES, emptyLabel: "Aucun", editable: false, sortable: true, order: 70 },
   { key: "ownerId", label: "Responsable", type: "user", required: true, default: "actor", sortable: true, order: 80 },
   JOB_TITLE_FIELD,
+  ...CONSULTANT_PROFILE_FIELDS,
   { key: "notes", label: "Notes", type: "text", maxLength: 2000, multiline: true, order: 200 },
 ];
 

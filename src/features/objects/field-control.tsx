@@ -78,6 +78,7 @@ export function fieldKeyAction(placement: FieldPlacement, kind: FieldControlKind
 export function FieldControl({ id, label, placement, kind, value: saved, options, placeholder, error, name, readOnly = false, display, onSave, onChange }: FieldControlProps) {
   const errorId = `${id}-error`;
   const [draft, setDraft] = useState(saved);
+  const [editing, setEditing] = useState(false);
   /* La valeur enregistrée a changé ailleurs (réponse du serveur) : le brouillon la suit. */
   const [seen, setSeen] = useState(saved);
   if (seen !== saved) {
@@ -90,6 +91,13 @@ export function FieldControl({ id, label, placement, kind, value: saved, options
   /* Dans un dialogue, la valeur remonte à chaque frappe ; sur une fiche, elle part quand le champ est quitté. */
   const live = placement === "dialog";
   const describedBy = error ? errorId : undefined;
+
+  /*
+   * Un nombre qui déclare une unité ou des décimales se lit comme partout ailleurs tant qu'on ne le
+   * saisit pas : « 650,00 € » sur la fiche comme en liste et dans le fil, et la valeur brute revient
+   * au focus, seule saisissable. Sans cela, la même donnée se lisait « 650 » ici et « 650,00 € » là.
+   */
+  const formatted = kind === "number" && !live && !editing && draft === saved && saved !== "" && display !== undefined && display !== saved ? display : null;
 
   async function commit() {
     if (draft === saved) return;
@@ -121,15 +129,21 @@ export function FieldControl({ id, label, placement, kind, value: saved, options
         <Input
           id={id}
           name={name}
-          type={INPUT_TYPE[kind]}
+          /* La valeur formatée n'est pas un nombre pour le navigateur : le champ redevient un nombre dès qu'on le saisit. */
+          type={formatted ? undefined : INPUT_TYPE[kind]}
           className={`${HEIGHT[placement]} truncate`}
-          value={live ? saved : draft}
-          title={live ? undefined : draft || undefined}
+          value={formatted ?? (live ? saved : draft)}
+          title={live ? undefined : (formatted ?? draft) || undefined}
           autoComplete={live ? "off" : undefined}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
           onChange={(e) => (live ? onChange?.(e.target.value) : setDraft(e.target.value))}
-          onBlur={() => !live && void commit()}
+          onFocus={() => !live && setEditing(true)}
+          onBlur={() => {
+            if (live) return;
+            setEditing(false);
+            void commit();
+          }}
           onKeyDown={onKeyDown}
         />
       )}

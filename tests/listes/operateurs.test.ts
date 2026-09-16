@@ -12,6 +12,9 @@ describe("opérateurs de filtre par type de champ (CRM-47, D16)", () => {
     expect(operatorsFor("user").map((operator) => operator.key)).toEqual(["est", "n_est_pas", "est_vide"]);
     expect(operatorsFor("date").map((operator) => operator.key)).toEqual(["avant", "apres", "est_vide"]);
     expect(operatorsFor("number").map((operator) => operator.key)).toEqual(["egal", "plus_grand", "plus_petit", "est_vide"]);
+    /* Un ensemble se cherche par ce qu'il contient, jamais par une égalité : « Modules est HCM » n'a pas de sens (D11). */
+    expect(operatorsFor("multilist").map((operator) => operator.key)).toEqual(["contient", "ne_contient_pas", "est_vide"]);
+    expect(isOperatorAllowed("multilist", "est")).toBe(false);
   });
 
   it("nomme chaque opérateur en français et dit lequel se passe de valeur", () => {

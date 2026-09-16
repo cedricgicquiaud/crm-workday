@@ -5,6 +5,7 @@
  */
 import { fieldsOf } from "@/features/objects/fields";
 import { displayValue, type UserOption } from "@/features/objects/labels";
+import type { FieldType } from "@/features/objects/registry";
 import type { ObjectRecord } from "@/features/objects/service";
 
 export type SortDirection = "asc" | "desc";
@@ -23,7 +24,11 @@ export function isSortable(type: string, key: string): boolean {
 
 const collator = new Intl.Collator("fr", { sensitivity: "base", numeric: true });
 
-const isEmpty = (value: unknown) => value === null || value === undefined || value === "";
+/** Types triés sur ce que la liste affiche, pas sur ce qu'elle enregistre : « Client », « Ana Bello », « HCM, Integration ». */
+const SHOWN_TYPES: readonly FieldType[] = ["list", "user", "multilist"];
+
+/** Rien à trier : une valeur absente, ou un ensemble sans valeur (D11). */
+const isEmpty = (value: unknown) => value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0);
 
 /** Compare deux valeurs d'un même champ, toutes deux renseignées : dates, nombres, puis texte en français. */
 function compare(a: unknown, b: unknown): number {
@@ -47,7 +52,7 @@ export function sortRecords(type: string, records: readonly ObjectRecord[], sort
   const field = fieldsOf(type).find((candidate) => candidate.key === sort.field);
   const shown = (record: ObjectRecord) => {
     const value = record[sort.field];
-    if (!field || isEmpty(value) || (field.type !== "list" && field.type !== "user")) return value;
+    if (!field || isEmpty(value) || !SHOWN_TYPES.includes(field.type)) return value;
     return displayValue(field, value, users);
   };
   return [...records].sort((a, b) => compareIn(sort.direction, shown(a), shown(b)) || compareIn("desc", a[UPDATED_AT], b[UPDATED_AT]));

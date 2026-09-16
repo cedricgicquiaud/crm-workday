@@ -29,6 +29,14 @@ function reject(raw: RawFilter, reason: string): InactiveFilter {
  * La règle du champ est la seule source (`validateValues`) : le filtre refuse ce que la fiche refuse.
  */
 function valueProblem(field: FieldDescriptor, value: string): string | undefined {
+  /* Un ensemble ne se cherche que par une valeur que la liste porte : une valeur retirée (2.4, D3) ou
+     inventée ne ramènerait aucune fiche sans dire pourquoi. */
+  if (field.type === "multilist") {
+    const wanted = value.trim();
+    if (field.values?.some((entry) => entry.value === wanted)) return undefined;
+    const retired = field.retiredValues?.find((entry) => entry.value === wanted);
+    return retired ? `« ${retired.label} » n'est plus une valeur de « ${field.label} ».` : `« ${wanted} » n'est pas une valeur de « ${field.label} ».`;
+  }
   if (field.type !== "date" && field.type !== "number") return undefined;
   const { errors } = validateValues([field], { [field.key]: field.type === "number" ? Number(value.trim()) : value.trim() }, { partial: true });
   return errors[field.key];

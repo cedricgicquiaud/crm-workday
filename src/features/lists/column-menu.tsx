@@ -16,14 +16,14 @@ import { getObject } from "@/features/objects/registry";
  * ne se masque pas ; toute autre colonne affichée se retrouve ici, sans exception muette. Chaque
  * changement pousse une nouvelle URL, comme les filtres : l'état de la liste vit dans l'adresse.
  */
-export function ColumnMenu({ type, state }: { type: string; state: ListState }) {
+export function ColumnMenu({ list, type, state }: { list: string; type: string; state: ListState }) {
   const router = useRouter();
   const definition = getObject(type);
-  const fields = columnsOf(type).filter((field) => field.key !== definition.titleField);
+  const fields = columnsOf(list).filter((field) => field.key !== definition.titleField);
   const visible = state.columns;
   /* Les colonnes visibles dans l'ordre choisi, puis les autres dans l'ordre des descripteurs. */
   const ordered = [...visible.map((key) => fields.find((field) => field.key === key)).filter((field) => field !== undefined), ...fields.filter((field) => !visible.includes(field.key))];
-  const go = (columns: string[]) => router.push(listUrl(type, { ...state, columns }));
+  const go = (columns: string[]) => router.push(listUrl(list, { ...state, columns }));
 
   function move(key: string, step: number) {
     const from = visible.indexOf(key);

@@ -7,7 +7,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { customFieldValue } from "@/db/schema";
 import { CUSTOM_FIELD_PREFIX, customFieldKey, customFieldsOf, isCustomFieldKey } from "@/features/custom-fields/fields-source";
-import { db } from "@/lib/db";
+import { db, type Executor } from "@/lib/db";
 
 /** Fiche telle que le service la lit : ses colonnes, plus les clés des champs personnalisés. */
 type RecordWithId = { id: string } & Record<string, unknown>;
@@ -52,14 +52,14 @@ export async function attachCustomValues<T extends RecordWithId>(objectType: str
  * remplacent celle du champ (une seule par champ et par fiche). Les valeurs sont déjà sérialisées
  * par les descripteurs (jour ISO, décimal canonique), comme celles de l'historique.
  */
-export async function writeCustomValues(objectType: string, objectId: string, values: Record<string, string | null>): Promise<void> {
+export async function writeCustomValues(objectType: string, objectId: string, values: Record<string, string | null>, exec: Executor = db): Promise<void> {
   for (const [key, value] of Object.entries(values)) {
     const definitionId = definitionIdOf(key);
     if (value === null) {
-      await db.delete(customFieldValue).where(and(eq(customFieldValue.definitionId, definitionId), eq(customFieldValue.objectId, objectId)));
+      await exec.delete(customFieldValue).where(and(eq(customFieldValue.definitionId, definitionId), eq(customFieldValue.objectId, objectId)));
       continue;
     }
-    await db
+    await exec
       .insert(customFieldValue)
       .values({ definitionId, objectType, objectId, value })
       .onConflictDoUpdate({ target: [customFieldValue.definitionId, customFieldValue.objectId], set: { value, updatedAt: new Date() } });

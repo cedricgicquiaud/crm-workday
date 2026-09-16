@@ -6,15 +6,20 @@ import "@/features/objects/manifest";
 import { displayValue, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 
-type Props = { type: string; id: string; field: FieldDescriptor; value: string; users: readonly UserOption[] };
+/** `marked` : les valeurs du champ compagnon déclaré (`markedBy`), qui portent sa marque dans la cellule. */
+type Props = { type: string; id: string; field: FieldDescriptor; value: string; marked?: string; users: readonly UserOption[] };
 
 const FAILED = "La modification n'a pas pu être enregistrée.";
 
 /** Contrôle ouvert dans une ligne de 32 px : il occupe la cellule sans la faire grandir. */
 const CONTROL = "h-6 w-full min-w-0 rounded-sm border border-input bg-background px-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
-/** Seuls le texte et les listes s'éditent dans la liste (D6) ; les dates et les nombres se modifient sur la fiche. */
-const isInlineEditable = (field: FieldDescriptor): boolean => field.editable !== false && (field.type === "text" || field.type === "list");
+/**
+ * Seuls le texte et les listes s'éditent dans la liste (D6) ; les dates et les nombres se modifient sur
+ * la fiche. Un champ de profil (D19) ne s'édite pas non plus en cellule : il se règle par l'API de son
+ * profil, que la cellule ne connaît pas.
+ */
+const isInlineEditable = (field: FieldDescriptor): boolean => field.editable !== false && field.profile === undefined && (field.type === "text" || field.type === "list");
 
 /**
  * Cellules éditables du tableau de la cellule courante, dans son ordre : Tab passe de l'une à la
@@ -35,7 +40,7 @@ function nextCell(current: string): HTMLElement | undefined {
  * sous la cellule et la valeur enregistrée revient. Modifications concurrentes : le dernier écrit
  * gagne, sans verrou (D6). Les autres champs se lisent ici et se modifient sur la fiche.
  */
-export function ListCell({ type, id, field, value: initial, users }: Props) {
+export function ListCell({ type, id, field, value: initial, marked, users }: Props) {
   const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [editing, setEditing] = useState(false);
@@ -43,7 +48,7 @@ export function ListCell({ type, id, field, value: initial, users }: Props) {
   /* Échap ferme la cellule : la sortie de champ qui suit ne doit rien enregistrer. */
   const cancelled = useRef(false);
   const key = `${id}:${field.key}`;
-  const text = displayValue(field, saved, users);
+  const text = displayValue(field, saved, users, marked);
 
   async function save(value: string): Promise<boolean> {
     if (value === saved) return true;

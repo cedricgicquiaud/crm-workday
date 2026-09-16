@@ -32,7 +32,7 @@ afterAll(async () => {
 });
 
 describe("API des personnes — création (CRM-40, contrat 8)", () => {
-  it("un membre crée une personne avec prénom et nom seuls (201) et la relit : Profils « aucun », aucune adresse, aucune entreprise, il en est le créateur et le responsable", async () => {
+  it("un membre crée une personne avec prénom et nom seuls (201) et la relit : aucun profil, aucune adresse, aucune entreprise, il en est le créateur et le responsable", async () => {
     const created = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Jean", lastName: "Dupont" }, memberCookie));
     expect(created.status).toBe(201);
     const { id } = (await created.json()) as { id: string };
@@ -40,7 +40,7 @@ describe("API des personnes — création (CRM-40, contrat 8)", () => {
 
     const read = await getPerson(jsonRequest("GET", `/api/personnes/${id}`, undefined, memberCookie), byId(id));
     expect(read.status).toBe(200);
-    expect(await read.json()).toMatchObject({ id, firstName: "Jean", lastName: "Dupont", name: "Jean Dupont", email: null, otherEmails: "", profiles: "aucun", companyId: null, ownerId: memberId, createdBy: memberId, archivedAt: null });
+    expect(await read.json()).toMatchObject({ id, firstName: "Jean", lastName: "Dupont", name: "Jean Dupont", email: null, otherEmails: "", profiles: [], companyId: null, ownerId: memberId, createdBy: memberId, archivedAt: null });
   });
 
   it("répond 401 sans session sur la liste, la création et la modification, et 404 pour une personne inconnue ou un identifiant qui n'est pas un UUID", async () => {
@@ -71,9 +71,9 @@ describe("API des personnes — liste (CRM-41, D6)", () => {
 
     const list = await listPersons(jsonRequest("GET", "/api/personnes", undefined, memberCookie));
     expect(list.status).toBe(200);
-    const { persons } = (await list.json()) as { persons: { name: string; profiles: string }[] };
+    const { persons } = (await list.json()) as { persons: { name: string; profiles: string[] }[] };
     expect(persons.map((p) => p.name)).toEqual(["Liste Ancienne", "Liste Récente"]);
-    expect(persons.every((p) => p.profiles === "aucun")).toBe(true);
+    expect(persons.every((p) => p.profiles.length === 0)).toBe(true);
   });
 });
 
@@ -109,7 +109,7 @@ describe("API des personnes — refus 400 (CRM-40, CRM-41, contrat 10)", () => {
     expect(patchedEmail.status).toBe(400);
     expect(await patchedEmail.json()).toMatchObject({ fields: { email: "Cette adresse n'est pas valide." } });
     const read = await getPerson(jsonRequest("GET", `/api/personnes/${id}`, undefined, memberCookie), byId(id));
-    expect(await read.json()).toMatchObject({ name: "Bien Formée", profiles: "aucun", email: null });
+    expect(await read.json()).toMatchObject({ name: "Bien Formée", profiles: [], email: null });
   });
 });
 

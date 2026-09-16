@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { CircleDashedIcon } from "lucide-react";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -11,10 +11,14 @@ import { customFieldKey } from "@/features/custom-fields/fields-source";
 import { listHistory } from "@/features/history/history";
 import { fieldsOf } from "@/features/objects/fields";
 import { linkedGroups } from "@/features/objects/links-column";
-import { registerObject } from "@/features/objects/registry";
+import { listForState } from "@/features/lists/apply-filters";
+import { defaultColumnKeys } from "@/features/lists/columns";
+import { parseListState } from "@/features/lists/url-state";
+import { listLists, registerObject } from "@/features/objects/registry";
 import { registerServerObject } from "@/features/objects/registry.server";
-import { createObject, getObjectRecord, updateObject } from "@/features/objects/service";
+import { createObject, getObjectRecord, listObjectRecords, updateObject } from "@/features/objects/service";
 import { search } from "@/features/search/search";
+import { defaultView } from "@/features/views/views";
 import { closeDb, db, rawSql } from "@/lib/db";
 
 const ACTOR = { email: "acteur-branchement@exemple.fr", firstName: "Nour", lastName: "Baz", password: "MotDePasse-Branchement-1", role: "membre" as const };
@@ -67,10 +71,26 @@ beforeAll(async () => {
       { key: "ownerId", label: "Responsable", type: "user", required: true, default: "actor", order: 20 },
       /* La clé étrangère d'une relation est un champ déclaré, comme sur toute fiche liée : le service l'écrit, la colonne des liens la lit. */
       { key: "parentId", label: "Fiche mère", type: "text", order: 30 },
+      /* Complément : la fiche ne porte pas ce nom dans sa table, le chargeur `attach` le joint à chaque lecture (D19). */
+      { key: "parentName", label: "Nom de la fiche mère", type: "text", editable: false, sortable: true, order: 40 },
     ],
     relations: [{ to: TYPE, fkColumn: "parentId", label: "Fiche mère", inverseLabel: "Fiches filles", prefill: "parentId" }],
     quickCreate: ["name"],
     listColumns: ["ownerId"],
+    /* Une liste déclarée (D10) : un objet la pose comme le reste, sans qu'un mécanisme la nomme. */
+    lists: [
+      {
+        key: "test_branche_orphelines",
+        label: "Fiches orphelines",
+        singular: "Fiche orpheline",
+        icon: CircleDashedIcon,
+        href: "/fiches-branchees-orphelines",
+        order: 941,
+        baseFilters: [{ field: "parentId", operator: "est_vide", value: "" }],
+        columns: ["parentName"],
+        defaultViewName: "Toutes les fiches orphelines",
+      },
+    ],
   });
   registerServerObject({
     key: TYPE,
@@ -80,6 +100,13 @@ beforeAll(async () => {
       return rows.filter((row) => row.name.toLowerCase().includes(query.toLowerCase())).map((row) => ({ id: row.id, title: row.name }));
     },
     duplicateKey: (record) => String(record.name ?? "") || null,
+    /* Le service appelle ce chargeur à chaque lecture — une fiche, une liste — et lui passe toutes les fiches d'un coup : un complément ne coûte pas une requête par ligne. */
+    attach: async (records) => {
+      const ids = records.map((record) => record.parentId).filter((id): id is string => typeof id === "string");
+      const parents = ids.length === 0 ? [] : await db.select({ id: testTable.id, name: testTable.name }).from(testTable).where(inArray(testTable.id, ids));
+      const names = new Map(parents.map((parent) => [parent.id, parent.name]));
+      return records.map((record) => ({ ...record, parentName: names.get(String(record.parentId)) ?? null }));
+    },
   });
 });
 
@@ -124,6 +151,22 @@ describe("un objet déclaré obtient les mécanismes communs (CRM-57, contrat 33
     const hits = await search("branchée (renommée)");
     expect(hits.filter((hit) => hit.type === TYPE).map((hit) => hit.id)).toEqual([record.id]);
     expect(hits.find((hit) => hit.id === record.id)?.href).toBe(`/fiches-branchees/${record.id}`);
+
+    /* Compléments : ce que la table ne porte pas arrive par le chargeur déclaré, à la création, à la lecture d'une fiche et à celle de la liste. */
+    expect(record.parentName).toBe("Fiche mère branchée");
+    expect((await getObjectRecord(TYPE, record.id)).parentName).toBe("Fiche mère branchée");
+    const listed = await listObjectRecords(TYPE);
+    expect(listed.find((entry) => entry.id === record.id)?.parentName).toBe("Fiche mère branchée");
+    expect(listed.find((entry) => entry.id === mere.id)?.parentName).toBeNull();
+
+    /* Liste déclarée : elle prend sa place dans la barre latérale, porte ses colonnes, sa vue par défaut nommée, et son filtre de base qu'aucune URL ne retire. */
+    const declared = listLists().find((list) => list.key === "test_branche_orphelines")!;
+    expect(declared).toMatchObject({ objectKey: TYPE, label: "Fiches orphelines", href: "/fiches-branchees-orphelines" });
+    expect(defaultColumnKeys("test_branche_orphelines")).toEqual(["parentName", "updatedAt"]);
+    expect(defaultView("test_branche_orphelines").name).toBe("Toutes les fiches orphelines");
+    const all = await listObjectRecords(TYPE);
+    const orphaned = listForState("test_branche_orphelines", all, parseListState("test_branche_orphelines", new URLSearchParams("f=name:contient:branchée")));
+    expect(orphaned.map((entry) => entry.name)).toEqual(["Fiche mère branchée"]);
 
     /* Colonne des liens : la relation déclarée donne son groupe, avec la fiche désignée. */
     const groups = await linkedGroups(TYPE, record.id);

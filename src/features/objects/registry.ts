@@ -7,7 +7,8 @@
  */
 import type { LucideIcon } from "lucide-react";
 
-export type FieldType = "text" | "list" | "date" | "number" | "user";
+/** `multilist` : plusieurs valeurs d'une liste fermée dans un même champ (modules Workday, Profils, D19). */
+export type FieldType = "text" | "list" | "date" | "number" | "user" | "multilist";
 
 export type ListValue = { value: string; label: string };
 
@@ -18,7 +19,7 @@ export type FieldDescriptor = {
   label: string;
   type: FieldType;
   required?: boolean;
-  /** valeurs d'une liste fermée (`type: "list"`) */
+  /** valeurs d'une liste fermée (`type: "list"` ou `"multilist"`) */
   values?: readonly ListValue[];
   /** valeurs retirées de la liste (2.4) : lisibles sur les fiches qui les portent, marquées « retirée », jamais proposées */
   retiredValues?: readonly ListValue[];
@@ -26,8 +27,33 @@ export type FieldDescriptor = {
   default?: string;
   /** faux : lecture seule sur la fiche (défaut : vrai) */
   editable?: boolean;
+  /** un `multilist` se trie sur ses libellés joints (D11) */
   sortable?: boolean;
   maxLength?: number;
+  /** nombre : borne basse acceptée (D5, D7) */
+  min?: number;
+  /** nombre : borne haute acceptée */
+  max?: number;
+  /** nombre : décimales acceptées au plus ; absent, le nombre en prend autant qu'il veut */
+  decimals?: number;
+  /** nombre : seul un entier est accepté (« 6,5 » refusé, D7) */
+  integer?: boolean;
+  /** nombre : unité écrite après la valeur (« 650,00 € ») */
+  unit?: string;
+  /** ce qu'un ensemble vide affiche (« Aucun », D8) ; absent, il s'écrit « — » comme toute valeur absente */
+  emptyLabel?: string;
+  /**
+   * `multilist` : les valeurs que porte aussi le champ nommé reçoivent cette marque en colonne
+   * (« HCM ✔, Integration » pour les modules certifiés, D10). Deux champs, une seule colonne à lire.
+   */
+  markedBy?: { field: string; mark: string };
+  /**
+   * Champ d'un profil de la fiche (D19) : il se rend dans la section de son profil et jamais dans
+   * « Champs », se règle par l'API de ce profil (celle de l'objet le refuse), s'exclut du dialogue de
+   * création de l'objet et de l'édition en cellule ; `required` s'entend dans le profil. Il reste
+   * colonne, filtre et tri de la liste. Le libellé sert au refus (« … se règle sur le profil consultant »).
+   */
+  profile?: { key: string; label: string };
   /** texte : espaces retirés, casse… appliquée avant la validation et l'enregistrement */
   normalize?: (value: string) => string;
   /** texte : forme attendue après normalisation, et message de la règle */
@@ -59,6 +85,51 @@ export type Relation = {
 };
 
 export type ObjectLabels = { singular: string; plural: string; article: string };
+
+/**
+ * Filtre qu'une liste déclarée applique toujours, côté serveur (D10) : il dit ce que la liste est
+ * (« les personnes qui portent un profil consultant »). L'URL ne peut pas le retirer — un filtre
+ * ajouté à la main s'ajoute au sien, il ne le remplace pas.
+ */
+export type ListFilter = { field: string; operator: string; value: string };
+
+/** Création rapide offerte par une liste (D12) : quel dialogue, quels champs, quelle API. */
+export type ListCreate = {
+  /** racine de l'API appelée par le dialogue ; défaut : celle de l'objet */
+  apiBase?: string;
+  /** clés des champs du dialogue, cinq au plus ; défaut : le `quickCreate` de l'objet */
+  fields?: readonly string[];
+  /** libellé du bouton et du dialogue ; défaut : « Nouvelle … » de l'objet */
+  label?: string;
+};
+
+/**
+ * Une liste d'un objet, nommée et restreinte (D10) : « Consultants » est la liste des personnes qui
+ * portent un profil consultant. La barre latérale, l'URL, les colonnes et les vues la lisent comme
+ * elles lisent la liste d'un objet — c'est la même chose, avec un filtre de base et un nom à elle.
+ */
+export type ListDeclaration = {
+  /** clé de la liste, unique parmi les objets et les listes : les vues et les épingles s'y rangent */
+  key: string;
+  label: string;
+  /** singulier du compteur de pied (« 1 consultant ») ; défaut : le singulier de l'objet */
+  singular?: string;
+  icon: LucideIcon;
+  /** adresse de la liste (`/consultants`) */
+  href: string;
+  /** rang dans la barre latérale ; l'ordre ne dépend jamais de l'ordre des imports */
+  order: number;
+  baseFilters?: readonly ListFilter[];
+  /** colonnes visibles par défaut après la colonne titre */
+  columns?: readonly string[];
+  /** nom de la vue par défaut de cette liste (« Tous les consultants ») */
+  defaultViewName: string;
+  /** `false` : la liste n'offre pas de création */
+  create?: ListCreate | false;
+};
+
+/** Une liste résolue : celle que l'objet a implicitement, ou une liste qu'il déclare. */
+export type ListDefinition = ListDeclaration & { objectKey: string };
 
 export type ObjectDefinition = {
   /** clé d'objet : aussi l'`object_type` du journal des emails et de l'historique */
@@ -93,6 +164,11 @@ export type ObjectDefinition = {
    * section « Champs ». Chacune désigne un champ déclaré.
    */
   headerFields?: readonly string[];
+  /**
+   * Listes nommées de cet objet, en plus de la sienne (D10) : une clé, un libellé, une icône, une
+   * adresse, un rang, un filtre de base, ses colonnes, le nom de sa vue par défaut et sa création.
+   */
+  lists?: readonly ListDeclaration[];
 };
 
 const objects = new Map<string, ObjectDefinition>();
@@ -111,6 +187,14 @@ export function registerObject(definition: ObjectDefinition): void {
   for (const key of definition.headerFields ?? []) {
     if (!keys.has(key)) throw new Error(`Objet « ${definition.key} » : le champ de tête « ${key} » n'est pas déclaré dans ses champs.`);
   }
+  for (const list of definition.lists ?? []) {
+    for (const column of list.columns ?? []) {
+      if (!keys.has(column)) throw new Error(`Objet « ${definition.key} » : la colonne « ${column} » de la liste « ${list.key} » n'est pas déclarée dans ses champs.`);
+    }
+    for (const filter of list.baseFilters ?? []) {
+      if (!keys.has(filter.field)) throw new Error(`Objet « ${definition.key} » : le filtre de base de la liste « ${list.key} » porte sur « ${filter.field} », qui n'est pas un de ses champs.`);
+    }
+  }
   objects.set(definition.key, definition);
 }
 
@@ -123,4 +207,44 @@ export function getObject(key: string): ObjectDefinition {
 /** Tous les objets déclarés, par rang croissant puis par clé. */
 export function listObjects(): readonly ObjectDefinition[] {
   return Array.from(objects.values()).sort((a, b) => a.order - b.order || a.key.localeCompare(b.key));
+}
+
+/** « Toutes les entreprises », « Tous les consultants » : le déterminant vient de l'article déclaré. */
+const allLabel = (labels: ObjectLabels) => `${labels.article === "un" ? "Tous les" : "Toutes les"} ${labels.plural.toLowerCase()}`;
+
+/** La liste qu'un objet a sans rien déclarer : toutes ses fiches, sous son nom pluriel. */
+function ownList(definition: ObjectDefinition): ListDefinition {
+  return {
+    key: definition.key,
+    objectKey: definition.key,
+    label: definition.labels.plural,
+    singular: definition.labels.singular,
+    icon: definition.icon,
+    href: definition.listHref,
+    order: definition.order,
+    columns: definition.listColumns,
+    defaultViewName: allLabel(definition.labels),
+  };
+}
+
+/**
+ * Toutes les listes : celle de chaque objet, puis celles que les objets déclarent, par rang croissant
+ * puis par clé. C'est ce que lisent la barre latérale, les vues et les épingles.
+ */
+export function listLists(): readonly ListDefinition[] {
+  return listObjects()
+    .flatMap((definition) => [ownList(definition), ...(definition.lists ?? []).map((list) => ({ ...list, objectKey: definition.key }))])
+    .sort((a, b) => a.order - b.order || a.key.localeCompare(b.key));
+}
+
+/** Une liste par sa clé, ou rien : une vue enregistrée survit au retrait de sa liste, mais ne s'ouvre plus. */
+export function findList(key: string): ListDefinition | undefined {
+  return listLists().find((list) => list.key === key);
+}
+
+/** Une liste par sa clé ; une clé inconnue est une erreur de programmation, comme un objet inconnu. */
+export function getList(key: string): ListDefinition {
+  const list = findList(key);
+  if (!list) throw new Error(`Liste inconnue : ${key}`);
+  return list;
 }

@@ -9,14 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DuplicateWarning, type DuplicateHint } from "@/features/duplicates/duplicate-warning";
 import { FieldControl } from "@/features/objects/field-control";
-import { fieldsOf, validateValues, type FieldErrors } from "@/features/objects/fields";
+import { fieldsOf, validateValues, writableFieldsOf, type FieldErrors } from "@/features/objects/fields";
 import { createLabel, type UserOption } from "@/features/objects/labels";
-import { getObject, type FieldDescriptor, type Relation } from "@/features/objects/registry";
+import { getObject, type FieldDescriptor, type ListCreate, type Relation } from "@/features/objects/registry";
 
 /** Bouton qui ouvre le dialogue : le bouton plein de la liste par défaut, ou un bouton secondaire (« Ajouter … » dans la colonne des liens). */
 export type QuickCreateTrigger = { label: string; variant?: "default" | "outline"; size?: "default" | "sm" };
 
-type Props = { type: string; users: readonly UserOption[]; currentUserId: string; prefill?: Record<string, string>; trigger?: QuickCreateTrigger };
+/** `create` : la déclaration de création d'une liste (D12) — ses champs, son API, son libellé ; absente, celle de l'objet. */
+type Props = { type: string; create?: ListCreate; users: readonly UserOption[]; currentUserId: string; prefill?: Record<string, string>; trigger?: QuickCreateTrigger; defaultOpen?: boolean };
 
 /** Refus du serveur : message global, erreurs par champ (400), fiche existante à ouvrir (409, D19). */
 type Failure = { message: string; fields?: FieldErrors; existingId?: string; existingName?: string; archived?: boolean };
@@ -37,17 +38,22 @@ const DUPLICATE_DELAY_MS = 300;
  * ne cite pas — un champ personnalisé rendu obligatoire (2.4) en est un : sans lui dans le
  * dialogue, la création serait refusée par le serveur sans que rien à l'écran permette d'y répondre.
  */
-function entriesOf(type: string): Entry[] {
+function entriesOf(type: string, create?: ListCreate): Entry[] {
   const definition = getObject(type);
-  const fields = fieldsOf(type);
-  const chosen = definition.quickCreate ?? [definition.titleField];
+  /*
+   * Les champs d'un profil ne se saisissent pas dans le dialogue de l'objet (D19) : son API les
+   * refuserait. Une liste qui déclare ses propres champs, elle, peut en citer — l'API qu'elle
+   * déclare sait les écrire, fiche et profil d'un seul geste (D12).
+   */
+  const fields = create?.fields ? fieldsOf(type) : writableFieldsOf(type);
+  const chosen = create?.fields ?? definition.quickCreate ?? [definition.titleField];
   const entries = chosen.flatMap((key): Entry[] => {
     const field = fields.find((f) => f.key === key);
     if (field) return [{ kind: "field", key, field }];
     const relation = definition.relations.find((r) => r.prefill === key);
     return relation ? [{ kind: "relation", key, relation }] : [];
   });
-  const required = fields.filter((field) => field.required && field.default === undefined && !chosen.includes(field.key));
+  const required = writableFieldsOf(type).filter((field) => field.required && field.default === undefined && !chosen.includes(field.key));
   return [...entries, ...required.map((field): Entry => ({ kind: "field", key: field.key, field }))];
 }
 
@@ -73,20 +79,21 @@ async function loadRelationOptions(objectKey: string): Promise<RelationOption[]>
  * d'une fiche existante fait apparaître l'avertissement « doublon probable » (D19), qui nomme la
  * fiche et propose de l'ouvrir sans jamais empêcher la création.
  */
-export function QuickCreateDialog({ type, users, currentUserId, prefill, trigger }: Props) {
+export function QuickCreateDialog({ type, create, users, currentUserId, prefill, trigger, defaultOpen = false }: Props) {
   const router = useRouter();
   const definition = getObject(type);
-  const entries = entriesOf(type);
+  const entries = entriesOf(type, create);
   const fields = entries.flatMap((entry) => (entry.kind === "field" ? [entry.field] : []));
   const relations = entries.flatMap((entry) => (entry.kind === "relation" ? [entry] : []));
-  const [open, setOpen] = useState(false);
+  /* Ouvert d'emblée quand l'adresse le demande : c'est ainsi que la palette crée depuis n'importe où (D12). */
+  const [open, setOpen] = useState(defaultOpen);
   const [values, setValues] = useState<Record<string, string>>(prefill ?? {});
   const [errors, setErrors] = useState<FieldErrors>({});
   const [failure, setFailure] = useState<Failure | null>(null);
   const [pending, setPending] = useState(false);
   const [options, setOptions] = useState<Record<string, RelationOption[]>>({});
   const [duplicates, setDuplicates] = useState<DuplicateHint[]>([]);
-  const title = createLabel(definition.labels);
+  const title = create?.label ?? createLabel(definition.labels);
   const relatedKeys = relations.map(({ relation }) => relation.to).join(",");
   /* Les valeurs saisies, sous une forme stable : le signal se relit quand elles changent, pas à chaque rendu. */
   const candidate = fields.map((field) => `${encodeURIComponent(field.key)}=${encodeURIComponent(values[field.key] ?? "")}`).join("&");
@@ -95,7 +102,7 @@ export function QuickCreateDialog({ type, users, currentUserId, prefill, trigger
   useEffect(() => {
     if (!open || relatedKeys === "") return;
     let cancelled = false;
-    for (const { key, relation } of entriesOf(type).flatMap((entry) => (entry.kind === "relation" ? [entry] : []))) {
+    for (const { key, relation } of entriesOf(type, create).flatMap((entry) => (entry.kind === "relation" ? [entry] : []))) {
       loadRelationOptions(relation.to)
         .then((loaded) => !cancelled && setOptions((current) => ({ ...current, [key]: loaded })))
         .catch((error: Error) => !cancelled && setErrors((current) => ({ ...current, [key]: error.message })));
@@ -103,6 +110,8 @@ export function QuickCreateDialog({ type, users, currentUserId, prefill, trigger
     return () => {
       cancelled = true;
     };
+    /* `create` est une déclaration du registre, stable pour une liste donnée : la relire ne change rien. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, type, relatedKeys]);
 
   /**
@@ -141,7 +150,8 @@ export function QuickCreateDialog({ type, users, currentUserId, prefill, trigger
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-    const input = Object.fromEntries(fields.map((f) => [f.key, valueOf(f)]));
+    /* Un nombre se saisit en texte, avec la virgule française : il part en nombre, comme l'API l'attend. */
+    const input = Object.fromEntries(fields.map((f) => [f.key, f.type === "number" ? asNumber(valueOf(f)) : valueOf(f)]));
     const checked = validateValues(fields, input, { partial: false });
     setFailure(null);
     setErrors(checked.errors);
@@ -149,7 +159,7 @@ export function QuickCreateDialog({ type, users, currentUserId, prefill, trigger
     if (firstInvalid) return form.querySelector<HTMLElement>(`#${fieldId(type, firstInvalid.key)}`)?.focus();
     const linked = Object.fromEntries(relations.filter(({ key }) => values[key]).map(({ key }) => [key, values[key]]));
     setPending(true);
-    const res = await fetch(definition.apiBase, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...checked.values, ...linked }) });
+    const res = await fetch(create?.apiBase ?? definition.apiBase, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...checked.values, ...linked }) });
     const body = (await res.json().catch(() => null)) as (Partial<Failure> & { id?: string }) | null;
     setPending(false);
     if (!res.ok) {
@@ -216,6 +226,12 @@ export function QuickCreateDialog({ type, users, currentUserId, prefill, trigger
 }
 
 const fieldId = (type: string, key: string) => `creation-${type}-${key}`;
+
+/** « 650,50 » comme « 650.50 » donnent 650,5 ; une saisie vide n'est pas un nombre, c'est une absence. */
+function asNumber(value: string): number | string {
+  const text = value.trim().replace(",", ".");
+  return text === "" ? "" : Number(text);
+}
 
 type QuickFieldProps = { type: string; field: FieldDescriptor; value: string; error?: string; users: readonly UserOption[]; onChange: (value: string) => void };
 

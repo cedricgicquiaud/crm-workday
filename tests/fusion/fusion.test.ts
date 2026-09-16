@@ -128,13 +128,14 @@ describe("fusion de deux fiches (CRM-59, contrat 29, D20)", () => {
 });
 
 describe("rejouer une fusion déjà faite (CRM-59, contrat 29)", () => {
-  it("refuse 400 la même paire une seconde fois : l'absorbée se lit désormais comme la conservée, et les deux fiches restent intactes", async () => {
+  /* Rejouée, la paire est refusée 409 : l'identifiant de l'absorbée ne désigne plus une fiche, et le dire vaut mieux que « la même fiche » (3.1, CRM-82). */
+  it("refuse 409 la même paire une seconde fois : l'absorbée se lit désormais comme la conservée, et les deux fiches restent intactes", async () => {
     const kept = await newCompany("Ateliers Gauthier");
     const absorbed = await newCompany("Ateliers Gauthier SAS");
     await mergeRecords("company", kept.id, absorbed.id, []);
 
-    await expect(mergeRecords("company", kept.id, absorbed.id, [])).rejects.toMatchObject({ status: 400, code: "meme_fiche" });
-    await expect(planMerge("company", kept.id, absorbed.id)).rejects.toMatchObject({ status: 400, code: "meme_fiche" });
+    await expect(mergeRecords("company", kept.id, absorbed.id, [])).rejects.toMatchObject({ status: 409, code: "fiche_absorbee" });
+    await expect(planMerge("company", kept.id, absorbed.id)).rejects.toMatchObject({ status: 409, code: "fiche_absorbee" });
 
     /* Rien n'a bougé : la fiche conservée est toujours là, et l'adresse de l'absorbée y mène toujours. */
     expect((await db.select().from(company).where(eq(company.id, kept.id)))[0].name).toBe("Ateliers Gauthier");

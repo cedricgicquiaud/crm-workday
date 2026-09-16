@@ -10,6 +10,8 @@ export const COMPANY_TYPES: readonly ListValue[] = [
   { value: "client", label: "Client" },
   { value: "partenaire", label: "Partenaire" },
   { value: "societe_de_portage", label: "Société de portage" },
+  /* La société d'un consultant freelance, celle qui facture le cabinet pour lui (D4). */
+  { value: "societe_de_consultant", label: "Société de consultant" },
 ];
 
 export const PAYMENT_TERMS: readonly ListValue[] = [

@@ -5,7 +5,7 @@
  */
 import { and, count, desc, eq } from "drizzle-orm";
 import { auditLog, user } from "@/db/schema";
-import { db } from "@/lib/db";
+import { db, type Executor } from "@/lib/db";
 
 export type HistoryAction = "creee" | "modifiee" | "archivee" | "restauree" | "fusionnee";
 
@@ -30,10 +30,14 @@ export type HistoryEntry = {
   author: { id: string; name: string } | null;
 };
 
-/** Écrit des entrées d'historique ; rien n'est écrit quand la liste est vide. */
-export async function recordHistory(entries: readonly HistoryInput[]): Promise<void> {
+/**
+ * Écrit des entrées d'historique ; rien n'est écrit quand la liste est vide. `exec` reçoit la
+ * transaction en cours quand l'écriture qu'elles racontent s'y trouve : une trace hors transaction
+ * survivrait à une écriture annulée.
+ */
+export async function recordHistory(entries: readonly HistoryInput[], exec: Executor = db): Promise<void> {
   if (entries.length === 0) return;
-  await db.insert(auditLog).values(
+  await exec.insert(auditLog).values(
     entries.map((e) => ({ objectType: e.objectType, objectId: e.objectId, action: e.action, field: e.field ?? null, oldValue: e.oldValue ?? null, newValue: e.newValue ?? null, authorId: e.authorId })),
   );
 }

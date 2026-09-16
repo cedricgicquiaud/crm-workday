@@ -3,11 +3,12 @@
  * tout objet : `owner_id`, `created_by`, `created_at`, `updated_at`, `archived_at`.
  * - `name` est générée par Postgres (« Prénom Nom ») : titre de la fiche, première colonne de la
  *   liste, libellé dans les colonnes des liens et la palette ; elle ne se saisit pas.
- * - `profiles` est dérivée des profils attachés (« aucun » ou « contact ») et tenue à jour par le
- *   service du profil contact ; elle ne se saisit pas (PATCH → 400).
- * - `company_id` est l'entreprise de rattachement du profil contact, portée par la personne pour
- *   que la colonne des liens la lise par la relation déclarée (`fkColumn`) ; écrite seulement par
- *   le service du profil contact.
+ * - `profiles` est un **ensemble** dérivé des profils attachés (contact, consultant), recalculé à
+ *   chaque écriture d'un profil et jamais recopié (D8) ; elle ne se saisit pas (PATCH → 400).
+ * - `company_id` est l'entreprise de rattachement du profil contact, et `billing_company_id` la
+ *   société de facturation du profil consultant (D4) : toutes deux sont portées par la personne pour
+ *   que la colonne des liens les lise par leur relation déclarée (`fkColumn`) ; chacune n'est écrite
+ *   que par le service de son profil.
  * Les adresses : `email` (principale) et `person_email` (autres) ; chaque adresse, normalisée en
  * minuscules et sans espaces, est unique dans tout le CRM, archivées comprises (D19).
  */
@@ -35,10 +36,15 @@ export const person = pgTable(
     linkedin: text("linkedin"),
     /** 2 000 caractères max */
     notes: text("notes"),
-    /** aucun | contact (dérivé, tenu à jour par le profil contact) */
-    profiles: text("profiles").notNull().default("aucun"),
+    /** ensemble de contact | consultant (dérivé, recalculé depuis les profils présents) */
+    profiles: text("profiles")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     /** entreprise de rattachement du profil contact */
     companyId: uuid("company_id").references(() => company.id),
+    /** société de facturation du profil consultant (D4) */
+    billingCompanyId: uuid("billing_company_id").references(() => company.id),
     ownerId: text("owner_id")
       .notNull()
       .references(() => user.id),
@@ -49,7 +55,7 @@ export const person = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
   },
-  (t) => [uniqueIndex("person_email_unique_idx").on(t.email), index("person_updated_at_idx").on(t.updatedAt), index("person_owner_id_idx").on(t.ownerId), index("person_company_id_idx").on(t.companyId)],
+  (t) => [uniqueIndex("person_email_unique_idx").on(t.email), index("person_updated_at_idx").on(t.updatedAt), index("person_owner_id_idx").on(t.ownerId), index("person_company_id_idx").on(t.companyId), index("person_billing_company_id_idx").on(t.billingCompanyId)],
 );
 
 /** Autres adresses d'une personne (D2) : une ligne par adresse, normalisée, unique dans tout le CRM. */

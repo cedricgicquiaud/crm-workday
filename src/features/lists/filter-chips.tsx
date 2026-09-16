@@ -14,7 +14,8 @@ import { fieldsOf } from "@/features/objects/fields";
 import { displayValue, type UserOption } from "@/features/objects/labels";
 import type { FieldDescriptor } from "@/features/objects/registry";
 
-type Props = { type: string; state: ListState; users: readonly UserOption[] };
+/** `list` : la liste, pour les adresses qu'on pousse ; `type` : l'objet qu'elle liste, pour ses champs. */
+type Props = { list: string; type: string; state: ListState; users: readonly UserOption[] };
 
 /** Contrôle de 28 px des fondations, pour les listes déroulantes natives de la barre de filtres. */
 const CONTROL = "h-7 w-full min-w-0 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -25,7 +26,9 @@ const filterableFields = (type: string) => fieldsOf(type).filter((field) => oper
 /** « Type est Client » : la puce se lit comme une phrase, et son bouton de retrait la nomme. */
 function chipLabel(field: FieldDescriptor, filter: Filter, users: readonly UserOption[]): string {
   const operator = findOperator(filter.operator);
-  const value = operator?.needsValue ? ` ${displayValue(field, filter.value, users)}` : "";
+  /* La valeur de la puce est une clé, pas l'ensemble de la fiche : un `multilist` se lit par le libellé de cette clé seule. */
+  const shown = field.type === "multilist" ? displayValue({ ...field, type: "list" }, filter.value, users) : displayValue(field, filter.value, users);
+  const value = operator?.needsValue ? ` ${shown}` : "";
   return `${field.label} ${operator?.label ?? filter.operator}${value}`;
 }
 
@@ -34,11 +37,11 @@ function chipLabel(field: FieldDescriptor, filter: Filter, users: readonly UserO
  * en « et » seulement, plus la bascule « archivées ». Chaque changement pousse une nouvelle URL :
  * l'état vit dans l'adresse (D18), la liste est rendue par le serveur, et l'adresse se partage.
  */
-export function FilterChips({ type, state, users }: Props) {
+export function FilterChips({ list, type, state, users }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const fields = filterableFields(type);
-  const go = (next: ListState) => router.push(listUrl(type, next));
+  const go = (next: ListState) => router.push(listUrl(list, next));
 
   return (
     <div data-slot="list-filters" className="flex flex-wrap items-center gap-2">
@@ -92,7 +95,8 @@ function AddFilterForm({ fields, users, onAdd }: FormProps) {
     setValue("");
   }
 
-  const options = field.type === "list" ? (field.values ?? []).map((entry) => ({ value: entry.value, label: entry.label })) : field.type === "user" ? users.map((entry) => ({ value: entry.id, label: entry.name })) : null;
+  /* Une liste fermée et un ensemble se choisissent dans les mêmes valeurs : on cherche ce que le champ sait porter, jamais une saisie libre. */
+  const options = field.type === "list" || field.type === "multilist" ? (field.values ?? []).map((entry) => ({ value: entry.value, label: entry.label })) : field.type === "user" ? users.map((entry) => ({ value: entry.id, label: entry.name })) : null;
   const incomplete = operator.needsValue && value.trim() === "";
 
   return (

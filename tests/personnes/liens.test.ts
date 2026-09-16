@@ -54,9 +54,17 @@ describe("colonne des liens — fiches liées par relation déclarée (CRM-42, D
           { id: marie.id, title: "Marie Curie", href: `/personnes/${marie.id}` },
         ],
       },
+      /* La société de facturation d'un consultant est une seconde relation vers l'entreprise (3.1, D4) : sa fiche porte donc aussi ce groupe, vide tant qu'elle ne facture personne. */
+      { key: "person-billingCompanyId", label: "Consultants facturés", records: [] },
     ]);
-    expect(await linkedGroups("person", jean.id)).toEqual([{ key: "person-company-companyId", label: "Entreprise", records: [{ id: solveige.id, title: "Banque Solveige", href: `/entreprises/${solveige.id}` }] }]);
-    expect(await linkedGroups("person", alone.id)).toEqual([{ key: "person-company-companyId", label: "Entreprise", records: [] }]);
+    expect(await linkedGroups("person", jean.id)).toEqual([
+      { key: "person-company-companyId", label: "Entreprise", records: [{ id: solveige.id, title: "Banque Solveige", href: `/entreprises/${solveige.id}` }] },
+      { key: "person-company-billingCompanyId", label: "Société de facturation", records: [] },
+    ]);
+    expect(await linkedGroups("person", alone.id)).toEqual([
+      { key: "person-company-companyId", label: "Entreprise", records: [] },
+      { key: "person-company-billingCompanyId", label: "Société de facturation", records: [] },
+    ]);
     expect((await linkedGroups("company", ferrandi.id))[0].records.map((r) => r.title)).toEqual(["Chez Ferrandi"]);
   });
 });
