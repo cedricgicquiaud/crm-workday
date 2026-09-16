@@ -61,7 +61,8 @@ export const LEAD_FIELDS: readonly FieldDescriptor[] = [
   { key: "lastName", label: "Nom", type: "text", maxLength: 120, sortable: true, order: 20 },
   { key: "companyName", label: "Nom de l'entreprise", type: "text", maxLength: 120, sortable: true, order: 30 },
   { key: "jobTitle", label: "Poste", type: "text", maxLength: 120, sortable: true, order: 40 },
-  { key: "email", label: "Email", type: "text", maxLength: 200, normalize: normalizeEmail, pattern: { regex: EMAIL_REGEX, message: EMAIL_RULE }, wide: true, order: 50 },
+  /* Pas unique (D2) : une adresse déjà portée est signalée à la saisie, jamais refusée (D8). */
+  { key: "email", label: "Email", type: "text", maxLength: 200, normalize: normalizeEmail, pattern: { regex: EMAIL_REGEX, message: EMAIL_RULE }, entryWarning: true, wide: true, order: 50 },
   { key: "phone", label: "Téléphone", type: "text", maxLength: 40, order: 60 },
   { key: "linkedin", label: "LinkedIn", type: "text", maxLength: 200, pattern: { regex: /^https?:\/\/\S+$/, message: LINKEDIN_RULE }, order: 70 },
   { key: "origin", label: "Origine", type: "list", required: true, values: LEAD_ORIGINS, sortable: true, order: 80 },

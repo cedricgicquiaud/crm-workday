@@ -16,10 +16,10 @@ export async function otherEmailsOf(personId: string): Promise<string[]> {
   return rows.map((row) => row.address);
 }
 
-type Holder = { id: string; name: string; archivedAt: Date | null };
+export type Holder = { id: string; name: string; archivedAt: Date | null };
 
 /** La personne qui porte déjà cette adresse normalisée, principale ou autre, archivée comprise ; jamais `exceptPersonId`. */
-async function holderOf(address: string, exceptPersonId: string | null): Promise<Holder | null> {
+export async function holderOf(address: string, exceptPersonId: string | null): Promise<Holder | null> {
   const notSelf = (column: typeof person.id): SQL[] => (exceptPersonId ? [ne(column, exceptPersonId)] : []);
   const [primary] = await db
     .select({ id: person.id, name: person.name, archivedAt: person.archivedAt })

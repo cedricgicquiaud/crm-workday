@@ -8,6 +8,7 @@ import { lead } from "@/db/schema";
 import { registerServerObject, type SearchHit } from "@/features/objects/registry.server";
 import { normalizeEmail } from "@/features/persons/schema";
 import { db } from "@/lib/db";
+import { knownEmailWarnings } from "./email-known";
 import { LeadStageAction } from "./lead-actions";
 import { CONVERTED_STAGE, DISCARDED_STAGE, LEAD_ORIGINS, LEAD_STAGES, OPEN_STAGES } from "./schema";
 
@@ -37,6 +38,8 @@ registerServerObject({
   search,
   /* Pas de « doublon probable » sur les leads (D8) : deux leads homonymes sont deux pistes. */
   duplicateKey: () => null,
+  /* À la place, l'email saisi rappelle la personne ou le lead en cours qui le porte (D8). */
+  entryWarnings: knownEmailWarnings,
   /* « Écarter » depuis un avancement en cours ; « Rouvrir » seul sur un lead écarté (D7). */
   actions: [
     { key: "ecarter", order: 10, visible: (record) => OPEN_STAGES.includes(String(record.stage)), render: ({ id }) => createElement(LeadStageAction, { id, gesture: "ecarter" }) },

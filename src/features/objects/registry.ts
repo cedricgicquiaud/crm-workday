@@ -83,6 +83,11 @@ export type FieldDescriptor = {
   unique?: boolean;
   /** début de la phrase du refus 409 (« Le SIREN 123456789 est déjà porté ») ; le service y ajoute la fiche qui le porte */
   uniqueMessage?: (value: string) => string;
+  /**
+   * À la saisie sur la fiche, la valeur enregistrée est soumise à la source d'avertissement que l'objet
+   * déclare (route des doublons, D8) : ce qu'elle rappelle d'autres fiches s'affiche sous le champ, sans rien bloquer.
+   */
+  entryWarning?: boolean;
   /** texte long (notes) : zone de texte plutôt qu'un champ d'une ligne */
   multiline?: boolean;
   /** occupe toute la largeur de sa section sur la fiche (raison sociale, rue) */

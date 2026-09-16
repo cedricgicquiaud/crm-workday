@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import "@/features/objects/manifest";
+import { DuplicateWarning, type DuplicateHint } from "@/features/duplicates/duplicate-warning";
 import { FieldControl, type FieldControlKind, type FieldControlOption } from "@/features/objects/field-control";
 import { isLocked, sheetFieldsOf } from "@/features/objects/fields";
 import { displayValue, selectableValues, type SerializedRecord, type UserOption } from "@/features/objects/labels";
@@ -37,6 +38,7 @@ export function FieldsSection({ type, record: initial, users, readOnly = false }
   const definition = getObject(type);
   const [record, setRecord] = useState(initial);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [warnings, setWarnings] = useState<Record<string, DuplicateHint[]>>({});
 
   const FAILED = "La modification n'a pas pu être enregistrée.";
 
@@ -63,7 +65,22 @@ export function FieldsSection({ type, record: initial, users, readOnly = false }
     setErrors((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== field.key)));
     if (body) setRecord(body);
     router.refresh();
+    if (field.entryWarning) void lookUpWarnings(field, value);
     return true;
+  }
+
+  /**
+   * Ce que la valeur enregistrée rappelle d'autres fiches (D8), par la route des doublons de l'objet,
+   * la fiche elle-même exceptée. C'est une aide à la saisie : un échec la laisse muette, sans rien
+   * défaire de l'enregistrement qui vient de réussir.
+   */
+  async function lookUpWarnings(field: FieldDescriptor, value: string) {
+    const query = new URLSearchParams({ id: initial.id, [field.key]: value });
+    const hints = await fetch(`/api/objets/${encodeURIComponent(type)}/doublons?${query}`)
+      .then((res) => (res.ok ? (res.json() as Promise<{ duplicates: DuplicateHint[] }>) : { duplicates: [] }))
+      .then((found) => found.duplicates)
+      .catch(() => []);
+    setWarnings((current) => ({ ...current, [field.key]: hints }));
   }
 
   return (
@@ -73,8 +90,11 @@ export function FieldsSection({ type, record: initial, users, readOnly = false }
           <h2 className="text-base font-medium">{section.name}</h2>
           <div className="grid gap-3">
             {section.fields.map((field) => (
-              /* Un champ que la fiche fige (D21) se lit comme sur une fiche archivée ; ses voisins restent modifiables. */
-              <EditableField key={field.key} type={type} field={field} value={asString(record[field.key])} error={errors[field.key]} users={users} readOnly={readOnly || isLocked(field, record)} onSave={(value) => save(field, value)} />
+              <div key={field.key} className="grid gap-2">
+                {/* Un champ que la fiche fige (D21) se lit comme sur une fiche archivée ; ses voisins restent modifiables. */}
+                <EditableField type={type} field={field} value={asString(record[field.key])} error={errors[field.key]} users={users} readOnly={readOnly || isLocked(field, record)} onSave={(value) => save(field, value)} />
+                <DuplicateWarning type={type} duplicates={warnings[field.key] ?? []} note={null} />
+              </div>
             ))}
           </div>
         </section>

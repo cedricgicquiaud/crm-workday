@@ -82,6 +82,12 @@ export type ObjectAction = {
   render: (props: ActionProps) => ReactNode;
 };
 
+/**
+ * Ce qu'une valeur saisie rappelle d'une autre fiche (l'email d'un lead déjà porté par une personne,
+ * D8) : la fiche, son adresse et la phrase qui la nomme. Un avertissement, jamais un refus.
+ */
+export type EntryWarning = { id: string; title: string; href: string; message: string };
+
 export type ServerObjectDefinition = {
   key: string;
   table: PgTable;
@@ -89,6 +95,12 @@ export type ServerObjectDefinition = {
   search: (query: string) => Promise<SearchHit[]>;
   /** clé de rapprochement des doublons probables (D19) : deux fiches de même clé sont signalées (2.6a) ; nulle si la fiche n'en a pas */
   duplicateKey: (record: Record<string, unknown>) => string | null;
+  /**
+   * Source déclarée d'avertissement de saisie (D8, D28), lue par la route des doublons de l'objet avec
+   * les valeurs du dialogue ou du champ de la fiche : ce qu'elles rappellent d'autres fiches, la fiche
+   * en cours de saisie exceptée. Absente, seule la clé de doublon parle.
+   */
+  entryWarnings?: (values: Record<string, unknown>, exceptId: string | null) => Promise<EntryWarning[]>;
   /** tables qui dépendent d'une fiche de cet objet, lues par la fusion (2.6a) ; absentes, la fiche n'en a pas */
   dependents?: readonly DependentTable[];
   /** sections propres à l'objet, rendues par la fiche sous « Champs » (D20) ; absentes, la fiche n'en montre aucune */
