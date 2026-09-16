@@ -26,9 +26,16 @@ export type StateRecord = { state: string | null; availableFrom: string | null; 
 
 const LABELS: Readonly<Record<ConsultantState, string>> = { disponible: "Disponible", en_mission: "En mission", indisponible: "Indisponible" };
 
-/** « En mission · disponible le 5 oct. 2026 » : l'état se lit avec la date qui le fera changer. */
+/**
+ * Un salarié disponible est un coût qui court (PRD) : il est « à replacer ». Une mention, pas une
+ * valeur de filtre ; un freelance ou un porté disponible ne coûte rien entre deux missions.
+ */
+export const isToRedeploy = (record: StateRecord): boolean => record.state === "disponible" && record.status === "salarie";
+
+/** « En mission · disponible le 5 oct. 2026 », « Disponible · à replacer » : l'état se lit avec ce qui le fera changer. */
 export function stateLabel(record: StateRecord): string {
   const state = record.state as ConsultantState;
   if (state === "en_mission" && record.availableFrom) return `${LABELS.en_mission} · disponible le ${formatDate(record.availableFrom)}`;
+  if (isToRedeploy(record)) return `${LABELS.disponible} · à replacer`;
   return LABELS[state];
 }
