@@ -13,3 +13,4 @@ export * from "./custom-fields";
 export * from "./views";
 export * from "./merges";
 export * from "./consultants";
+export * from "./leads";
