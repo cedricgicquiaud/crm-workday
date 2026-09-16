@@ -192,6 +192,12 @@ export type ObjectDefinition = {
   lists?: readonly ListDeclaration[];
 };
 
+/**
+ * Colonnes de base que toute liste rend elle-même (« Créé le », « Modifiée le », D10) : aucune fiche
+ * ne les saisit, mais une liste peut les citer dans ses colonnes (D26), à la place où elle les veut.
+ */
+export const BASE_COLUMN_KEYS: readonly string[] = ["createdAt", "updatedAt"];
+
 const objects = new Map<string, ObjectDefinition>();
 
 /**
@@ -202,15 +208,16 @@ const objects = new Map<string, ObjectDefinition>();
 export function registerObject(definition: ObjectDefinition): void {
   const keys = new Set(definition.fields.map((field) => field.key));
   if (!keys.has(definition.titleField)) throw new Error(`Objet « ${definition.key} » : le champ titre « ${definition.titleField} » n'est pas déclaré dans ses champs.`);
+  const columnKeys = new Set([...keys, ...BASE_COLUMN_KEYS]);
   for (const column of definition.listColumns ?? []) {
-    if (!keys.has(column)) throw new Error(`Objet « ${definition.key} » : la colonne de liste « ${column} » n'est pas déclarée dans ses champs.`);
+    if (!columnKeys.has(column)) throw new Error(`Objet « ${definition.key} » : la colonne de liste « ${column} » n'est pas déclarée dans ses champs.`);
   }
   for (const key of definition.headerFields ?? []) {
     if (!keys.has(key)) throw new Error(`Objet « ${definition.key} » : le champ de tête « ${key} » n'est pas déclaré dans ses champs.`);
   }
   for (const list of definition.lists ?? []) {
     for (const column of list.columns ?? []) {
-      if (!keys.has(column)) throw new Error(`Objet « ${definition.key} » : la colonne « ${column} » de la liste « ${list.key} » n'est pas déclarée dans ses champs.`);
+      if (!columnKeys.has(column)) throw new Error(`Objet « ${definition.key} » : la colonne « ${column} » de la liste « ${list.key} » n'est pas déclarée dans ses champs.`);
     }
     for (const filter of list.baseFilters ?? []) {
       if (!keys.has(filter.field)) throw new Error(`Objet « ${definition.key} » : le filtre de base de la liste « ${list.key} » porte sur « ${filter.field} », qui n'est pas un de ses champs.`);

@@ -5,18 +5,15 @@
  */
 import { fieldsOf } from "@/features/objects/fields";
 import { displayValue, type UserOption } from "@/features/objects/labels";
-import type { FieldType } from "@/features/objects/registry";
+import { BASE_COLUMN_KEYS, type FieldType } from "@/features/objects/registry";
 import type { ObjectRecord } from "@/features/objects/service";
 
 export type SortDirection = "asc" | "desc";
 export type Sort = { field: string; direction: SortDirection };
 
-/** Colonnes de base toujours triables : elles ne viennent pas des descripteurs de champs. */
+/** Colonnes de base toujours triables : elles ne viennent pas des descripteurs de champs (`BASE_COLUMN_KEYS` du registre). */
 export const UPDATED_AT = "updatedAt";
 export const CREATED_AT = "createdAt";
-
-/** Les colonnes de base de toute liste (D10) : aucune fiche ne les saisit, la liste les rend elle-même. */
-export const BASE_COLUMN_KEYS: readonly string[] = [CREATED_AT, UPDATED_AT];
 
 export const isBaseColumn = (key: string): boolean => BASE_COLUMN_KEYS.includes(key);
 
