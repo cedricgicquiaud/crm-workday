@@ -57,6 +57,12 @@ function ReadOnlyCell({ text }: { text: string }) {
   );
 }
 
+/**
+ * Part de la largeur d'une colonne de valeur : 72 % du tableau se partagent entre elles, 18 % au plus
+ * chacune. Le reste revient au titre, que `table-fixed` écraserait à zéro si les colonnes dépassaient 100 %.
+ */
+const columnShare = (count: number) => `${Math.min(18, 72 / Math.max(count, 1))}%`;
+
 /** Le tri suivant au clic : le même champ change de sens, un autre champ commence croissant. */
 const nextSort = (sort: Sort, field: string): Sort => ({ field, direction: sort.field === field && sort.direction === "asc" ? "desc" : "asc" });
 
@@ -64,11 +70,12 @@ const nextSort = (sort: Sort, field: string): Sort => ({ field, direction: sort.
  * En-tête de colonne : un lien qui trie quand le champ le permet (D6), sinon le libellé seul.
  * Le tri passe par l'URL, donc il fonctionne sans JavaScript et se partage avec l'adresse.
  */
-function ColumnHeader({ list, type, state, field, label, className }: { list: string; type: string; state: ListState; field: string; label: string; className: string }) {
-  if (!isSortable(type, field)) return <TableHead className={className}>{label}</TableHead>;
+function ColumnHeader({ list, type, state, field, label, className, width }: { list: string; type: string; state: ListState; field: string; label: string; className: string; width?: string }) {
+  const style = width ? { width } : undefined;
+  if (!isSortable(type, field)) return <TableHead className={className} style={style}>{label}</TableHead>;
   const current = state.sort.field === field ? state.sort.direction : null;
   return (
-    <TableHead className={className} aria-sort={current ? ARIA_SORT[current] : "none"}>
+    <TableHead className={className} style={style} aria-sort={current ? ARIA_SORT[current] : "none"}>
       <Link href={listUrl(list, { ...state, sort: nextSort(state.sort, field) })} className="inline-flex max-w-full items-center gap-1 rounded-sm hover:underline">
         <span className="truncate">{label}</span>
         {current === "asc" && <ArrowUpIcon className="size-3 shrink-0" aria-hidden />}
@@ -99,6 +106,7 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
   const fields = columnsOf(listKey);
   const title = fields.find((field) => field.key === definition.titleField)!;
   const columns = state.columns.map((key) => fields.find((field) => field.key === key)!);
+  const valueShare = columnShare(columns.filter((column) => column.key !== UPDATED_AT).length);
   const count = shown.length;
   const singular = (list.singular ?? definition.labels.singular).toLowerCase();
   /* La palette ouvre une création en menant ici avec ce paramètre (D12). */
@@ -141,9 +149,13 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <ColumnHeader list={listKey} type={type} state={state} field={title.key} label={title.label} className="h-7" />
-                  {columns.map((column) => (
-                    <ColumnHeader key={column.key} list={listKey} type={type} state={state} field={column.key} label={column.label} className={column.key === UPDATED_AT ? "h-7 w-28 text-right" : "h-7 w-[18%]"} />
-                  ))}
+                  {columns.map((column) =>
+                    column.key === UPDATED_AT ? (
+                      <ColumnHeader key={column.key} list={listKey} type={type} state={state} field={column.key} label={column.label} className="h-7 w-28 text-right" />
+                    ) : (
+                      <ColumnHeader key={column.key} list={listKey} type={type} state={state} field={column.key} label={column.label} className="h-7" width={valueShare} />
+                    ),
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
