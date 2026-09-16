@@ -29,10 +29,9 @@ async function countWhere(table: PgTable, where: SQL): Promise<number> {
   return Number(row?.value ?? 0);
 }
 
-/** Fiches d'un autre objet qui désignent celle-ci par une relation déclarée, archivées comprises : archiver ne délie pas. */
+/** Fiches qui désignent celle-ci par une relation déclarée, du même objet compris, archivées comprises : archiver ne délie pas. */
 async function relationBlockers(type: string, id: string): Promise<DeleteBlocker[]> {
   const pointing = listObjects()
-    .filter((object) => object.key !== type)
     .flatMap((object) => object.relations.filter((relation) => relation.to === type).map((relation) => ({ object, relation })));
   return Promise.all(
     pointing.map(async ({ object, relation }) => {

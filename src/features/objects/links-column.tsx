@@ -63,9 +63,9 @@ async function recordPointedBy(type: string, id: string, relation: Relation): Pr
 
 /**
  * Groupes de la colonne des liens d'une fiche (D4) : un par relation déclarée par l'objet (vers la
- * fiche qu'il désigne) puis un par relation déclarée vers lui par un autre objet (les fiches qui le
- * désignent). Tout vient du registre : aucun objet n'est nommé ici. Un groupe inverse est borné :
- * au-delà de `LINKED_RECORDS_LIMIT`, il porte le nombre de fiches restantes (`more`).
+ * fiche qu'il désigne) puis un par relation déclarée vers lui, par un autre objet ou par lui-même (les
+ * fiches qui le désignent). Tout vient du registre : aucun objet n'est nommé ici. Un groupe inverse est
+ * borné : au-delà de `LINKED_RECORDS_LIMIT`, il porte le nombre de fiches restantes (`more`).
  */
 export async function linkedGroups(type: string, id: string): Promise<LinkedGroup[]> {
   const own = await Promise.all(
@@ -73,7 +73,6 @@ export async function linkedGroups(type: string, id: string): Promise<LinkedGrou
   );
   const inverse = await Promise.all(
     listObjects()
-      .filter((object) => object.key !== type)
       .flatMap((object) => object.relations.filter((relation) => relation.to === type).map((relation) => ({ object, relation })))
       .map(async ({ object, relation }) => {
         const { records, more } = await recordsPointingTo(object.key, relation.fkColumn, id, relation.keepArchived === true);
