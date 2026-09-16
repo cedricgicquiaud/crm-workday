@@ -91,6 +91,36 @@ describe("aperçu de la conversion : la personne (CRM-95, D15, contrats 15, 19, 
     expect(announced.contact).toMatchObject({ companyName: "Acme Aperçu" });
   });
 
+  it("propose pour « Banque Proche SA » le client « Banque Proche », avec son type, marque une entreprise archivée, suit la frappe et signale un nom identique (contrat 18)", async () => {
+    const client = await createObject("company", { name: "Banque Proche", type: "client" }, { id: memberId });
+    const closed = await createObject("company", { name: "Banque Proche Épargne", type: "prospect" }, { id: memberId });
+    expect((await postArchive(jsonRequest("POST", `/api/objets/company/${closed.id}/archiver`, undefined, memberCookie), { params: Promise.resolve({ type: "company", id: closed.id }) })).status).toBe(200);
+    await createObject("company", { name: "Assurances Lointaines", type: "client" }, { id: memberId });
+    const id = await createLead({ firstName: "Léna", companyName: "Banque Proche SA", origin: "linkedin" });
+
+    const typed = await previewOf(id);
+    expect(typed.company.query).toBe("Banque Proche SA");
+    expect(typed.company.proposals).toEqual([{ id: client.id, name: "Banque Proche", type: "client", archived: false }]);
+    expect(typed.company.sameNameAs).toBeNull();
+
+    const shorter = await previewOf(id, "?entreprise=banque%20proche");
+    expect(shorter.company.proposals.map((proposal) => [proposal.name, proposal.archived])).toEqual(
+      expect.arrayContaining([["Banque Proche", false], ["Banque Proche Épargne", true]]),
+    );
+    expect(shorter.company.proposals).toHaveLength(2);
+    expect(shorter.company.sameNameAs).toBe("Banque Proche");
+  });
+
+  it("propose 20 entreprises au plus et compte les autres (« et N autres »)", async () => {
+    for (let index = 1; index <= 23; index += 1) await createObject("company", { name: `Borne Groupe ${index}`, type: "prospect" }, { id: memberId });
+    const id = await createLead({ firstName: "Borne", companyName: "Borne", origin: "autre" });
+
+    const { company: proposed } = await previewOf(id);
+
+    expect(proposed.proposals).toHaveLength(20);
+    expect(proposed.more).toBe(3);
+  });
+
   it("refuse (409) l'aperçu d'un lead converti et répond 404 à un lead inconnu", async () => {
     const id = await createLead({ firstName: "Déjà", lastName: "Converti", companyName: "Banque Déjà", origin: "autre" });
     expect((await postConversion(jsonRequest("POST", `/api/leads/${id}/conversion`, {}, memberCookie), byId(id))).status).toBe(200);
