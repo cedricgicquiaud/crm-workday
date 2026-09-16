@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, seedAccounts, test } from "./fixtures/auth";
+import { expect, MEMBER, seedAccounts, signInAs, test } from "./fixtures/auth";
 import { resetObjects } from "./fixtures/objets";
 import { resetPersons } from "./fixtures/personnes";
 import { resetViews } from "./fixtures/vues";
@@ -89,6 +89,42 @@ test.describe("liste « Consultants » à l'écran (CRM-86, contrat 14)", () => 
     await expect(table(other).getByRole("columnheader")).toHaveText(["Nom complet", "État", "Statut"]);
     await expect(other.getByRole("columnheader", { name: "État" })).toHaveAttribute("aria-sort", "ascending");
     await other.close();
+  });
+});
+
+const VIEW_BAR = '[data-slot="view-bar"]';
+const VIEW_FORM = '[data-slot="view-form"]';
+const VIEW_MENU = '[data-slot="view-menu"]';
+const SIDEBAR = '[data-slot="sidebar"]';
+
+test.describe("vue enregistrée et épinglée de la liste « Consultants » (CRM-87, contrat 15)", () => {
+  test("un membre enregistre la liste filtrée sous « Freelances HCM disponibles », l'épingle, et la retrouve dans sa barre latérale après reconnexion", async ({ memberPage, browser }) => {
+    const mark = tag();
+    const { dina } = await seedConsultants(memberPage, mark);
+    const viewName = named("Freelances HCM disponibles", mark);
+
+    await memberPage.goto(`/consultants?f=name:contient:${mark}&f=status:est:freelance&f=modules:contient:hcm&f=state:est:disponible`);
+    const bar = memberPage.locator(VIEW_BAR);
+    await expect(bar.getByRole("button", { name: "Vue : Tous les consultants" })).toBeVisible();
+    await bar.getByRole("button", { name: "Enregistrer la vue" }).click();
+    await memberPage.locator(VIEW_FORM).getByLabel("Nom de la vue").fill(viewName);
+    await memberPage.locator(VIEW_FORM).getByRole("button", { name: "Enregistrer", exact: true }).click();
+    await expect(memberPage).toHaveURL(/vue=/);
+
+    await bar.getByRole("button", { name: `Vue : ${viewName}` }).click();
+    await memberPage.locator(VIEW_MENU).getByRole("checkbox", { name: `Épingler ${viewName}` }).click();
+    const pinned = (page: Page) => page.locator(SIDEBAR).getByRole("navigation", { name: "Vues épinglées" }).getByRole("link");
+    await expect(pinned(memberPage)).toHaveText([viewName]);
+
+    const context = await browser.newContext();
+    await signInAs(context.request, MEMBER);
+    const again = await context.newPage();
+    await again.goto("/accueil");
+    await expect(pinned(again)).toHaveText([viewName]);
+    await pinned(again).first().click();
+    await expect(again).toHaveURL(/\/consultants\?vue=/);
+    expect(await names(again)).toEqual([dina]);
+    await context.close();
   });
 });
 
