@@ -154,6 +154,58 @@ async function completePerson(personId: string, current: ObjectRecord, actor: Ac
   return personId;
 }
 
+/** Ce que la fenêtre annonce de la personne : une nouvelle, pré-remplie ; ou celle qui porte l'email, son profil contact et ce que la conversion changera chez elle. */
+export type PersonPreview =
+  | { kind: "new"; firstName: string | null; lastName: string | null }
+  | { kind: "found"; id: string; name: string; firstName: string; lastName: string; contact: { companyId: string; companyName: string } | null; differences: string[] };
+
+/** Ce que la fenêtre propose pour l'entreprise : la saisie, les entreprises proches (bornées, « et N autres ») et l'homonyme exacte. */
+export type CompanyPreview = { query: string; proposals: CompanyProposal[]; more: number; sameNameAs: string | null };
+
+export type CompanyProposal = { id: string; name: string; type: string; archived: boolean };
+
+export type ConversionPreview = { leadId: string; title: string; person: PersonPreview; company: CompanyPreview; jobTitle: string | null };
+
+/** « Téléphone : sera rempli », « LinkedIn : la fiche garde le sien » : ce que la conversion fera des champs que le lead porte (D15). */
+function differencesOf(found: Record<string, unknown>, current: ObjectRecord): string[] {
+  return FILLED_PERSON_FIELDS.flatMap((key) => {
+    const incoming = text(current[key]);
+    const kept = text(found[key]);
+    if (incoming === null || incoming === kept) return [];
+    return [`${personField(key).label} : ${kept === null ? "sera rempli" : "la fiche garde le sien"}`];
+  });
+}
+
+async function personPreview(current: ObjectRecord): Promise<PersonPreview> {
+  const found = await foundPersonOf(current);
+  if (!found) return { kind: "new", firstName: text(current.firstName), lastName: text(current.lastName) };
+  const [row] = await db.select({ firstName: person.firstName, lastName: person.lastName, phone: person.phone, linkedin: person.linkedin }).from(person).where(eq(person.id, found.id)).limit(1);
+  const contact = await readContactProfile(found.id);
+  return {
+    kind: "found",
+    id: found.id,
+    name: found.name,
+    firstName: row.firstName,
+    lastName: row.lastName,
+    contact: contact ? { companyId: contact.companyId, companyName: contact.companyName } : null,
+    differences: differencesOf(row, current),
+  };
+}
+
+/** Aperçu de la conversion pour la fenêtre (D15) : 404 inconnu, 409 si le lead ne se convertit pas ; rien n'est écrit. */
+export async function previewConversion(id: string, companyQuery: string | null): Promise<ConversionPreview> {
+  const current = await getObjectRecord(TYPE, id);
+  assertConvertible(current, current.id);
+  const query = companyQuery ?? text(current.companyName) ?? "";
+  return {
+    leadId: current.id,
+    title: String(current.title),
+    person: await personPreview(current),
+    company: { query, proposals: [], more: 0, sameNameAs: null },
+    jobTitle: text(current.jobTitle),
+  };
+}
+
 /**
  * Valeurs du profil contact (D16) : créé, il prend le poste et le rôle de la fenêtre ; complété, il ne
  * reçoit le poste que s'il n'en a pas, et le rôle que s'il est « non précisé » — rien n'est écrasé.
