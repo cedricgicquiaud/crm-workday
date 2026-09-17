@@ -19,7 +19,7 @@ Ce dossier est une **copie**. La version de référence vit dans le dépôt `pil
 Pour recevoir la dernière version dans ce projet :
 
 ```bash
-cd <dépôt pilot> && git pull && ./install.sh /private/tmp/claude-501/-Users-cedricgicquiaud/36b14358-89ff-4b4c-93f1-dd79059d6240/scratchpad/crm-essai-pilot
+cd <dépôt pilot> && git pull && ./install.sh /Users/cedricgicquiaud/Desktop/crm-workday
 ```
 
 Modifier les fichiers de ce dossier ne remonte nulle part, et la prochaine mise à jour
