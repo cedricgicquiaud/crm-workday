@@ -20,7 +20,7 @@ function filesUnder(dir: string): string[] {
 }
 
 describe("les mécanismes ne citent aucun objet (CRM-33, D4)", () => {
-  it("aucun fichier des mécanismes — objets, historique, activités, archivage, champs personnalisés, vues, doublons, fusion — hors registre et manifeste, ne contient « company », « person », « consultant » ni « lead »", () => {
+  it("aucun fichier des mécanismes — objets, historique, activités, archivage, champs personnalisés, vues, doublons, fusion — hors registre et manifeste, ne contient « company », « person », « consultant », « lead » ni « opportunity »", () => {
     const offenders = MECHANISM_DIRS.flatMap(filesUnder)
       .filter((path) => !ALLOWED.test(relative(MECHANISM_DIRS.find((d) => path.startsWith(d))!, path)))
       .filter((path) => FORBIDDEN.test(readFileSync(path, "utf8")))
@@ -34,6 +34,7 @@ describe("les mécanismes ne citent aucun objet (CRM-33, D4)", () => {
     expect(FORBIDDEN.test('const label = getObject("company").labels;')).toBe(true);
     expect(FORBIDDEN.test('const label = getObject("consultant").labels;')).toBe(true);
     expect(FORBIDDEN.test('const label = getObject("lead").labels;')).toBe(true);
+    expect(FORBIDDEN.test('const label = getObject("opportunity").labels;')).toBe(true);
     expect(FORBIDDEN.test("if (type === 'Lead') return;")).toBe(true);
     expect(FORBIDDEN.test("const leader = misleading;")).toBe(false);
     expect(FORBIDDEN.test("import { companies } from './x'; // personne, personnel")).toBe(false);
