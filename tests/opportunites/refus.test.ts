@@ -139,4 +139,11 @@ describe("bornes d'une opportunité à la création (CRM-103, D31, contrat 39)",
     }
     expect(await count()).toBe(0);
   });
+
+  it("refuse sous la clé une clé qu'aucun champ ne prévoit, et n'en crée aucune (D55)", async () => {
+    const refusal = await post({ ...valid(), budget: 40000 });
+    expect(refusal.status).toBe(400);
+    expect(Object.keys(refusal.fields)).toEqual(["budget"]);
+    expect(await count()).toBe(0);
+  });
 });
