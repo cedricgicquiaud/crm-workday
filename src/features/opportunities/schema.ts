@@ -106,6 +106,7 @@ export const OPPORTUNITY_FIELDS: readonly FieldDescriptor[] = [
   { key: "estimatedAmount", label: "Montant estimé", type: "number", unit: "€", decimals: 2, editable: false, sortable: true, order: 80 },
   { key: "desiredStart", label: "Démarrage souhaité", type: "date", sortable: true, order: 90 },
   { key: "expectedClose", label: "Clôture prévue", type: "date", required: true, sortable: true, order: 100 },
+  { key: "stage", label: "Étape", type: "list", required: true, default: "nouveau_besoin", values: STAGES, order: 110 },
   { key: "ownerId", label: "Responsable", type: "user", required: true, default: "actor", sortable: true, order: 130 },
   { key: "need", label: "Besoin", type: "text", maxLength: 2000, multiline: true, wide: true, order: 200 },
 ];
