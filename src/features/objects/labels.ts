@@ -7,6 +7,9 @@ import type { FieldDescriptor, ObjectLabels } from "@/features/objects/registry"
 
 export type UserOption = { id: string; name: string };
 
+/** Options d'un sélecteur de fiche liée : les fiches proposées, et combien d'autres au-delà de la borne (« et N autres »). */
+export type RelationOptions = { options: { id: string; name: string }[]; more: number };
+
 /** Une fiche telle que l'API la sérialise : les dates sont des chaînes ISO. */
 export type SerializedRecord = { id: string; createdAt: string; updatedAt: string; createdBy: string; ownerId: string; archivedAt: string | null } & Record<string, string | number | null>;
 
@@ -19,6 +22,13 @@ export const formatDate = (value: Date | string): string => DATE.format(typeof v
 export const formatDateTime = (value: Date | string): string => DATE_TIME.format(typeof value === "string" ? new Date(value) : value);
 
 export const EMPTY = "—";
+
+/**
+ * Clé sous laquelle une fiche porte ce qu'on lit d'une fiche liée (D60) : son titre, et sa marque quand
+ * le lien a changé depuis (« Julie Martin (a quitté Banque X) », « Banque X (archivée) »). Le champ garde
+ * l'identifiant, que l'écriture renvoie ; la fiche, la liste et le tri lisent ce texte.
+ */
+export const linkedLabelKey = (key: string): string => `${key}Label`;
 
 /** Les entrées d'un ensemble écrit en texte (« hcm,integration ») ; rien pour une valeur absente. */
 const splitSet = (value: unknown): string[] =>
@@ -63,11 +73,13 @@ export function displayValue(field: FieldDescriptor, value: unknown, users: read
 
 /**
  * Ce qu'une cellule ou une carte de liste écrit pour un champ d'une fiche : un champ dérivé par son
- * `display`, lu depuis la fiche entière (D19) ; tout autre champ par sa valeur, avec la marque de son
+ * `display`, lu depuis la fiche entière (D19) ; une fiche liée par son titre ; tout autre champ par sa valeur, avec la marque de son
  * champ compagnon (« HCM ✔ », D10). Le tableau et les cartes lisent la même phrase.
  */
 export function cellText(field: FieldDescriptor, record: Record<string, unknown>, users: readonly UserOption[]): string {
   if (field.display) return field.display(record);
+  /* Une fiche liée se lit par ce que la fiche porte d'elle, son titre marqué (D60), jamais par son identifiant. */
+  if (field.type === "relation") return typeof record[linkedLabelKey(field.key)] === "string" ? String(record[linkedLabelKey(field.key)]) : EMPTY;
   return displayValue(field, record[field.key], users, field.markedBy ? record[field.markedBy.field] : undefined);
 }
 
@@ -85,11 +97,11 @@ export function selectableValues(field: FieldDescriptor, saved: string): Selecta
   return carried ? [...choosable, { value: saved, label: displayValue(field, saved, []), disabled: true }] : choosable;
 }
 
-/** « 650,00 € », « 6 » : décimales fixes quand le champ en déclare, unité après la valeur. */
+/** « 39 000,00 € », « 6 » : milliers séparés par l'espace fine insécable du français, décimales fixes quand le champ en déclare, unité après la valeur. */
 export function formatNumber(field: FieldDescriptor, value: number): string {
   if (!Number.isFinite(value)) return EMPTY;
   const digits = field.decimals ?? 0;
-  const text = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: Math.max(digits, 3), useGrouping: false }).format(value);
+  const text = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: Math.max(digits, 3) }).format(value);
   return field.unit ? `${text} ${field.unit}` : text;
 }
 

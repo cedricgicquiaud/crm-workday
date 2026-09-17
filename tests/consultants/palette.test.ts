@@ -86,11 +86,11 @@ describe("entrées de création de la palette (CRM-84, D12)", () => {
   it("propose une entrée par liste à création rapide, dans l'ordre des listes, et chacune ouvre la création de sa liste", async () => {
     await import("@/features/objects/palette-entries");
     const creations = getPaletteEntries().filter((entry) => entry.id.startsWith("creation-"));
-    expect(creations.map((entry) => entry.label)).toEqual(["Nouvelle entreprise", "Nouvelle personne", "Nouveau consultant", "Nouveau lead"]);
+    expect(creations.map((entry) => entry.label)).toEqual(["Nouvelle entreprise", "Nouvelle personne", "Nouveau consultant", "Nouveau lead", "Nouvelle opportunité"]);
     expect(creations.every((entry) => entry.group === "actions")).toBe(true);
 
     const opened: string[] = [];
     for (const entry of creations) entry.run({ navigate: (href) => opened.push(href), close: () => {} });
-    expect(opened).toEqual([`/entreprises?${CREATE_PARAM}=1`, `/personnes?${CREATE_PARAM}=1`, `/consultants?${CREATE_PARAM}=1`, `/leads?${CREATE_PARAM}=1`]);
+    expect(opened).toEqual([`/entreprises?${CREATE_PARAM}=1`, `/personnes?${CREATE_PARAM}=1`, `/consultants?${CREATE_PARAM}=1`, `/leads?${CREATE_PARAM}=1`, `/opportunites?${CREATE_PARAM}=1`]);
   });
 });

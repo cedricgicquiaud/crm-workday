@@ -1,0 +1,151 @@
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
+import { afterAll, describe, expect, it } from "vitest";
+import "@/features/objects/manifest";
+import { runMigrations } from "@/db/migrate";
+import { MODULES, RETIRED_MODULES } from "@/features/consultants/schema";
+import { validateValues } from "@/features/objects/fields";
+import { displayValue } from "@/features/objects/labels";
+import { getObject, type FieldDescriptor } from "@/features/objects/registry";
+import { SetControl } from "@/features/objects/set-control";
+import { LOSS_REASONS, PROPOSAL_RESULTS, resultRank, STAGES, stageProbability, stageRank } from "@/features/opportunities/schema";
+import { closeDb, rawSql } from "@/lib/db";
+import { appliedMigrationsCount, schemaSnapshot } from "../helpers/db";
+
+afterAll(closeDb);
+
+const labels = (values: readonly { label: string }[]) => values.map((entry) => entry.label);
+
+const field = (key: string): FieldDescriptor => getObject("opportunity").fields.find((candidate) => candidate.key === key)!;
+
+/** D31, contrat 33 : nombres et montants au format français, milliers séparés par une espace fine insécable. */
+describe("montants et durées au format français (CRM-103, D31, contrat 33)", () => {
+  it("écrit le montant estimé « 39 000,00 € », le TJM « 650,00 € » et la durée « 60 jours »", () => {
+    expect(displayValue(field("estimatedAmount"), 39000, [])).toBe("39\u202f000,00 €");
+    expect(displayValue(field("targetDailyRate"), "650.00", [])).toBe("650,00 €");
+    expect(displayValue(field("estimatedDays"), 60, [])).toBe("60 jours");
+  });
+
+  it("écrit « — » pour un montant absent", () => {
+    expect(displayValue(field("estimatedAmount"), null, [])).toBe("—");
+  });
+});
+
+/** D31 : les modules d'une opportunité sont ceux des consultants ; un module retiré de cette liste le reste ici. */
+describe("modules Workday d'une opportunité (CRM-103, D31)", () => {
+  it("se choisissent dans la liste des modules des consultants, retirés compris", () => {
+    expect(field("modules").values).toBe(MODULES);
+    expect(field("modules").retiredValues).toBe(RETIRED_MODULES);
+  });
+
+  it("lisent un module retiré, marqué, sur l'opportunité qui le porte, et refusent de le choisir", () => {
+    const student = MODULES.find((entry) => entry.value === "student")!;
+    const retiring: FieldDescriptor = { ...field("modules"), values: MODULES.filter((entry) => entry !== student), retiredValues: [student] };
+    expect(displayValue(retiring, ["hcm", "student"], [])).toBe("HCM, Student (retirée)");
+    expect(Object.keys(validateValues([retiring], { modules: ["hcm", "student"] }, { partial: true }).errors)).toEqual(["modules"]);
+  });
+
+  it("ne proposent un module retiré, marqué et coché, que sur la fiche qui le porte", () => {
+    const student = MODULES.find((entry) => entry.value === "student")!;
+    const values = MODULES.filter((entry) => entry !== student);
+    const render = (value: string[]) => renderToString(createElement(SetControl, { id: "champ-modules", label: "Modules Workday", value, values, retired: [student], onSave: async () => true }));
+    expect(render(["hcm", "student"])).toMatch(/aria-label="Student \(retirée\)"[^>]*aria-checked="true"|aria-checked="true"[^>]*aria-label="Student \(retirée\)"/);
+    expect(render(["hcm"])).not.toContain("Student");
+  });
+});
+
+/** Les listes fermées de toute la feature 4.2 : posées ici une fois, lues par les livraisons suivantes sans y toucher. */
+describe("listes fermées des opportunités (CRM-103, D32, D33)", () => {
+  it("range les huit étapes dans l'ordre du pipeline, gagnée et perdue réservées à leur geste", () => {
+    expect(labels(STAGES)).toEqual(["Nouveau besoin", "Qualifié", "Profils proposés", "Entretien client", "Proposition envoyée", "Négociation", "Gagnée", "Perdue"]);
+    expect(STAGES.filter((stage) => stage.reserved).map((stage) => stage.label)).toEqual(["Gagnée", "Perdue"]);
+    expect(STAGES.map((stage) => stageRank(stage.value))).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it("déduit de chaque étape sa probabilité : 10, 20, 30, 50, 70, 80, 100 et 0 %", () => {
+    expect(STAGES.map((stage) => stageProbability(stage.value))).toEqual([10, 20, 30, 50, 70, 80, 100, 0]);
+  });
+
+  it("propose six motifs de perte", () => {
+    expect(labels(LOSS_REASONS)).toEqual(["Prix", "Profil non retenu", "Concurrent", "Projet abandonné ou reporté", "Pas de réponse", "Autre"]);
+  });
+
+  it("classe les résultats d'une proposition : Retenu avant Entretien, avant Proposé, avant Refusé", () => {
+    expect(labels(PROPOSAL_RESULTS)).toEqual(["Proposé", "Entretien", "Retenu", "Refusé"]);
+    const byRank = [...PROPOSAL_RESULTS].sort((a, b) => resultRank(b.value) - resultRank(a.value));
+    expect(labels(byRank)).toEqual(["Retenu", "Entretien", "Proposé", "Refusé"]);
+  });
+});
+
+/** D53 : migration `0012_opportunites`, la seule de la feature 4.2 — l'opportunité, ses modules et ses propositions. */
+describe("migration 0012 — opportunités (CRM-103, D53)", () => {
+  it("crée l'opportunité avec ses champs et ses colonnes de base, ses modules et ses propositions", async () => {
+    const snapshot = await schemaSnapshot();
+    const columns = [
+      "opportunity.id:uuid",
+      "opportunity.title:text",
+      "opportunity.company_id:uuid",
+      "opportunity.contact_person_id:uuid",
+      "opportunity.need:text",
+      "opportunity.target_daily_rate:numeric",
+      "opportunity.estimated_days:integer",
+      "opportunity.desired_start:date",
+      "opportunity.expected_close:date",
+      "opportunity.stage:text",
+      "opportunity.closed_at:timestamp with time zone",
+      "opportunity.loss_reason:text",
+      "opportunity.loss_comment:text",
+      "opportunity.lead_id:uuid",
+      "opportunity.owner_id:text",
+      "opportunity.created_by:text",
+      "opportunity.created_at:timestamp with time zone",
+      "opportunity.updated_at:timestamp with time zone",
+      "opportunity.archived_at:timestamp with time zone",
+      "opportunity_module.opportunity_id:uuid",
+      "opportunity_module.module:text",
+      "opportunity_consultant.opportunity_id:uuid",
+      "opportunity_consultant.person_id:uuid",
+      "opportunity_consultant.result:text",
+      "opportunity_consultant.proposed_daily_rate:numeric",
+    ];
+    for (const column of columns) expect(snapshot, column).toContain(column);
+  });
+
+  it("supprime modules et propositions avec l'opportunité, et ne supprime rien des fiches qu'elle désigne", async () => {
+    const rows = await rawSql()<{ table_name: string; column_name: string; delete_rule: string }[]>`
+      SELECT kcu.table_name, kcu.column_name, rc.delete_rule FROM information_schema.referential_constraints rc
+      JOIN information_schema.key_column_usage kcu ON kcu.constraint_name = rc.constraint_name
+      WHERE kcu.table_name IN ('opportunity', 'opportunity_module', 'opportunity_consultant')
+        AND kcu.column_name NOT IN ('owner_id', 'created_by')
+      ORDER BY kcu.table_name, kcu.column_name`;
+    expect(rows).toEqual([
+      { table_name: "opportunity", column_name: "company_id", delete_rule: "NO ACTION" },
+      { table_name: "opportunity", column_name: "contact_person_id", delete_rule: "NO ACTION" },
+      { table_name: "opportunity", column_name: "lead_id", delete_rule: "NO ACTION" },
+      { table_name: "opportunity_consultant", column_name: "opportunity_id", delete_rule: "CASCADE" },
+      { table_name: "opportunity_consultant", column_name: "person_id", delete_rule: "NO ACTION" },
+      { table_name: "opportunity_module", column_name: "opportunity_id", delete_rule: "CASCADE" },
+    ]);
+  });
+
+  it("n'accepte qu'une proposition par consultant et un module une seule fois par opportunité", async () => {
+    const rows = await rawSql()<{ table_name: string; columns: string }[]>`
+      SELECT tc.table_name, string_agg(kcu.column_name, ',' ORDER BY kcu.ordinal_position) AS columns
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu ON kcu.constraint_name = tc.constraint_name
+      WHERE tc.constraint_type = 'UNIQUE' AND tc.table_name IN ('opportunity_module', 'opportunity_consultant')
+      GROUP BY tc.table_name, tc.constraint_name ORDER BY tc.table_name`;
+    expect(rows).toEqual([
+      { table_name: "opportunity_consultant", columns: "opportunity_id,person_id" },
+      { table_name: "opportunity_module", columns: "opportunity_id,module" },
+    ]);
+  });
+
+  it("appliquée une seconde fois, ne change rien", async () => {
+    const before = await schemaSnapshot();
+    const count = await appliedMigrationsCount();
+    await runMigrations();
+    expect(await schemaSnapshot()).toBe(before);
+    expect(await appliedMigrationsCount()).toBe(count);
+  });
+});

@@ -64,6 +64,7 @@ const MESSAGES = {
   notAnInteger: (label: string) => `« ${label} » doit être un nombre entier.`,
   tooManyDecimals: (label: string, decimals: number) => `« ${label} » ne prend pas plus de ${decimals} décimale${decimals > 1 ? "s" : ""}.`,
   outOfRange: (label: string, min: number, max: number) => `« ${label} » doit être compris entre ${grouped(min)} et ${grouped(max)}.`,
+  outOfRangeAbove: (label: string, min: number, max: number) => `« ${label} » doit être supérieur à ${grouped(min)} et au plus ${grouped(max)}.`,
 };
 
 /** « 10 000 » : les milliers séparés par une espace, comme les montants des fondations, sans dépendre de la locale d'exécution. */
@@ -139,11 +140,24 @@ function normalize(field: FieldDescriptor, value: FieldValue): FieldValue {
   return text === "" ? null : text;
 }
 
+/**
+ * Vrai si le nombre s'écrit avec `decimals` décimales au plus. Le produit par la puissance de dix
+ * n'est pas exact en virgule flottante (19,99 × 100 donne 1 998,999…) : il se compare à son arrondi
+ * avec une tolérance bien plus fine que la décimale suivante.
+ */
+function hasDecimalsAtMost(value: number, decimals: number): boolean {
+  const scaled = value * 10 ** decimals;
+  return Math.abs(scaled - Math.round(scaled)) < 1e-6;
+}
+
 /** Ce que les précisions d'un nombre reprochent à une valeur, ou rien : entier, décimales, bornes (D5, D7). */
 function numberProblem(field: FieldDescriptor, value: number): string | undefined {
   if (field.integer === true && !Number.isInteger(value)) return MESSAGES.notAnInteger(field.label);
-  if (field.decimals !== undefined && !Number.isInteger(value * 10 ** field.decimals)) return MESSAGES.tooManyDecimals(field.label, field.decimals);
-  if (field.min !== undefined && field.max !== undefined && (value < field.min || value > field.max)) return MESSAGES.outOfRange(field.label, field.min, field.max);
+  if (field.decimals !== undefined && !hasDecimalsAtMost(value, field.decimals)) return MESSAGES.tooManyDecimals(field.label, field.decimals);
+  if (field.min !== undefined && field.max !== undefined) {
+    const below = field.minExclusive === true ? value <= field.min : value < field.min;
+    if (below || value > field.max) return (field.minExclusive === true ? MESSAGES.outOfRangeAbove : MESSAGES.outOfRange)(field.label, field.min, field.max);
+  }
   return undefined;
 }
 
@@ -168,6 +182,8 @@ export function validateValues(fields: readonly FieldDescriptor[], input: unknow
     if (Array.isArray(value)) {
       const unknown = value.find((entry) => !field.values?.some((v) => v.value === entry));
       if (unknown !== undefined) errors[field.key] = MESSAGES.outOfList(field.label);
+      /* Un ensemble obligatoire porte au moins une valeur : vide, il manque comme un champ vide. */
+      else if (field.required && value.length === 0) errors[field.key] = MESSAGES.required(field.label);
       else values[field.key] = value;
       continue;
     }

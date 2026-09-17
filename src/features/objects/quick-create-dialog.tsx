@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DuplicateWarning, type DuplicateHint } from "@/features/duplicates/duplicate-warning";
 import { FieldControl } from "@/features/objects/field-control";
+import { SetControl } from "@/features/objects/set-control";
 import { fieldsOf, validateValues, writableFieldsOf, type FieldErrors } from "@/features/objects/fields";
 import { createLabel, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor, type ListCreate, type Relation } from "@/features/objects/registry";
@@ -24,8 +25,8 @@ type Failure = { message: string; fields?: FieldErrors; existingId?: string; exi
 
 export type RelationOption = { id: string; name: string };
 
-/** Une entrée du dialogue : un champ déclaré, ou une relation déclarée dont le `prefill` figure dans `quickCreate` (l'entreprise d'un contact). */
-type Entry = { kind: "field"; key: string; field: FieldDescriptor } | { kind: "relation"; key: string; relation: Relation };
+/** Une entrée du dialogue : un champ déclaré, ou une relation déclarée — un champ `relation`, ou le `prefill` d'une relation cité dans `quickCreate` (l'entreprise d'un contact). */
+type Entry = { kind: "field"; key: string; field: FieldDescriptor } | { kind: "relation"; key: string; relation: Relation; field?: FieldDescriptor };
 
 const isSubmitShortcut = (event: KeyboardEvent) => (event.metaKey || event.ctrlKey) && event.key === "Enter";
 
@@ -49,9 +50,9 @@ function entriesOf(type: string, create?: ListCreate): Entry[] {
   const chosen = create?.fields ?? definition.quickCreate ?? [definition.titleField];
   const entries = chosen.flatMap((key): Entry[] => {
     const field = fields.find((f) => f.key === key);
-    if (field) return [{ kind: "field", key, field }];
-    const relation = definition.relations.find((r) => r.prefill === key);
-    return relation ? [{ kind: "relation", key, relation }] : [];
+    if (field && field.type !== "relation") return [{ kind: "field", key, field }];
+    const relation = definition.relations.find((r) => (field ? r.fkColumn : r.prefill) === key);
+    return relation ? [{ kind: "relation", key, relation, field }] : [];
   });
   const required = writableFieldsOf(type).filter((field) => field.required && field.default === undefined && !chosen.includes(field.key));
   return [...entries, ...required.map((field): Entry => ({ kind: "field", key: field.key, field }))];
@@ -84,10 +85,12 @@ export function QuickCreateDialog({ type, create, users, currentUserId, prefill,
   const definition = getObject(type);
   const entries = entriesOf(type, create);
   const fields = entries.flatMap((entry) => (entry.kind === "field" ? [entry.field] : []));
+  /* Un champ `relation` se valide avec les autres (obligatoire compris) ; un simple `prefill` n'a pas de règle. */
+  const relationFields = entries.flatMap((entry) => (entry.kind === "relation" && entry.field ? [entry.field] : []));
   const relations = entries.flatMap((entry) => (entry.kind === "relation" ? [entry] : []));
   /* Ouvert d'emblée quand l'adresse le demande : c'est ainsi que la palette crée depuis n'importe où (D12). */
   const [open, setOpen] = useState(defaultOpen);
-  const [values, setValues] = useState<Record<string, string>>(prefill ?? {});
+  const [values, setValues] = useState<Record<string, string | string[]>>(prefill ?? {});
   const [errors, setErrors] = useState<FieldErrors>({});
   const [failure, setFailure] = useState<Failure | null>(null);
   const [pending, setPending] = useState(false);
@@ -96,7 +99,7 @@ export function QuickCreateDialog({ type, create, users, currentUserId, prefill,
   const title = create?.label ?? createLabel(definition.labels);
   const relatedKeys = relations.map(({ relation }) => relation.to).join(",");
   /* Les valeurs saisies, sous une forme stable : le signal se relit quand elles changent, pas à chaque rendu. */
-  const candidate = fields.map((field) => `${encodeURIComponent(field.key)}=${encodeURIComponent(values[field.key] ?? "")}`).join("&");
+  const candidate = fields.map((field) => `${encodeURIComponent(field.key)}=${encodeURIComponent(String(values[field.key] ?? ""))}`).join("&");
 
   /* Les fiches proposées par un sélecteur de relation se chargent à l'ouverture ; un échec s'affiche sous le champ. */
   useEffect(() => {
@@ -144,18 +147,20 @@ export function QuickCreateDialog({ type, create, users, currentUserId, prefill,
     }
   }
 
-  const valueOf = (field: FieldDescriptor) => values[field.key] ?? (field.type === "user" && field.default === "actor" ? currentUserId : "");
-  const set = (key: string, value: string) => setValues((current) => ({ ...current, [key]: value }));
+  const valueOf = (field: FieldDescriptor) => String(values[field.key] ?? (field.type === "user" && field.default === "actor" ? currentUserId : ""));
+  /* Un ensemble se tient en tableau, comme l'API l'attend. */
+  const setOf = (field: FieldDescriptor) => (Array.isArray(values[field.key]) ? (values[field.key] as string[]) : []);
+  const set = (key: string, value: string | string[]) => setValues((current) => ({ ...current, [key]: value }));
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     /* Un nombre se saisit en texte, avec la virgule française : il part en nombre, comme l'API l'attend. */
-    const input = Object.fromEntries(fields.map((f) => [f.key, f.type === "number" ? asNumber(valueOf(f)) : valueOf(f)]));
-    const checked = validateValues(fields, input, { partial: false });
+    const input = Object.fromEntries(fields.map((f) => [f.key, f.type === "number" ? asNumber(valueOf(f)) : f.type === "multilist" ? setOf(f) : valueOf(f)]));
+    const checked = validateValues([...fields, ...relationFields], { ...input, ...Object.fromEntries(relationFields.map((f) => [f.key, valueOf(f)])) }, { partial: false });
     setFailure(null);
     setErrors(checked.errors);
-    const firstInvalid = fields.find((f) => checked.errors[f.key]);
+    const firstInvalid = entries.find((entry) => checked.errors[entry.key]);
     if (firstInvalid) return form.querySelector<HTMLElement>(`#${fieldId(type, firstInvalid.key)}`)?.focus();
     const linked = Object.fromEntries(relations.filter(({ key }) => values[key]).map(({ key }) => [key, values[key]]));
     setPending(true);
@@ -182,7 +187,10 @@ export function QuickCreateDialog({ type, create, users, currentUserId, prefill,
             <DialogDescription>Les autres champs se remplissent sur la fiche. ⌘↵ pour créer, Échap pour fermer.</DialogDescription>
           </DialogHeader>
           {entries.map((entry) =>
-            entry.kind === "field" ? (
+            entry.kind === "field" && entry.field.type === "multilist" ? (
+              /* Un ensemble se coche dans sa liste, le même contrôle que sur la fiche (D63). */
+              <SetControl key={entry.key} id={fieldId(type, entry.key)} label={entry.field.label} value={setOf(entry.field)} values={entry.field.values ?? []} error={errors[entry.key]} onChange={(value) => set(entry.key, value)} />
+            ) : entry.kind === "field" ? (
               <QuickField key={entry.key} type={type} field={entry.field} value={valueOf(entry.field)} error={errors[entry.key]} users={users} onChange={(value) => set(entry.key, value)} />
             ) : (
               <FieldControl
@@ -191,7 +199,7 @@ export function QuickCreateDialog({ type, create, users, currentUserId, prefill,
                 label={entry.relation.label}
                 placement="dialog"
                 kind="record"
-                value={values[entry.key] ?? ""}
+                value={String(values[entry.key] ?? "")}
                 options={(options[entry.key] ?? []).map((option) => ({ value: option.id, label: option.name }))}
                 error={errors[entry.key]}
                 onChange={(value) => set(entry.key, value)}

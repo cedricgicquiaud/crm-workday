@@ -56,7 +56,7 @@ test.describe("« Nouveau lead » depuis la liste (CRM-91, contrat 1)", () => {
 
     await memberPage.goto("/accueil");
     const objectsNav = memberPage.locator(SIDEBAR).getByRole("navigation", { name: "Objets" });
-    await expect(objectsNav.getByRole("link")).toHaveText(["Entreprises", "Personnes", "Consultants", "Leads"]);
+    await expect(objectsNav.getByRole("link")).toHaveText(["Entreprises", "Personnes", "Consultants", "Leads", "Opportunités"]);
     await objectsNav.getByRole("link", { name: "Leads" }).click();
     await expect(memberPage).toHaveURL("/leads");
     await expect(memberPage.getByRole("heading", { level: 1, name: "Leads" })).toBeVisible();

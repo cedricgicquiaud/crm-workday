@@ -7,8 +7,12 @@
  */
 import type { LucideIcon } from "lucide-react";
 
-/** `multilist` : plusieurs valeurs d'une liste fermée dans un même champ (modules Workday, Profils, D19). */
-export type FieldType = "text" | "list" | "date" | "number" | "user" | "multilist";
+/**
+ * `multilist` : plusieurs valeurs d'une liste fermée dans un même champ (modules Workday, Profils, D19).
+ * `relation` : l'identifiant d'une fiche liée, désignée par la relation que l'objet déclare sur ce champ
+ * (`relations`, même `fkColumn`) ; elle se choisit dans un sélecteur de fiches et se lit par son titre (D60).
+ */
+export type FieldType = "text" | "list" | "date" | "number" | "user" | "multilist" | "relation";
 
 /**
  * `reserved` : une valeur que seul un geste de l'objet pose (« converti », « écarté » d'un lead, D21).
@@ -42,6 +46,8 @@ export type FieldDescriptor = {
   maxLength?: number;
   /** nombre : borne basse acceptée (D5, D7) */
   min?: number;
+  /** nombre : la borne basse elle-même est refusée (un TJM de vente de 0, D31) */
+  minExclusive?: boolean;
   /** nombre : borne haute acceptée */
   max?: number;
   /** nombre : décimales acceptées au plus ; absent, le nombre en prend autant qu'il veut */
@@ -236,12 +242,15 @@ const objects = new Map<string, ObjectDefinition>();
 
 /**
  * Déclare un objet ; ré-enregistrer la même clé remplace la définition. Un objet mal déclaré (champ
- * titre, colonne de liste ou champ de tête sans champ correspondant) échoue ici, à l'enregistrement,
- * pas au rendu.
+ * titre, colonne de liste ou champ de tête sans champ correspondant, champ relation sans relation)
+ * échoue ici, à l'enregistrement, pas au rendu.
  */
 export function registerObject(definition: ObjectDefinition): void {
   const keys = new Set(definition.fields.map((field) => field.key));
   if (!keys.has(definition.titleField)) throw new Error(`Objet « ${definition.key} » : le champ titre « ${definition.titleField} » n'est pas déclaré dans ses champs.`);
+  for (const field of definition.fields.filter((candidate) => candidate.type === "relation")) {
+    if (!definition.relations.some((relation) => relation.fkColumn === field.key)) throw new Error(`Objet « ${definition.key} » : le champ relation « ${field.key} » n'a pas de relation déclarée sur cette colonne.`);
+  }
   const columnKeys = new Set([...keys, ...BASE_COLUMN_KEYS]);
   for (const column of definition.listColumns ?? []) {
     if (!columnKeys.has(column)) throw new Error(`Objet « ${definition.key} » : la colonne de liste « ${column} » n'est pas déclarée dans ses champs.`);
