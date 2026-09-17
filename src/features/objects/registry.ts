@@ -242,12 +242,15 @@ const objects = new Map<string, ObjectDefinition>();
 
 /**
  * Déclare un objet ; ré-enregistrer la même clé remplace la définition. Un objet mal déclaré (champ
- * titre, colonne de liste ou champ de tête sans champ correspondant) échoue ici, à l'enregistrement,
- * pas au rendu.
+ * titre, colonne de liste ou champ de tête sans champ correspondant, champ relation sans relation)
+ * échoue ici, à l'enregistrement, pas au rendu.
  */
 export function registerObject(definition: ObjectDefinition): void {
   const keys = new Set(definition.fields.map((field) => field.key));
   if (!keys.has(definition.titleField)) throw new Error(`Objet « ${definition.key} » : le champ titre « ${definition.titleField} » n'est pas déclaré dans ses champs.`);
+  for (const field of definition.fields.filter((candidate) => candidate.type === "relation")) {
+    if (!definition.relations.some((relation) => relation.fkColumn === field.key)) throw new Error(`Objet « ${definition.key} » : le champ relation « ${field.key} » n'a pas de relation déclarée sur cette colonne.`);
+  }
   const columnKeys = new Set([...keys, ...BASE_COLUMN_KEYS]);
   for (const column of definition.listColumns ?? []) {
     if (!columnKeys.has(column)) throw new Error(`Objet « ${definition.key} » : la colonne de liste « ${column} » n'est pas déclarée dans ses champs.`);
