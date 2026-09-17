@@ -7,7 +7,7 @@ import { listFeed } from "@/features/activities/feed";
 import { archiveRecord } from "@/features/archive/archive";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createObject } from "@/features/objects/service";
-import { createPerson } from "@/features/persons/persons";
+import { createPerson, updatePerson } from "@/features/persons/persons";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
@@ -141,3 +141,15 @@ describe("contact archivé (CRM-104, D36, contrat 41)", () => {
     expect(await read(id)).toMatchObject({ title: "Refonte Payroll 2027", contactPersonId: julie });
   });
 });
+
+/** D35, D36, contrat 41 : un lien fait reste lié quand la fiche liée change ensuite ; sa lecture le dit. */
+describe("lecture d'une fiche liée qui a changé (CRM-104, D35, D36, contrat 41)", () => {
+  it("garde lié un contact passé chez Acme, lu « Julie Martin (a quitté Banque X) »", async () => {
+    const julie = await contactAt(bankId, "Julie", "Martin");
+    const id = await opportunityAt(bankId, { contactPersonId: julie });
+    await updatePerson(julie, { companyId: acmeId }, { id: memberId });
+
+    expect(await read(id)).toMatchObject({ contactPersonId: julie, contactPersonIdLabel: "Julie Martin (a quitté Banque X)" });
+  });
+});
+
