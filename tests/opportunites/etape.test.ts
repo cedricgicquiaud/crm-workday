@@ -58,3 +58,15 @@ describe("passage d'étape (CRM-105, D32, contrat 34)", () => {
     expect((await read(id)).stage).toBe("qualifie");
   });
 });
+
+/** D33, contrats 31 et 34 : la probabilité se déduit de l'étape, à chaque lecture. */
+describe("probabilité (CRM-105, D33, contrats 31 et 34)", () => {
+  it("vaut 10 à la création, 50 en « Entretien client », puis 20 au retour à « Qualifié »", async () => {
+    const id = await create();
+    expect((await read(id)).probability).toBe(10);
+    await patch(id, { stage: "entretien_client" });
+    expect((await read(id)).probability).toBe(50);
+    await patch(id, { stage: "qualifie" });
+    expect((await read(id)).probability).toBe(20);
+  });
+});
