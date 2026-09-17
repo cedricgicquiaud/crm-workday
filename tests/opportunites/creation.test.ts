@@ -2,11 +2,14 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GET as getOpportunity, PATCH as patchOpportunity } from "@/app/api/opportunites/[id]/route";
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
-import { auditLog, company, objectRedirect, opportunity, user } from "@/db/schema";
-import { createUserWithPassword } from "@/features/auth/accounts";
+import { auditLog, company, customFieldDefinition, customFieldValue, lead, objectRedirect, opportunity, user } from "@/db/schema";
 import { archiveRecord } from "@/features/archive/archive";
+import { createUserWithPassword } from "@/features/auth/accounts";
+import { createDefinition, loadCustomFields } from "@/features/custom-fields/definitions";
+import { createLead } from "@/features/leads/leads";
 import { mergeRecords } from "@/features/merge/merge";
 import { createObject } from "@/features/objects/service";
+import { createOpportunity } from "@/features/opportunities/opportunities";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
@@ -38,7 +41,11 @@ const opportunityAt = (companyId: string) => ({ title: "Refonte Payroll", compan
 /** Les enfants avant les parents : une opportunité retient son entreprise (clé sans cascade). */
 async function cleanup() {
   await db.delete(auditLog);
+  await db.delete(customFieldValue);
+  await db.delete(customFieldDefinition);
+  await loadCustomFields();
   await db.delete(opportunity);
+  await db.delete(lead);
   await db.delete(objectRedirect);
   await db.delete(company);
 }
@@ -103,5 +110,18 @@ describe("entreprise absorbée par une fusion (CRM-104, D36)", () => {
 
     expect((await patch(String(body.id), { companyId: absorbed })).status).toBe(200);
     expect((await read(String(body.id))).companyId).toBe(kept);
+  });
+});
+
+/** Préparé pour la conversion d'un lead (4.2c) : un geste crée l'opportunité dans sa transaction, à son étape, liée à son lead. */
+describe("création par un geste (CRM-104, D51, D55)", () => {
+  it("crée dans la transaction du geste une opportunité à l'étape « Qualifié », issue du lead, sans exiger un champ personnalisé obligatoire", async () => {
+    const bank = await newCompany("Banque X");
+    const origin = await createLead({ firstName: "Julie", lastName: "Martin", origin: "linkedin" }, { id: memberId });
+    await createDefinition({ objectType: "opportunity", label: "Canal", type: "text", required: true }, { id: memberId });
+    await loadCustomFields();
+
+    const created = await db.transaction((tx) => createOpportunity(opportunityAt(bank), { id: memberId }, { exec: tx, stage: "qualifie", leadId: origin.id, customRequired: false }));
+    expect(await read(created.id)).toMatchObject({ title: "Refonte Payroll", stage: "qualifie", leadId: origin.id });
   });
 });
