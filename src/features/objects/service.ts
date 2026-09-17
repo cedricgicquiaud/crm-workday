@@ -14,7 +14,7 @@ import { attachCustomValues, splitCustomValues, writeCustomValues } from "@/feat
 import { recordHistory } from "@/features/history/history";
 import { fieldsOf, isLocked, serializeValue, validateValues, writableFieldsOf, type FieldValues } from "@/features/objects/fields";
 import { userName, type SerializedRecord, type UserOption } from "@/features/objects/labels";
-import { getObject, type FieldDescriptor, type Relation } from "@/features/objects/registry";
+import { getObject, type FieldDescriptor, type ObjectLabels, type Relation } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
 import { objectRedirect, user } from "@/db/schema";
 import { HttpError } from "@/lib/auth/session";
@@ -101,6 +101,9 @@ async function validateOrThrow(type: string, input: unknown, { partial, customRe
   return resolveRelations(type, values);
 }
 
+/** « « Entreprise » ne désigne aucune entreprise. » : le déterminant suit l'article déclaré de l'objet lié. */
+const unknownRecordRule = (field: FieldDescriptor, labels: ObjectLabels) => `« ${field.label} » ne désigne ${labels.article === "une" ? "aucune" : "aucun"} ${labels.singular.toLowerCase()}.`;
+
 /** La relation qu'un objet déclare sur un champ `relation` : c'est elle qui dit de quel objet est la fiche liée. */
 const relationOf = (type: string, field: FieldDescriptor): Relation => getObject(type).relations.find((relation) => relation.fkColumn === field.key)!;
 
@@ -119,7 +122,7 @@ async function resolveRelations(type: string, values: FieldValues): Promise<Fiel
     const { table } = getServerObject(to);
     const row = UUID.test(value) ? ((await rowById(table, value)) ?? (await keptRow(to, table, value).catch(() => null))) : null;
     if (row) resolved[field.key] = String(row.id);
-    else errors[field.key] = `« ${field.label} » ne désigne ${getObject(to).labels.article === "une" ? "aucune" : "aucun"} ${getObject(to).labels.singular.toLowerCase()}.`;
+    else errors[field.key] = unknownRecordRule(field, getObject(to).labels);
   }
   if (Object.keys(errors).length > 0) throw invalid(errors);
   return resolved;
