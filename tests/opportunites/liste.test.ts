@@ -122,3 +122,22 @@ describe("vue par défaut « Opportunités en cours » (CRM-106, D38, contrat 36
     expect(await shown("archivees=1")).toEqual(["Archivée", "En cours"]);
   });
 });
+
+/** D33, contrat 36 : la probabilité se filtre comme une colonne, alors qu'elle se déduit de l'étape à la lecture. */
+describe("filtre sur la probabilité (CRM-106, D33, contrat 36)", () => {
+  it("ne garde, au-dessus de 50, que Proposition envoyée (70 %), Négociation (80 %) et Gagnée (100 %)", async () => {
+    const stages = [
+      ["nouveau_besoin", "2026-10-01"],
+      ["qualifie", "2026-10-02"],
+      ["profils_proposes", "2026-10-03"],
+      ["entretien_client", "2026-10-04"],
+      ["proposition_envoyee", "2026-10-05"],
+      ["negociation", "2026-10-06"],
+      ["gagnee", "2026-10-07"],
+      ["perdue", "2026-10-08"],
+    ] as const;
+    for (const [stage, expectedClose] of stages) await create({ title: `Étape ${stage}`, stage, expectedClose });
+
+    expect(await shown("f=probability:plus_grand:50")).toEqual(["Étape proposition_envoyee", "Étape negociation", "Étape gagnee"]);
+  });
+});
