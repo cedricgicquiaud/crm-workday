@@ -62,9 +62,38 @@ test.describe("création rapide depuis la liste (CRM-104, contrat 31)", () => {
     await expect(memberPage).toHaveURL(/\/opportunites\/[0-9a-f-]{36}$/);
     await expect(memberPage.getByRole("heading", { level: 1, name: title })).toBeVisible();
     await expect(memberPage.getByText("responsable : Marc Leroy")).toBeVisible();
+    /* Contrat 31 : la fiche s'ouvre à 10 %, la probabilité de « Nouveau besoin » (CRM-105). */
+    await expect(memberPage.getByRole("region", { name: "Champs", exact: true }).getByLabel("Probabilité")).toHaveText("10 %");
     const id = memberPage.url().split("/").pop()!;
     const created = (await (await memberPage.request.get(`/api/opportunites/${id}`)).json()) as Record<string, unknown>;
     expect(created).toMatchObject({ stage: "nouveau_besoin", modules: ["hcm", "payroll"], expectedClose: "2026-10-30", companyIdLabel: bank });
+  });
+});
+
+test.describe("étape en cellule de liste (CRM-105, D32, D33, contrat 40)", () => {
+  test("la cellule Étape ne propose ni Gagnée ni Perdue ; passer à « Entretien client » fait lire 50 % dans la colonne Probabilité, qui ne s'édite pas", async ({ memberPage }) => {
+    const mark = tag();
+    const companyId = await post(memberPage, "/api/entreprises", { name: named("Banque X", mark), type: "prospect" });
+    const id = await post(memberPage, "/api/opportunites", { title: named("Refonte Payroll", mark), companyId, modules: ["payroll"], expectedClose: "2026-10-30" });
+    const cell = (field: string) => memberPage.locator(`[data-cell="${id}:${field}"]`);
+    const row = memberPage.getByRole("table", { name: "Opportunités" }).getByRole("row").filter({ has: memberPage.getByRole("link", { name: named("Refonte Payroll", mark) }) });
+
+    await memberPage.goto(`/opportunites?colonnes=stage,probability&f=title:contient:${encodeURIComponent(mark)}`);
+    await expect(row).toContainText("10 %");
+    await expect(cell("probability")).toHaveCount(0);
+
+    await cell("stage").dblclick();
+    const select = row.getByRole("combobox", { name: "Étape" });
+    await expect(select.locator("option")).toHaveText(["—", "Nouveau besoin", "Qualifié", "Profils proposés", "Entretien client", "Proposition envoyée", "Négociation"]);
+    await Promise.all([
+      memberPage.waitForResponse((res) => res.url().includes(`/api/opportunites/${id}`) && res.request().method() === "PATCH"),
+      select.selectOption({ label: "Entretien client" }),
+    ]);
+
+    await expect(cell("stage")).toHaveText("Entretien client");
+    await memberPage.reload();
+    await expect(cell("stage")).toHaveText("Entretien client");
+    await expect(row).toContainText("50 %");
   });
 });
 
