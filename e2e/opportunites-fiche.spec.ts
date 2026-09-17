@@ -71,3 +71,28 @@ test.describe("montant estimé sur la fiche (CRM-103, contrat 33)", () => {
     await expect(fields.getByLabel("Montant estimé")).toHaveText("—");
   });
 });
+
+test.describe("champs obligatoires vidés sur la fiche (CRM-103, contrat 39)", () => {
+  test("vider le titre ou la clôture prévue affiche le refus sous le champ, et la valeur enregistrée revient", async ({ memberPage }) => {
+    const mark = tag();
+    const id = await createOpportunity(memberPage, mark);
+    await memberPage.goto(`/opportunites/${id}`);
+    const fields = memberPage.getByRole("region", { name: "Champs", exact: true });
+
+    const title = fields.getByLabel("Titre");
+    await saved(memberPage, id, async () => {
+      await title.fill("");
+      await memberPage.keyboard.press("Enter");
+    });
+    await expect(fields.getByRole("alert")).toHaveText("« Titre » est obligatoire.");
+    await expect(title).toHaveValue(named("Refonte Payroll", mark));
+
+    const close = fields.getByLabel("Clôture prévue");
+    await saved(memberPage, id, async () => {
+      await close.fill("");
+      await close.blur();
+    });
+    await expect(fields.getByRole("alert").filter({ hasText: "Clôture prévue" })).toHaveText("« Clôture prévue » est obligatoire.");
+    await expect(close).toHaveValue("2026-10-30");
+  });
+});
