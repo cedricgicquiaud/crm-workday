@@ -4,6 +4,8 @@ import { POST as postOpportunity } from "@/app/api/opportunites/route";
 import { auditLog, company, opportunity, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { listForState } from "@/features/lists/apply-filters";
+import { columnsOf, defaultColumnKeys } from "@/features/lists/columns";
+import { getObject } from "@/features/objects/registry";
 import { createObject, listObjectRecords } from "@/features/objects/service";
 import { listStateWithView, listViews } from "@/features/views/views";
 import { closeDb, db } from "@/lib/db";
@@ -54,6 +56,30 @@ afterAll(async () => {
   await cleanup();
   await db.delete(company);
   await closeDb();
+});
+
+/** Libellés des colonnes d'une liste, dans l'ordre où le menu des colonnes les propose. */
+const columnLabels = (keys: readonly string[]) => keys.map((key) => columnsOf("opportunity").find((column) => column.key === key)!.label);
+
+/** D38, contrat 36 : sept colonnes à l'ouverture, les autres champs à portée du menu des colonnes. */
+describe("colonnes de la liste des opportunités (CRM-106, D38, contrat 36)", () => {
+  it("montre Titre, Entreprise, Étape, Probabilité, Montant estimé, Clôture prévue et Responsable, et garde les autres champs à portée du menu", () => {
+    const titleField = getObject("opportunity").titleField;
+    expect(columnLabels([titleField, ...defaultColumnKeys("opportunity")])).toEqual([
+      "Titre",
+      "Entreprise",
+      "Étape",
+      "Probabilité",
+      "Montant estimé",
+      "Clôture prévue",
+      "Responsable",
+      /* « Modifiée le » suit les colonnes déclarées sur toute liste qui ne cite pas elle-même une colonne de base (D26). */
+      "Modifiée le",
+    ]);
+    const shownByDefault = new Set([titleField, ...defaultColumnKeys("opportunity")]);
+    const available = columnsOf("opportunity").filter((column) => !shownByDefault.has(column.key));
+    expect(available.map((column) => column.label)).toEqual(["Contact", "Modules Workday", "TJM de vente cible", "Durée estimée", "Démarrage souhaité", "Motif de perte", "Besoin", "Créé le"]);
+  });
 });
 
 /** D38, contrat 36 : la liste s'ouvre sur les affaires en cours, de la clôture la plus proche à la plus lointaine. */
