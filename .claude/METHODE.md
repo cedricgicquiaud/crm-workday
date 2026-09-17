@@ -1,6 +1,6 @@
 # Méthode pilot — version installée
 
-- Version : `e6a4e38` (dépôt `pilot`)
+- Version : `1648a13` (dépôt `pilot`)
 - Installée le : 2026-09-17
 
 Fiches d'agent posées par l'installation — cette liste sert à retirer proprement
@@ -19,7 +19,7 @@ Ce dossier est une **copie**. La version de référence vit dans le dépôt `pil
 Pour recevoir la dernière version dans ce projet :
 
 ```bash
-cd <dépôt pilot> && git pull && ./install.sh /Users/cedricgicquiaud/Desktop/crm-workday
+cd <dépôt pilot> && git pull && ./install.sh /private/tmp/claude-501/-Users-cedricgicquiaud/36b14358-89ff-4b4c-93f1-dd79059d6240/scratchpad/crm-essai-pilot
 ```
 
 Modifier les fichiers de ce dossier ne remonte nulle part, et la prochaine mise à jour

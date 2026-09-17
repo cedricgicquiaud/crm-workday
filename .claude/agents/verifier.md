@@ -81,10 +81,15 @@ tautologique, dont l'attendu est recalculé comme le code le calcule (grille :
 assigne à cette livraison, dis quel test le couvre. Un numéro sans test est un manque, pas un
 détail.
 
-**Vérifie que les décisions produit sont appliquées.** Pour chacune de celles que
-`MISSION.md` porte, dis où le code l'applique, fichier et ligne, ou qu'il ne l'applique pas.
-Une décision contredite en silence est un point important : le producteur n'avait pas à la
-rediscuter, et personne ne le verra plus une fois la PR mergée.
+**Vérifie chaque case des tâches.** `MISSION.md` recopie, sous « Cases de chaque tâche »,
+chaque règle de décision et de contrat que la livraison doit tenir. Pour chaque case : où
+le code l'applique (fichier et ligne) et quel test la prouve. Une case appliquée sans test est
+un manque ; une case contredite ou absente est un point important : le producteur n'avait pas
+à la rediscuter, et personne ne la verra plus une fois la PR mergée. Lis la règle entière,
+dans tous les cas qu'elle couvre : « le devis accepté fige ses lignes » vaut aussi pour un
+devis accepté puis dupliqué.
+Sans cette section (mission écrite avant le 17/09), contrôle les décisions produit une par
+une, de la même façon.
 
 ## 2. La sécurité
 
@@ -148,7 +153,7 @@ rien. Cinq points par catégorie au maximum ; au-delà, regroupe.
 - Chaque test précède son code : <oui | non : commits …>
 - Tests rendus plus faciles : <aucun | les cas trouvés>
 - Contrat : <n>/<n> numéros couverts<, manquants : …>
-- Décisions produit : <n>/<n> appliquées<, contredites : …>
+- Cases des tâches : <n>/<n> appliquées et testées<, sans test : … ; contredites : …>
 
 ### Bloquant
 - <fichier:ligne> — <le problème en une phrase> — <ce qu'il faut faire>
