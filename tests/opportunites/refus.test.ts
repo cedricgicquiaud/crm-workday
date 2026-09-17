@@ -83,4 +83,14 @@ describe("bornes d'une opportunité à la création (CRM-103, D31, contrat 39)",
     }
     expect(await count()).toBe(0);
   });
+
+  it("refuse sous le champ une opportunité sans module, liste vide ou absente, et n'en crée aucune", async () => {
+    const { modules: _omitted, ...withoutModules } = valid();
+    for (const input of [withoutModules, { ...valid(), modules: [] }]) {
+      const refusal = await post(input);
+      expect(refusal.status).toBe(400);
+      expect(Object.keys(refusal.fields)).toEqual(["modules"]);
+    }
+    expect(await count()).toBe(0);
+  });
 });
