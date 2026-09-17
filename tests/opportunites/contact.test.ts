@@ -97,4 +97,11 @@ describe("contact d'une opportunité (CRM-104, D35)", () => {
     expect((await patch(id, { companyId: acmeId, contactPersonId: marc })).status).toBe(200);
     expect(await read(id)).toMatchObject({ companyId: acmeId, contactPersonId: marc });
   });
+  it("vide le contact quand l'entreprise change sans nouveau contact (contrat 35)", async () => {
+    const julie = await contactAt(bankId, "Julie", "Martin");
+    const id = await opportunityAt(bankId, { contactPersonId: julie });
+
+    expect((await patch(id, { companyId: acmeId })).status).toBe(200);
+    expect(await read(id)).toMatchObject({ companyId: acmeId, contactPersonId: null });
+  });
 });
