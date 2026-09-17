@@ -27,8 +27,9 @@ export function resetOpportunities(): void {
 }
 
 /**
- * Pose l'étape d'une opportunité en base, par son titre. « Gagnée » et « Perdue » se posent par leur
- * geste (4.2d) et l'API les refuse : les écrans qui ont besoin d'une affaire terminée passent par ici.
+ * Pose l'étape d'une opportunité de test en base, par son titre. « Gagnée » et « Perdue » se posent
+ * par leur geste (4.2d) et l'API les refuse : les écrans qui ont besoin d'une affaire terminée
+ * passent par ici. Le titre doit finir par « (e2e) » : les opportunités de l'amorce ne bougent pas.
  */
 export function setStage(title: string, stage: string): void {
   runDbCommand("set-stage", title, stage);
@@ -64,6 +65,7 @@ async function main(command: string) {
       const { eq } = await import("drizzle-orm");
       const { opportunity } = await import("../../src/db/schema");
       const [title, stage] = [process.argv[3], process.argv[4]];
+      if (!title?.endsWith("(e2e)")) throw new Error(`Titre hors des fiches de test : « ${title} ».`);
       const updated = await db.update(opportunity).set({ stage }).where(eq(opportunity.title, title)).returning({ id: opportunity.id });
       if (updated.length === 0) throw new Error(`Aucune opportunité « ${title} ».`);
     } else {
