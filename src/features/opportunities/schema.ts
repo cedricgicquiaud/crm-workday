@@ -67,6 +67,9 @@ export const resultRank = (result: string): number => RESULT_RANKS[result] ?? -1
 /** TJM de vente cible (D31) : plus de 0, 5 000 € par jour au plus. */
 export const TARGET_DAILY_RATE_MAX = 5_000;
 
+/** Durée estimée (D31) : un nombre entier de jours, de 1 à 1 000. */
+export const ESTIMATED_DAYS_MAX = 1_000;
+
 /**
  * Champs de l'opportunité (D31). L'entreprise est désignée par son identifiant ; les modules sont un
  * ensemble rangé dans `opportunity_module`, pris dans la liste des modules des consultants.
@@ -76,6 +79,7 @@ export const OPPORTUNITY_FIELDS: readonly FieldDescriptor[] = [
   { key: "companyId", label: "Entreprise", type: "text", required: true, order: 20 },
   { key: "modules", label: "Modules Workday", type: "multilist", required: true, values: MODULES, retiredValues: RETIRED_MODULES, sortable: true, order: 40 },
   { key: "targetDailyRate", label: "TJM de vente cible", type: "number", unit: "€", decimals: 2, min: 0, minExclusive: true, max: TARGET_DAILY_RATE_MAX, sortable: true, order: 60 },
+  { key: "estimatedDays", label: "Durée estimée", type: "number", unit: "jours", integer: true, min: 1, max: ESTIMATED_DAYS_MAX, sortable: true, order: 70 },
   { key: "expectedClose", label: "Clôture prévue", type: "date", required: true, sortable: true, order: 100 },
   { key: "ownerId", label: "Responsable", type: "user", required: true, default: "actor", sortable: true, order: 130 },
   { key: "need", label: "Besoin", type: "text", maxLength: 2000, multiline: true, wide: true, order: 200 },
