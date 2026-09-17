@@ -4,6 +4,7 @@ import { GET as getOpportunity, PATCH as patchOpportunity } from "@/app/api/oppo
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
 import { auditLog, company, objectRedirect, opportunity, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { archiveRecord } from "@/features/archive/archive";
 import { mergeRecords } from "@/features/merge/merge";
 import { createObject } from "@/features/objects/service";
 import { closeDb, db } from "@/lib/db";
@@ -54,6 +55,31 @@ beforeEach(cleanup);
 afterAll(async () => {
   await cleanup();
   await closeDb();
+});
+
+/** D36, contrat 41 : une entreprise archivée ne se choisit plus ; le refus nomme la fiche. */
+describe("entreprise archivée (CRM-104, D36, contrat 41)", () => {
+  it("refuse (409) de créer une opportunité chez une entreprise archivée, en la nommant, et n'en crée aucune", async () => {
+    const archived = await newCompany("Banque Fermée");
+    await archiveRecord("company", archived, { id: memberId });
+
+    const refusal = await post(opportunityAt(archived));
+    expect(refusal.status).toBe(409);
+    expect(refusal.body.message).toContain("« Banque Fermée »");
+    expect(await db.select({ id: opportunity.id }).from(opportunity)).toHaveLength(0);
+  });
+
+  it("refuse (409) de déplacer une opportunité vers une entreprise archivée, en la nommant, et garde l'entreprise enregistrée", async () => {
+    const bank = await newCompany("Banque X");
+    const archived = await newCompany("Banque Fermée");
+    await archiveRecord("company", archived, { id: memberId });
+    const { body } = await post(opportunityAt(bank));
+
+    const refusal = await patch(String(body.id), { companyId: archived });
+    expect(refusal.status).toBe(409);
+    expect(refusal.body.message).toContain("« Banque Fermée »");
+    expect((await read(String(body.id))).companyId).toBe(bank);
+  });
 });
 
 /** Une entreprise absorbée par une fusion a une fiche conservée : c'est elle que l'opportunité désigne. */
