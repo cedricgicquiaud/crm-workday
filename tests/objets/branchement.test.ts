@@ -21,7 +21,7 @@ import { defaultColumnKeys } from "@/features/lists/columns";
 import { parseListState } from "@/features/lists/url-state";
 import { listLists, registerObject } from "@/features/objects/registry";
 import { registerServerObject, visibleActions } from "@/features/objects/registry.server";
-import { createObject, getObjectRecord, listObjectRecords, updateObject } from "@/features/objects/service";
+import { createObject, getObjectRecord, listObjectRecords, listRelationOptions, updateObject } from "@/features/objects/service";
 import { search } from "@/features/search/search";
 import { defaultView } from "@/features/views/views";
 import { closeDb, db, rawSql } from "@/lib/db";
@@ -39,6 +39,7 @@ const testTable = pgTable(TYPE, {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   parentId: uuid("parent_id"),
+  twinId: uuid("twin_id"),
   phase: text("phase"),
   ownerId: text("owner_id").notNull(),
   createdBy: text("created_by").notNull(),
@@ -57,7 +58,7 @@ async function cleanup() {
 
 beforeAll(async () => {
   await rawSql().unsafe(
-    `CREATE TABLE IF NOT EXISTS ${TYPE} (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, parent_id uuid, phase text, owner_id text NOT NULL, created_by text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), archived_at timestamptz)`,
+    `CREATE TABLE IF NOT EXISTS ${TYPE} (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, parent_id uuid, twin_id uuid, phase text, owner_id text NOT NULL, created_by text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), archived_at timestamptz)`,
   );
   await cleanup();
   await db.delete(user).where(eq(user.email, ACTOR.email));
@@ -89,9 +90,14 @@ beforeAll(async () => {
         lockedWhen: { test: (record) => record.phase === "close", message: "Fiche close : la rouvrir d'abord." },
         order: 50,
       },
+      /* Une fiche liée choisie sous condition (D60) : la jumelle d'une fiche partage sa phase. */
+      { key: "twinId", label: "Jumelle", type: "relation", order: 60 },
     ],
     /* `keepArchived` (D21) : une fiche fille archivée reste listée chez sa mère, marquée — la trace prime. */
-    relations: [{ to: TYPE, fkColumn: "parentId", label: "Fiche mère", inverseLabel: "Fiches filles", prefill: "parentId", keepArchived: true }],
+    relations: [
+      { to: TYPE, fkColumn: "parentId", label: "Fiche mère", inverseLabel: "Fiches filles", prefill: "parentId", keepArchived: true },
+      { to: TYPE, fkColumn: "twinId", label: "Jumelle", inverseLabel: "Jumelles" },
+    ],
     /* Une fiche figée selon son état (D21) : ses champs ne s'écrivent plus, son fil reste ouvert. */
     frozen: { test: (record) => String(record.name ?? "").startsWith("Gelée"), message: "Fiche gelée : ses champs ne se modifient plus." },
     /* Une action d'historique propre à l'objet, et la phrase qui la raconte. */
@@ -123,6 +129,8 @@ beforeAll(async () => {
       return rows.filter((row) => row.name.toLowerCase().includes(query.toLowerCase())).map((row) => ({ id: row.id, title: row.name }));
     },
     duplicateKey: (record) => String(record.name ?? "") || null,
+    /* Une condition déclarée sur une relation (D60) : seules les fiches de même phase se choisissent comme jumelle. */
+    relationScopes: [{ field: "twinId", dependsOn: "phase", matches: "phase", refusal: "Une jumelle partage la phase de sa fiche.", outsideMark: () => "phase quittée" }],
     /* Des actions d'en-tête déclarées (D21), rangées par rang et visibles selon la fiche : « Clore » sur une fiche ouverte, « Rouvrir » sur une fiche close. */
     actions: [
       { key: "rouvrir", order: 20, visible: (record) => record.phase === "close", render: () => null },
@@ -341,5 +349,23 @@ describe("actions d'en-tête déclarées (CRM-91, D21)", () => {
     expect(visibleActions(TYPE, { phase: "ouverte", archivedAt: null }).map((action) => action.key)).toEqual(["exporter", "clore"]);
     expect(visibleActions(TYPE, { phase: "close", archivedAt: null }).map((action) => action.key)).toEqual(["exporter", "rouvrir"]);
     expect(visibleActions(TYPE, { phase: "close", archivedAt: new Date() })).toEqual([]);
+  });
+});
+
+/** D60 : une relation modifiable dont les options suivent une condition déclarée, sans qu'un mécanisme nomme l'objet (CRM-104). */
+describe("relation à options conditionnées, par déclaration (CRM-104, D35, D60)", () => {
+  it("propose et accepte seulement les fiches qui remplissent la condition, refuse les autres (400), et vide le lien quand la valeur dont il dépend change", async () => {
+    const ouverte = await createObject(TYPE, { name: "Jumelle ouverte", phase: "ouverte" }, { id: actorId });
+    const sansPhase = await createObject(TYPE, { name: "Jumelle sans phase" }, { id: actorId });
+    const fiche = await createObject(TYPE, { name: "Fiche à jumeler", phase: "ouverte" }, { id: actorId });
+
+    const { options } = await listRelationOptions(TYPE, "twinId", fiche);
+    expect(options.map((option) => option.id)).toContain(ouverte.id);
+    expect(options.map((option) => option.id)).not.toContain(sansPhase.id);
+
+    await expect(updateObject(TYPE, fiche.id, { twinId: sansPhase.id }, { id: actorId })).rejects.toMatchObject({ status: 400, details: { fields: { twinId: "Une jumelle partage la phase de sa fiche." } } });
+    expect((await updateObject(TYPE, fiche.id, { twinId: ouverte.id }, { id: actorId })).twinIdLabel).toBe("Jumelle ouverte");
+
+    expect((await updateObject(TYPE, fiche.id, { phase: null }, { id: actorId })).twinId).toBeNull();
   });
 });
