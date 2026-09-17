@@ -179,8 +179,8 @@ export async function ObjectList({ type: listKey, query }: { type: string; query
                           <TableCell key={column.key} className="py-1 text-right tabular-nums text-muted-foreground">
                             {formatDate(record[column.key] as Date)}
                           </TableCell>
-                        ) : column.display ? (
-                          /* Un champ dérivé s'écrit ici, depuis la fiche entière (D19) : il ne s'édite pas, et sa règle ne voyage pas jusqu'au navigateur. */
+                        ) : column.display || column.type === "relation" ? (
+                          /* Un champ dérivé s'écrit ici, depuis la fiche entière (D19) : il ne s'édite pas, et sa règle ne voyage pas jusqu'au navigateur. Une fiche liée aussi, par son titre ; elle se change sur la fiche (D60). */
                           <TableCell key={column.key} className="truncate py-1 text-muted-foreground">
                             <ReadOnlyCell text={cellText(column, record, users)} />
                           </TableCell>
