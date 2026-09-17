@@ -3,7 +3,7 @@
  * dans sa table fille (D53), la condition sur son contact (D35) et son montant estimé, calculé à chaque
  * lecture. Importé par le manifeste serveur.
  */
-import { and, eq, exists } from "drizzle-orm";
+import { eq, exists } from "drizzle-orm";
 import { contactProfile, opportunity, opportunityModule, person } from "@/db/schema";
 import { registerServerObject } from "@/features/objects/registry.server";
 import { db } from "@/lib/db";
@@ -20,8 +20,10 @@ registerServerObject({
     {
       field: "contactPersonId",
       dependsOn: "companyId",
-      where: (companyId) => and(eq(person.companyId, companyId), exists(db.select({ id: contactProfile.id }).from(contactProfile).where(eq(contactProfile.personId, person.id))))!,
+      matches: "companyId",
+      where: exists(db.select({ id: contactProfile.id }).from(contactProfile).where(eq(contactProfile.personId, person.id))),
       refusal: CONTACT_OUTSIDE_COMPANY_RULE,
+      outsideMark: (companyName) => `a quitté ${companyName}`,
     },
   ],
   /*

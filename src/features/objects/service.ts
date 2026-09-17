@@ -13,9 +13,9 @@ import { allCustomFieldsOf, isCustomFieldKey } from "@/features/custom-fields/fi
 import { attachCustomValues, splitCustomValues, writeCustomValues } from "@/features/custom-fields/values";
 import { recordHistory } from "@/features/history/history";
 import { fieldsOf, isLocked, serializeValue, validateValues, writableFieldsOf, type FieldValues } from "@/features/objects/fields";
-import { userName, type SerializedRecord, type UserOption } from "@/features/objects/labels";
+import { linkedLabelKey, userName, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor, type ObjectDefinition, type ObjectLabels, type Relation } from "@/features/objects/registry";
-import { getServerObject } from "@/features/objects/registry.server";
+import { getServerObject, type RelationScope } from "@/features/objects/registry.server";
 import { objectRedirect, user } from "@/db/schema";
 import { HttpError } from "@/lib/auth/session";
 import { db, type Executor } from "@/lib/db";
@@ -153,7 +153,7 @@ async function assertInScope(type: string, values: FieldValues, current: ObjectR
     if (typeof chosen !== "string" || (chosen === current?.[scope.field] && !(scope.dependsOn in values))) continue;
     const { table } = getServerObject(relationOf(type, scope.field).to);
     const columns = getTableColumns(table);
-    const [found] = typeof basis === "string" ? await db.select({ id: columns.id }).from(table).where(and(eq(columns.id, chosen), scope.where(basis))).limit(1) : [];
+    const [found] = typeof basis === "string" ? await db.select({ id: columns.id }).from(table).where(and(eq(columns.id, chosen), eq(columns[scope.matches], basis), scope.where)).limit(1) : [];
     if (!found) errors[scope.field] = scope.refusal;
   }
   if (Object.keys(errors).length > 0) throw invalid(errors);
@@ -268,13 +268,57 @@ function serializeAll(type: string, values: FieldValues): Record<string, string 
   return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, serializeValue(fields.find((field) => field.key === key)!, value)]));
 }
 
+/** Titres des fiches liées d'un champ `relation`, par identifiant : une requête pour toutes les fiches. */
+async function linkedTitles(type: string, key: string, records: readonly ObjectRecord[]): Promise<Map<string, string>> {
+  const ids = [...new Set(records.map((record) => record[key]).filter((id): id is string => typeof id === "string"))];
+  if (ids.length === 0) return new Map();
+  const target = getObject(relationOf(type, key).to);
+  const { table } = getServerObject(target.key);
+  const columns = getTableColumns(table);
+  const rows = await db.select({ id: columns.id, title: columns[target.titleField] }).from(table).where(inArray(columns.id, ids));
+  return new Map(rows.map((row) => [String(row.id), String(row.title ?? "")]));
+}
+
+/**
+ * Fiches dont le lien sous condition la remplit encore (D35), par identifiant de fiche : le contact parti
+ * de l'entreprise de l'opportunité n'y est plus. Une requête par condition, pour toutes les fiches.
+ */
+async function linksInScope(type: string, scope: RelationScope, records: readonly ObjectRecord[]): Promise<Set<string>> {
+  const ids = [...new Set(records.map((record) => record[scope.field]).filter((id): id is string => typeof id === "string"))];
+  if (ids.length === 0) return new Set();
+  const { table } = getServerObject(relationOf(type, scope.field).to);
+  const columns = getTableColumns(table);
+  const rows = await db.select({ id: columns.id, basis: columns[scope.matches] }).from(table).where(and(inArray(columns.id, ids), scope.where));
+  const valid = new Set(rows.map((row) => `${String(row.id)}:${String(row.basis)}`));
+  return new Set(records.filter((record) => valid.has(`${String(record[scope.field])}:${String(record[scope.dependsOn])}`)).map((record) => record.id));
+}
+
+/** Ce qu'on lit de chaque fiche liée (D60) : son titre, marqué quand le lien ne remplit plus sa condition. */
+async function attachLinkedLabels(type: string, records: ObjectRecord[]): Promise<ObjectRecord[]> {
+  const relationFields = fieldsOf(type).filter((field) => field.type === "relation");
+  if (relationFields.length === 0 || records.length === 0) return records;
+  const titles = new Map(await Promise.all(relationFields.map(async (field) => [field.key, await linkedTitles(type, field.key, records)] as const)));
+  const scopes = getServerObject(type).relationScopes ?? [];
+  const inScope = new Map(await Promise.all(scopes.map(async (scope) => [scope.field, await linksInScope(type, scope, records)] as const)));
+  return records.map((record) => {
+    const labels = relationFields.map((field) => {
+      const title = titles.get(field.key)!.get(String(record[field.key]));
+      if (title === undefined) return [linkedLabelKey(field.key), null];
+      const scope = scopes.find((candidate) => candidate.field === field.key);
+      const outside = scope && !inScope.get(field.key)!.has(record.id) ? scope.outsideMark(titles.get(scope.dependsOn)?.get(String(record[scope.dependsOn])) ?? "") : null;
+      return [linkedLabelKey(field.key), outside ? `${title} (${outside})` : title];
+    });
+    return { ...record, ...Object.fromEntries(labels) };
+  });
+}
+
 /**
  * Des fiches complétées : leurs valeurs personnalisées, puis les compléments que l'objet déclare
  * (`attach`). À partir d'ici, tout se lit comme une colonne de la fiche — la liste, les filtres, le
  * tri et l'historique ne distinguent pas ce qui vient de la table de ce qui vient d'ailleurs.
  */
 async function completed(type: string, records: ObjectRecord[]): Promise<ObjectRecord[]> {
-  const withValues = await attachSets(type, await attachCustomValues(type, records));
+  const withValues = await attachLinkedLabels(type, await attachSets(type, await attachCustomValues(type, records)));
   const attach = getServerObject(type).attach;
   return attach ? attach(withValues) : withValues;
 }

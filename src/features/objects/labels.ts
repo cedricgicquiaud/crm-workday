@@ -20,6 +20,13 @@ export const formatDateTime = (value: Date | string): string => DATE_TIME.format
 
 export const EMPTY = "—";
 
+/**
+ * Clé sous laquelle une fiche porte ce qu'on lit d'une fiche liée (D60) : son titre, et sa marque quand
+ * le lien a changé depuis (« Julie Martin (a quitté Banque X) », « Banque X (archivée) »). Le champ garde
+ * l'identifiant, que l'écriture renvoie ; la fiche, la liste et le tri lisent ce texte.
+ */
+export const linkedLabelKey = (key: string): string => `${key}Label`;
+
 /** Les entrées d'un ensemble écrit en texte (« hcm,integration ») ; rien pour une valeur absente. */
 const splitSet = (value: unknown): string[] =>
   String(value ?? "")

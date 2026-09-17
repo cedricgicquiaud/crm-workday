@@ -64,10 +64,14 @@ export type RelationScope = {
   field: string;
   /** champ de la fiche dont la valeur règle la condition */
   dependsOn: string;
-  /** condition sur la table de l'objet lié, pour la valeur de `dependsOn` */
-  where: (value: string) => SQL;
+  /** colonne de l'objet lié qui doit porter la valeur de `dependsOn` (l'entreprise de rattachement d'une personne) */
+  matches: string;
+  /** condition fixe de plus sur l'objet lié (porter un profil contact) */
+  where?: SQL;
   /** refus (400 sous le champ) d'une fiche liée qui ne remplit pas la condition */
   refusal: string;
+  /** marque d'une fiche liée qui ne remplit plus la condition, depuis le titre de la fiche désignée par `dependsOn` (« a quitté Banque X ») */
+  outsideMark: (basisTitle: string) => string;
 };
 
 /** Ce qu'une section reçoit pour se rendre : la fiche, ce que son chargeur a lu, et si la fiche ne s'écrit plus (fiche archivée, D21). */
