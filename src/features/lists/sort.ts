@@ -4,7 +4,7 @@
  * déclare `sortable` : l'en-tête cliquable et l'URL lisent la même règle.
  */
 import { fieldsOf } from "@/features/objects/fields";
-import { displayValue, type UserOption } from "@/features/objects/labels";
+import { displayValue, linkedLabelKey, type UserOption } from "@/features/objects/labels";
 import { BASE_COLUMN_KEYS, type FieldType } from "@/features/objects/registry";
 import type { ObjectRecord } from "@/features/objects/service";
 
@@ -56,6 +56,8 @@ export function sortRecords(type: string, records: readonly ObjectRecord[], sort
   const shown = (record: ObjectRecord) => {
     /* Un champ dérivé déclare son rang : le tri le suit, jamais l'alphabet de ses libellés (D19). */
     if (field?.sortKey) return field.sortKey(record);
+    /* Une fiche liée se trie sur son titre, celui que la colonne écrit (D60). */
+    if (field?.type === "relation") return record[linkedLabelKey(field.key)];
     const value = record[sort.field];
     if (!field || isEmpty(value) || !SHOWN_TYPES.includes(field.type)) return value;
     return displayValue(field, value, users);

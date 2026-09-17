@@ -70,11 +70,13 @@ export function displayValue(field: FieldDescriptor, value: unknown, users: read
 
 /**
  * Ce qu'une cellule ou une carte de liste écrit pour un champ d'une fiche : un champ dérivé par son
- * `display`, lu depuis la fiche entière (D19) ; tout autre champ par sa valeur, avec la marque de son
+ * `display`, lu depuis la fiche entière (D19) ; une fiche liée par son titre ; tout autre champ par sa valeur, avec la marque de son
  * champ compagnon (« HCM ✔ », D10). Le tableau et les cartes lisent la même phrase.
  */
 export function cellText(field: FieldDescriptor, record: Record<string, unknown>, users: readonly UserOption[]): string {
   if (field.display) return field.display(record);
+  /* Une fiche liée se lit par ce que la fiche porte d'elle, son titre marqué (D60), jamais par son identifiant. */
+  if (field.type === "relation") return typeof record[linkedLabelKey(field.key)] === "string" ? String(record[linkedLabelKey(field.key)]) : EMPTY;
   return displayValue(field, record[field.key], users, field.markedBy ? record[field.markedBy.field] : undefined);
 }
 
