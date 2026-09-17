@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, seedAccounts, test } from "./fixtures/auth";
+import { expect, MEMBER, seedAccounts, test } from "./fixtures/auth";
 import { resetObjects } from "./fixtures/objets";
 import { pickOption } from "./fixtures/opportunites";
 import { archiveCompany, resetPersons } from "./fixtures/personnes";
@@ -70,6 +70,38 @@ test.describe("montant estimé sur la fiche (CRM-103, contrat 33)", () => {
       await memberPage.keyboard.press("Enter");
     });
     await expect(fields.getByLabel("Montant estimé")).toHaveText("—");
+  });
+});
+
+test.describe("étape et probabilité sur la fiche (CRM-105, contrats 34 et 40)", () => {
+  test("le sélecteur d'étape ne propose ni Gagnée ni Perdue ; passer à « Entretien client » puis revenir à « Qualifié » fait lire 50 % puis 20 %, et l'historique montre les deux passages, sans ligne de probabilité", async ({ memberPage }) => {
+    const id = await createOpportunity(memberPage, tag());
+    await memberPage.goto(`/opportunites/${id}`);
+    const fields = memberPage.getByRole("region", { name: "Champs", exact: true });
+    const stage = fields.getByRole("combobox", { name: "Étape" });
+    const probability = fields.getByLabel("Probabilité");
+    await expect(probability).toHaveText("10 %");
+    /* La probabilité se lit, elle ne se saisit pas. */
+    await expect(fields.getByRole("spinbutton", { name: "Probabilité" })).toHaveCount(0);
+
+    await stage.click();
+    await expect(memberPage.getByRole("option")).toHaveText(["Nouveau besoin", "Qualifié", "Profils proposés", "Entretien client", "Proposition envoyée", "Négociation"]);
+    await memberPage.keyboard.press("Escape");
+
+    await saved(memberPage, id, () => pickOption(memberPage, stage, "Entretien client"));
+    await expect(probability).toHaveText("50 %");
+    await saved(memberPage, id, () => pickOption(memberPage, stage, "Qualifié"));
+    await expect(probability).toHaveText("20 %");
+
+    await memberPage.reload();
+    await expect(stage).toContainText("Qualifié");
+    const history = memberPage.getByRole("region", { name: "Fil d'activité" });
+    for (const line of ["Étape : Nouveau besoin → Entretien client", "Étape : Entretien client → Qualifié"]) {
+      const entry = history.getByRole("listitem").filter({ hasText: line });
+      await expect(entry).toHaveCount(1);
+      await expect(entry).toContainText(new RegExp(`${MEMBER.firstName} ${MEMBER.lastName} · \\d{1,2} \\S+ \\d{4}, \\d{2}:\\d{2}`));
+    }
+    await expect(history.getByText("Probabilité :")).toHaveCount(0);
   });
 });
 
