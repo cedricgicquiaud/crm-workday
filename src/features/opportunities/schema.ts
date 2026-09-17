@@ -74,4 +74,5 @@ export const OPPORTUNITY_FIELDS: readonly FieldDescriptor[] = [
   { key: "modules", label: "Modules Workday", type: "multilist", required: true, values: MODULES, retiredValues: RETIRED_MODULES, sortable: true, order: 40 },
   { key: "expectedClose", label: "Clôture prévue", type: "date", required: true, sortable: true, order: 100 },
   { key: "ownerId", label: "Responsable", type: "user", required: true, default: "actor", sortable: true, order: 130 },
+  { key: "need", label: "Besoin", type: "text", maxLength: 2000, multiline: true, wide: true, order: 200 },
 ];
