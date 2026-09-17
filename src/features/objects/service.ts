@@ -108,7 +108,7 @@ const unknownRecordRule = (field: FieldDescriptor, labels: ObjectLabels) => `« 
 const archivedRecordRule = (target: ObjectDefinition, title: string) => `${target.labels.singular} ${target.labels.article === "une" ? "archivée" : "archivé"} : « ${title} » ne se choisit plus.`;
 
 /** La relation qu'un objet déclare sur un champ `relation` : c'est elle qui dit de quel objet est la fiche liée. */
-const relationOf = (type: string, field: FieldDescriptor): Relation => getObject(type).relations.find((relation) => relation.fkColumn === field.key)!;
+const relationOf = (type: string, key: string): Relation => getObject(type).relations.find((relation) => relation.fkColumn === key)!;
 
 /**
  * Un champ `relation` désigne une fiche qui existe (D60) : un identifiant inconnu ou mal formé répond
@@ -123,7 +123,7 @@ async function resolveRelations(type: string, values: FieldValues, current: Obje
   for (const field of writableFieldsOf(type)) {
     const value = values[field.key];
     if (field.type !== "relation" || typeof value !== "string") continue;
-    const { to } = relationOf(type, field);
+    const { to } = relationOf(type, field.key);
     const { table } = getServerObject(to);
     const row = UUID.test(value) ? ((await rowById(table, value)) ?? (await keptRow(to, table, value).catch(() => null))) : null;
     const target = getObject(to);
@@ -151,7 +151,7 @@ async function assertInScope(type: string, values: FieldValues, current: ObjectR
     const chosen = values[scope.field];
     const basis = scope.dependsOn in values ? values[scope.dependsOn] : current?.[scope.dependsOn];
     if (typeof chosen !== "string" || (chosen === current?.[scope.field] && !(scope.dependsOn in values))) continue;
-    const { table } = getServerObject(relationOf(type, fieldsOf(type).find((field) => field.key === scope.field)!).to);
+    const { table } = getServerObject(relationOf(type, scope.field).to);
     const columns = getTableColumns(table);
     const [found] = typeof basis === "string" ? await db.select({ id: columns.id }).from(table).where(and(eq(columns.id, chosen), scope.where(basis))).limit(1) : [];
     if (!found) errors[scope.field] = scope.refusal;
