@@ -71,6 +71,19 @@ export const resultRank = (result: string): number => RESULT_RANKS[result] ?? -1
 export const WON_DELETE_RULE = "Une opportunité gagnée s'archive.";
 export const FROM_LEAD_DELETE_RULE = "Une opportunité issue d'un lead s'archive.";
 
+/**
+ * Colonnes que seul un geste pose (D55) — la clôture gagnée ou perdue et sa perte (4.2d), le lead
+ * d'origine (4.2c) —, sous le libellé que dit leur refus quand une saisie les fournit.
+ */
+export const GESTURE_KEYS: Readonly<Record<string, string>> = {
+  closedAt: "Gagnée ou perdue le",
+  lossReason: "Motif de perte",
+  lossComment: "Commentaire de perte",
+  leadId: "Issu du lead",
+};
+
+export const gestureKeyRule = (label: string) => `« ${label} » se pose par un geste et ne se saisit pas.`;
+
 /** Refus d'un contact qui n'est pas un contact de l'entreprise de l'opportunité (D35). */
 export const CONTACT_OUTSIDE_COMPANY_RULE = "« Contact » doit être un contact de l'entreprise de l'opportunité.";
 

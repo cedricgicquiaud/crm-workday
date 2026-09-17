@@ -11,6 +11,7 @@ import { writableFieldsOf } from "@/features/objects/fields";
 import { createObject, getObjectRecord, updateObject, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db, type Executor } from "@/lib/db";
+import { GESTURE_KEYS, gestureKeyRule } from "./schema";
 
 const TYPE = "opportunity";
 
@@ -22,8 +23,9 @@ const asObject = (input: unknown): Record<string, unknown> => (input && typeof i
 
 /**
  * Une clé qu'aucun champ saisissable ne prévoit répond 400 sous la clé (D55) : ignorée, elle ferait
- * croire à un enregistrement qui n'a pas eu lieu. Un champ calculé (le montant estimé) est refusé en
- * le disant. Un champ personnalisé archivé reste une clé connue, que le service refuse de son côté (409).
+ * croire à un enregistrement qui n'a pas eu lieu. Un champ calculé (montant estimé, probabilité) et une
+ * clé posée par un geste (clôture, perte, lead d'origine) sont refusés en le disant. Un champ
+ * personnalisé archivé reste une clé connue, que le service refuse de son côté (409).
  */
 async function refuseUnexpectedKeys(fields: Record<string, unknown>): Promise<void> {
   await loadCustomFields();
@@ -33,7 +35,8 @@ async function refuseUnexpectedKeys(fields: Record<string, unknown>): Promise<vo
   const derived = writableFieldsOf(TYPE).filter((field) => field.editable === false);
   const ruleFor = (key: string) => {
     const field = derived.find((candidate) => candidate.key === key);
-    return field ? derivedFieldRule(field.label) : unexpectedKeyRule(key);
+    if (field) return derivedFieldRule(field.label);
+    return Object.hasOwn(GESTURE_KEYS, key) ? gestureKeyRule(GESTURE_KEYS[key]) : unexpectedKeyRule(key);
   };
   const errors = Object.fromEntries(unexpected.map((key) => [key, ruleFor(key)]));
   throw new HttpError(400, "cle_imprevue", Object.values(errors)[0], { fields: errors });
