@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { join } from "node:path";
 import { MEMBER, seedAccounts } from "./fixtures/auth";
 
 /**
@@ -36,7 +37,9 @@ async function warmUp(appUrl: string): Promise<void> {
 }
 
 export default async function globalSetup() {
-  execFileSync("npx", ["tsx", "src/db/migrate.ts"], { stdio: "inherit" });
+  /* chemin et dossier de la copie qui porte ce fichier, jamais du dossier courant (CRM-100) */
+  const root = join(__dirname, "..");
+  execFileSync("npx", ["tsx", join(root, "src", "db", "migrate.ts")], { cwd: root, stdio: "inherit" });
   const appUrl = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
   try {
     await warmUp(appUrl);

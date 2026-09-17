@@ -10,6 +10,7 @@
  * base passe par ce même fichier relancé en sous-processus `tsx` (`npx tsx e2e/fixtures/auth.ts <commande>`).
  */
 import { execFileSync } from "node:child_process";
+import { join } from "node:path";
 import { test as base, type APIRequestContext, type Browser, type Page } from "@playwright/test";
 
 export type Account = { email: string; password: string; firstName: string; lastName: string; role: "administrateur" | "membre" };
@@ -17,10 +18,12 @@ export type Account = { email: string; password: string; firstName: string; last
 export const ADMIN: Account = { email: "admin-e2e@exemple.fr", password: "MotDePasse-Admin-E2E-1", firstName: "Alice", lastName: "Durand", role: "administrateur" };
 export const MEMBER: Account = { email: "membre-e2e@exemple.fr", password: "MotDePasse-Membre-E2E-1", firstName: "Marc", lastName: "Leroy", role: "membre" };
 
-const SELF = "e2e/fixtures/auth.ts";
+/** Ce fichier et la racine de sa copie du dépôt : le sous-processus lit le `.env.local` de la copie, d'où qu'on lance la suite (CRM-100). */
+const SELF = __filename;
+const ROOT = join(__dirname, "..", "..");
 
 function runDbCommand(...args: string[]): string {
-  return execFileSync("npx", ["tsx", SELF, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
+  return execFileSync("npx", ["tsx", SELF, ...args], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
 }
 
 /** Recrée l'administrateur et le membre de test (mot de passe connu, sessions fermées) ; efface tout compte `*-e2e@exemple.fr`. */

@@ -4,9 +4,11 @@ import { loadDotenv } from "./src/lib/dotenv";
 /**
  * Tests d'écran. Le serveur de développement est lancé sur la base de développement migrée,
  * à l'adresse APP_URL de `.env.local` : un worktree qui a son propre `.env.local` a son propre
- * port et ses propres bases, et deux livraisons peuvent se tester côte à côte.
+ * port et ses propres bases, et deux livraisons peuvent se tester côte à côte. Le `.env.local` lu est
+ * celui du dossier de ce fichier, pas du dossier courant (CRM-100) ; le serveur, `testDir` et
+ * `globalSetup` se résolvent déjà depuis ce dossier.
  */
-loadDotenv();
+loadDotenv(__dirname);
 const appUrl = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
 export default defineConfig({
