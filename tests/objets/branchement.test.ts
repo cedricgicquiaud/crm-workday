@@ -369,3 +369,26 @@ describe("relation à options conditionnées, par déclaration (CRM-104, D35, D6
     expect((await updateObject(TYPE, fiche.id, { phase: null }, { id: actorId })).twinId).toBeNull();
   });
 });
+
+/** Un registre refuse à l'enregistrement une déclaration incomplète, par une erreur qui la nomme (CRM-104). */
+describe("champ relation sans relation déclarée (CRM-104, D60)", () => {
+  it("refuse d'enregistrer un objet dont un champ `relation` ne correspond à aucune relation déclarée", () => {
+    expect(() =>
+      registerObject({
+        key: "test_relation_orpheline",
+        order: 950,
+        labels: { singular: "Fiche orpheline", plural: "Fiches orphelines", article: "une" },
+        icon: CircleDashedIcon,
+        href: (id) => `/orphelines/${id}`,
+        listHref: "/orphelines",
+        apiBase: "/api/orphelines",
+        titleField: "name",
+        fields: [
+          { key: "name", label: "Nom", type: "text", order: 10 },
+          { key: "cousinId", label: "Cousine", type: "relation", order: 20 },
+        ],
+        relations: [],
+      }),
+    ).toThrow(/« cousinId »/);
+  });
+});
