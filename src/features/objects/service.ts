@@ -170,10 +170,23 @@ async function writeSets(type: string, id: string, values: FieldValues, exec: Ex
 }
 
 /**
- * Les ensembles rangés dans une table fille, joints aux fiches : une requête par ensemble pour toutes
- * les fiches. Les valeurs suivent l'ordre de la liste du champ ; une valeur qu'elle ne porte plus
- * (retirée) vient après, pour rester lisible.
+ * Les valeurs d'un ensemble rangé dans une table fille, dans l'ordre de la liste du champ ; une valeur
+ * qu'elle ne porte plus (retirée) vient après, pour rester lisible. La lecture et l'écriture rangent
+ * pareil : un même ensemble reçu dans un autre ordre n'est pas un changement.
  */
+function inListOrder(type: string, key: string, entries: readonly string[]): string[] {
+  const listed = (fieldsOf(type).find((field) => field.key === key)?.values ?? []).map((entry) => entry.value);
+  const rank = (value: string) => (listed.includes(value) ? listed.indexOf(value) : listed.length);
+  return [...entries].sort((a, b) => rank(a) - rank(b));
+}
+
+/** Les ensembles reçus rangés dans l'ordre de leur liste ; les autres valeurs telles quelles. */
+function withSetsInListOrder(type: string, values: FieldValues): FieldValues {
+  const keys = new Set((getServerObject(type).sets ?? []).map((set) => set.field));
+  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, keys.has(key) && Array.isArray(value) ? inListOrder(type, key, value) : value]));
+}
+
+/** Les ensembles rangés dans une table fille, joints aux fiches : une requête par ensemble pour toutes les fiches. */
 async function attachSets(type: string, records: ObjectRecord[]): Promise<ObjectRecord[]> {
   const sets = getServerObject(type).sets ?? [];
   if (sets.length === 0 || records.length === 0) return records;
@@ -186,9 +199,7 @@ async function attachSets(type: string, records: ObjectRecord[]): Promise<Object
       .from(set.table)
       .where(inArray(columns[set.fkColumn], ids));
     for (const row of rows) held.get(String(row.owner))![set.field].push(String(row.value));
-    const listed = (fieldsOf(type).find((field) => field.key === set.field)?.values ?? []).map((entry) => entry.value);
-    const rank = (value: string) => (listed.includes(value) ? listed.indexOf(value) : listed.length);
-    for (const entry of held.values()) entry[set.field].sort((a, b) => rank(a) - rank(b));
+    for (const entry of held.values()) entry[set.field] = inListOrder(type, set.field, entry[set.field]);
   }
   return records.map((record) => ({ ...record, ...held.get(record.id) }));
 }
@@ -336,23 +347,30 @@ export async function updateObject(type: string, id: string, patch: unknown, act
   assertWritable(type, current);
   assertNotFrozen(type, current);
   assertUnlocked(type, current, patch);
-  const values = await validateOrThrow(type, patch, { partial: true });
+  const values = withSetsInListOrder(type, await validateOrThrow(type, patch, { partial: true }));
   await assertUnique(type, values, id);
   const changed = writableFieldsOf(type)
     .filter((field) => field.key in values)
     .map((field) => ({ field, oldValue: serializeValue(field, current[field.key]), newValue: serializeValue(field, values[field.key]) }))
     .filter((change) => change.oldValue !== change.newValue);
   if (changed.length === 0) return current;
-  /* Les colonnes de la fiche partent dans sa table ; les champs personnalisés dans la leur, déjà sérialisés, comme l'historique les lit. */
-  const columnChanges = changed.filter(({ field }) => !isCustomFieldKey(field.key));
+  /*
+   * Les colonnes de la fiche partent dans sa table, ses ensembles dans leur table fille ; les champs
+   * personnalisés dans la leur, déjà sérialisés, comme l'historique les lit. Tout s'écrit ensemble ou rien.
+   */
+  const { columns: columnValues, sets: setValues } = splitSets(type, Object.fromEntries(changed.filter(({ field }) => !isCustomFieldKey(field.key)).map(({ field }) => [field.key, values[field.key]])));
   const customChanges = changed.filter(({ field }) => isCustomFieldKey(field.key));
-  const [row] = await db
-    .update(table)
-    .set({ ...Object.fromEntries(columnChanges.map(({ field }) => [field.key, values[field.key]])), updatedAt: new Date() })
-    .where(eq(columns.id, id))
-    .returning();
-  await writeCustomValues(type, id, Object.fromEntries(customChanges.map(({ field, newValue }) => [field.key, newValue])));
-  await recordHistory(changed.map(({ field, oldValue, newValue }) => ({ objectType: type, objectId: id, action: "modifiee" as const, field: field.key, oldValue, newValue, authorId: actor.id })));
+  const row = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(table)
+      .set({ ...columnValues, updatedAt: new Date() })
+      .where(eq(columns.id, id))
+      .returning();
+    await writeSets(type, id, setValues, tx);
+    await writeCustomValues(type, id, Object.fromEntries(customChanges.map(({ field, newValue }) => [field.key, newValue])), tx);
+    await recordHistory(changed.map(({ field, oldValue, newValue }) => ({ objectType: type, objectId: id, action: "modifiee" as const, field: field.key, oldValue, newValue, authorId: actor.id })), tx);
+    return updated;
+  });
   return withCustomValues(type, row as ObjectRecord);
 }
 
