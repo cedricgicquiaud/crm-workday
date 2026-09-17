@@ -21,5 +21,7 @@ registerObject({
   relations: [
     { to: "company", fkColumn: "companyId", label: "Entreprise", inverseLabel: "Opportunités", prefill: "companyId" },
     { to: "person", fkColumn: "contactPersonId", label: "Contact", inverseLabel: "Opportunités" },
+    /* Posé par la conversion d'un lead (4.2c), jamais saisi : la trace d'origine prime, même archivée (D51). */
+    { to: "lead", fkColumn: "leadId", label: "Issu du lead", inverseLabel: "Opportunité", keepArchived: true },
   ],
 });
