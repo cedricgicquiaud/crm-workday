@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, seedAccounts, test } from "./fixtures/auth";
 import { resetObjects } from "./fixtures/objets";
-import { resetOpportunities } from "./fixtures/opportunites";
+import { pickOption, resetOpportunities } from "./fixtures/opportunites";
 
 /* Les fiches finissent par « (e2e) » : les fixtures les effacent, et rien d'autre. */
 const tag = () => Date.now().toString(36);
@@ -38,3 +38,33 @@ test.describe("montant estimé dans la liste (CRM-103, contrat 33)", () => {
     await expect(row).toContainText("39 000,00 €");
   });
 });
+
+test.describe("création rapide depuis la liste (CRM-104, contrat 31)", () => {
+  test("« Nouvelle opportunité » ouvre la création à quatre champs ; « Refonte Payroll » chez Banque X, HCM et Payroll, clôture au 30 octobre : la fiche s'ouvre, Marc Leroy en responsable, à l'étape « Nouveau besoin »", async ({ memberPage }) => {
+    const mark = tag();
+    const bank = named("Banque X", mark);
+    await post(memberPage, "/api/entreprises", { name: bank, type: "prospect" });
+    const title = named("Refonte Payroll", mark);
+
+    await memberPage.goto("/opportunites");
+    await memberPage.getByRole("button", { name: "Nouvelle opportunité" }).click();
+    const dialog = memberPage.getByRole("dialog", { name: "Nouvelle opportunité" });
+    await dialog.getByLabel("Titre").fill(title);
+    await pickOption(memberPage, dialog.getByRole("combobox", { name: "Entreprise" }), bank);
+    const modules = dialog.getByRole("group", { name: "Modules Workday" });
+    await modules.getByRole("checkbox", { name: "HCM", exact: true }).click();
+    await modules.getByRole("checkbox", { name: "Payroll", exact: true }).click();
+    await dialog.getByLabel("Clôture prévue").fill("2026-10-30");
+    /* Quatre champs, rien d'autre : le reste se règle sur la fiche (D34). */
+    await expect(dialog.locator("label, [id$='-label']")).toHaveText(["Titre", "Entreprise", "Modules Workday", "Clôture prévue"]);
+    await dialog.getByRole("button", { name: "Créer" }).click();
+
+    await expect(memberPage).toHaveURL(/\/opportunites\/[0-9a-f-]{36}$/);
+    await expect(memberPage.getByRole("heading", { level: 1, name: title })).toBeVisible();
+    await expect(memberPage.getByText("responsable : Marc Leroy")).toBeVisible();
+    const id = memberPage.url().split("/").pop()!;
+    const created = (await (await memberPage.request.get(`/api/opportunites/${id}`)).json()) as Record<string, unknown>;
+    expect(created).toMatchObject({ stage: "nouveau_besoin", modules: ["hcm", "payroll"], expectedClose: "2026-10-30", companyIdLabel: bank });
+  });
+});
+

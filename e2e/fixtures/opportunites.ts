@@ -12,6 +12,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
+import type { Locator, Page } from "@playwright/test";
 
 /** Ce fichier et la racine de sa copie du dépôt : le sous-processus lit le `.env.local` de la copie, d'où qu'on lance la suite (CRM-100). */
 const SELF = __filename;
@@ -23,6 +24,12 @@ function runDbCommand(...args: string[]): string {
 
 export function resetOpportunities(): void {
   runDbCommand("reset");
+}
+
+/** Choisit une option d'un sélecteur (liste fermée ou fiche liée) : les deux suites des opportunités le partagent. */
+export async function pickOption(page: Page, combobox: Locator, option: string): Promise<void> {
+  await combobox.click();
+  await page.getByRole("option", { name: option, exact: true }).click();
 }
 
 /* --------------------------------------------------------------------------------------------
