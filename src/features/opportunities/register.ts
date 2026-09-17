@@ -18,8 +18,8 @@ registerObject({
   fields: OPPORTUNITY_FIELDS,
   /** D34 : les quatre champs de la création rapide ; tout le reste se règle sur la fiche. */
   quickCreate: ["title", "companyId", "modules", "expectedClose"],
-  /** Montant estimé, clôture prévue, responsable ; les colonnes de la vue « Opportunités en cours » arrivent avec elle (D38). */
-  listColumns: ["estimatedAmount", "expectedClose", "ownerId"],
+  /** D38 : Titre, puis Entreprise, Étape, Probabilité, Montant estimé, Clôture prévue et Responsable ; le reste se choisit au menu des colonnes. */
+  listColumns: ["companyId", "stage", "probability", "estimatedAmount", "expectedClose", "ownerId"],
   /** D38 : « Opportunités en cours » — ni gagnée ni perdue, de la clôture prévue la plus proche à la plus lointaine ; ses puces se retirent. */
   defaultView: { name: "Opportunités en cours", query: `f=stage:n_est_pas:${WON_STAGE}&f=stage:n_est_pas:${LOST_STAGE}&tri=expectedClose:asc` },
   relations: [

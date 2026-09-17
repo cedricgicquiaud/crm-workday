@@ -34,9 +34,10 @@ async function refuseUnexpectedKeys(fields: Record<string, unknown>): Promise<vo
   if (unexpected.length === 0) return;
   const derived = writableFieldsOf(TYPE).filter((field) => field.editable === false);
   const ruleFor = (key: string) => {
+    /* Le geste d'abord : « Motif de perte » est un champ déclaré en lecture seule, mais il ne se calcule pas — il se pose. */
+    if (Object.hasOwn(GESTURE_KEYS, key)) return gestureKeyRule(GESTURE_KEYS[key]);
     const field = derived.find((candidate) => candidate.key === key);
-    if (field) return derivedFieldRule(field.label);
-    return Object.hasOwn(GESTURE_KEYS, key) ? gestureKeyRule(GESTURE_KEYS[key]) : unexpectedKeyRule(key);
+    return field ? derivedFieldRule(field.label) : unexpectedKeyRule(key);
   };
   const errors = Object.fromEntries(unexpected.map((key) => [key, ruleFor(key)]));
   throw new HttpError(400, "cle_imprevue", Object.values(errors)[0], { fields: errors });

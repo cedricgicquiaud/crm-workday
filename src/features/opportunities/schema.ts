@@ -125,5 +125,7 @@ export const OPPORTUNITY_FIELDS: readonly FieldDescriptor[] = [
   /* Déduite de l'étape à la lecture (D33), jamais saisie : colonne, filtre et tri de la liste. */
   { key: "probability", label: "Probabilité", type: "number", unit: "%", editable: false, sortable: true, order: 120 },
   { key: "ownerId", label: "Responsable", type: "user", required: true, default: "actor", sortable: true, order: 130 },
+  /* Posé par le geste « Marquer perdue » (4.2d), jamais saisi : colonne et filtre de la liste, lu en texte sur la fiche (D38). */
+  { key: "lossReason", label: "Motif de perte", type: "list", values: LOSS_REASONS, editable: false, sortable: true, order: 150 },
   { key: "need", label: "Besoin", type: "text", maxLength: 2000, multiline: true, wide: true, order: 200 },
 ];
