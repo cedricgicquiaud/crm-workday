@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, MEMBER, seedAccounts, test } from "./fixtures/auth";
+import { resetCustomFields } from "./fixtures/champs";
 import { resetObjects } from "./fixtures/objets";
 import { pickOption } from "./fixtures/opportunites";
 import { archiveCompany, resetPersons } from "./fixtures/personnes";
@@ -10,6 +11,7 @@ const named = (prefix: string, mark: string) => `${prefix} ${mark} (e2e)`;
 
 /* Les opportunités et les personnes d'abord (`resetPersons` efface les opportunités avant elles) : elles retiennent leur entreprise. */
 function resetAll() {
+  resetCustomFields();
   resetPersons();
   resetObjects();
 }
@@ -258,3 +260,59 @@ test.describe("fiches liées qui ont changé (CRM-104, contrat 41)", () => {
   });
 });
 
+test.describe("champ personnalisé d'une opportunité (CRM-106, D37, contrat 38)", () => {
+  test("un administrateur pose « Appel d'offres » sur les opportunités : il se saisit sur la fiche et devient colonne de la liste", async ({ adminPage }) => {
+    const mark = tag();
+    const id = await createOpportunity(adminPage, mark);
+
+    /* Paramètres → Champs propose « Opportunités » comme objet de rattachement. */
+    await adminPage.goto("/parametres/champs");
+    await expect(adminPage.getByRole("heading", { level: 3, name: "Opportunités" })).toBeVisible();
+    const label = named("Appel d'offres", mark);
+    const created = await adminPage.request.post("/api/champs", { data: { objectType: "opportunity", label, type: "text" } });
+    expect(created.status()).toBe(201);
+    const key = `cf_${((await created.json()) as { field: { id: string } }).field.id}`;
+
+    /* Un champ personnalisé se rend sous « Autres champs », à côté des champs déclarés de la fiche. */
+    await adminPage.goto(`/opportunites/${id}`);
+    const others = adminPage.getByRole("region", { name: "Autres champs" });
+    await saved(adminPage, id, async () => {
+      await others.getByLabel(label).fill("AO 2026-114");
+      await others.getByLabel(label).blur();
+    });
+    await adminPage.reload();
+    await expect(others.getByLabel(label)).toHaveValue("AO 2026-114");
+
+    await adminPage.goto(`/opportunites?colonnes=${key}&f=title:contient:${encodeURIComponent(mark)}`);
+    const row = adminPage.getByRole("table", { name: "Opportunités" }).getByRole("row").filter({ has: adminPage.getByRole("link", { name: named("Refonte Payroll", mark) }) });
+    await expect(row).toContainText("AO 2026-114");
+  });
+});
+
+test.describe("une opportunité ne se fusionne pas (CRM-106, D37, contrat 42)", () => {
+  test("son menu « Actions » n'offre pas « Fusionner… », mais bien « Supprimer définitivement » à un administrateur", async ({ adminPage }) => {
+    const id = await createOpportunity(adminPage, tag());
+    await adminPage.goto(`/opportunites/${id}`);
+
+    await adminPage.getByRole("button", { name: "Actions" }).click();
+    const menu = adminPage.getByRole("menu");
+    await expect(menu.getByRole("menuitem", { name: "Fusionner…" })).toHaveCount(0);
+    await expect(menu.getByRole("menuitem", { name: "Archiver" })).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Supprimer définitivement" })).toBeVisible();
+  });
+});
+
+test.describe("fiche d'une opportunité à 375 px (CRM-106, D49, contrat 59)", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test("s'affiche en une colonne sans défilement horizontal, ses champs atteignables", async ({ memberPage }) => {
+    const id = await createOpportunity(memberPage, tag(), { targetDailyRate: 650, estimatedDays: 60 });
+    await memberPage.goto(`/opportunites/${id}`);
+
+    await expect(memberPage.getByRole("heading", { level: 1 })).toHaveCount(1);
+    const fields = memberPage.getByRole("region", { name: "Champs", exact: true });
+    await expect(fields).toBeVisible();
+    await expect(fields.getByLabel("Montant estimé")).toHaveText("39 000,00 €");
+    expect(await memberPage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  });
+});
