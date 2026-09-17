@@ -119,4 +119,14 @@ describe("bornes d'une opportunité à la création (CRM-103, D31, contrat 39)",
   it("accepte un TJM de vente cible de 0,01, de 19,99 ou de 5 000", async () => {
     for (const targetDailyRate of [0.01, 19.99, 5000]) expect((await post({ ...valid(), targetDailyRate })).status, String(targetDailyRate)).toBe(201);
   });
+
+  it("refuse sous le champ une durée estimée de 0, de 1 001 ou de 2,5 jours, et accepte 1 et 1 000", async () => {
+    for (const estimatedDays of [0, 1001, 2.5]) {
+      const refusal = await post({ ...valid(), estimatedDays });
+      expect(refusal.status, String(estimatedDays)).toBe(400);
+      expect(Object.keys(refusal.fields), String(estimatedDays)).toEqual(["estimatedDays"]);
+    }
+    expect(await count()).toBe(0);
+    for (const estimatedDays of [1, 1000]) expect((await post({ ...valid(), estimatedDays })).status, String(estimatedDays)).toBe(201);
+  });
 });
