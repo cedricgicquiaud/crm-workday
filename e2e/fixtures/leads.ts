@@ -13,6 +13,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
+import { resetOpportunities } from "./opportunites";
 
 /** Ce fichier et la racine de sa copie du dépôt : le sous-processus lit le `.env.local` de la copie, d'où qu'on lance la suite (CRM-100). */
 const SELF = __filename;
@@ -23,6 +24,7 @@ function runDbCommand(...args: string[]): string {
 }
 
 export function resetLeads(): void {
+  resetOpportunities(); // 4.2a : une opportunité retient son lead, son contact et son entreprise (clés sans cascade)
   runDbCommand("reset");
 }
 
