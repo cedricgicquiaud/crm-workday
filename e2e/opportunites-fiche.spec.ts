@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, seedAccounts, test } from "./fixtures/auth";
 import { resetObjects } from "./fixtures/objets";
-import { resetOpportunities } from "./fixtures/opportunites";
+import { pickOption, resetOpportunities } from "./fixtures/opportunites";
 
 /* Les fiches finissent par « (e2e) » : les fixtures les effacent, et rien d'autre. */
 const tag = () => Date.now().toString(36);
@@ -128,3 +128,30 @@ test.describe("modules Workday sur la fiche (CRM-103, contrat 39)", () => {
     await expect(fields.getByRole("alert")).toHaveCount(0);
   });
 });
+
+test.describe("« Ajouter une opportunité » depuis une entreprise (CRM-104, contrat 32)", () => {
+  test("la colonne des liens de Banque X ouvre la création avec Banque X pré-remplie ; l'entreprise se change avant de créer", async ({ memberPage }) => {
+    const mark = tag();
+    const bank = named("Banque X", mark);
+    const acme = named("Acme", mark);
+    const bankId = await post(memberPage, "/api/entreprises", { name: bank, type: "prospect" });
+    const acmeId = await post(memberPage, "/api/entreprises", { name: acme, type: "prospect" });
+
+    await memberPage.goto(`/entreprises/${bankId}`);
+    await memberPage.getByRole("region", { name: "Liens" }).getByRole("region", { name: "Opportunités" }).getByRole("button", { name: "Ajouter une opportunité" }).click();
+    const dialog = memberPage.getByRole("dialog", { name: "Nouvelle opportunité" });
+    const company = dialog.getByRole("combobox", { name: "Entreprise" });
+    await expect(company).toContainText(bank);
+
+    await pickOption(memberPage, company, acme);
+    await dialog.getByLabel("Titre").fill(named("Refonte Payroll", mark));
+    await dialog.getByRole("group", { name: "Modules Workday" }).getByRole("checkbox", { name: "Payroll", exact: true }).click();
+    await dialog.getByLabel("Clôture prévue").fill("2026-10-30");
+    await dialog.getByRole("button", { name: "Créer" }).click();
+
+    await expect(memberPage).toHaveURL(/\/opportunites\/[0-9a-f-]{36}$/);
+    const id = memberPage.url().split("/").pop()!;
+    expect(((await (await memberPage.request.get(`/api/opportunites/${id}`)).json()) as Record<string, unknown>).companyId).toBe(acmeId);
+  });
+});
+
