@@ -18,19 +18,22 @@ export const UNKNOWN_COMPANY_RULE = "« Entreprise » ne désigne aucune entrepr
 
 const unexpectedKeyRule = (key: string) => `« ${key} » n'est pas un champ d'une opportunité.`;
 
+const derivedFieldRule = (label: string) => `« ${label} » se calcule et ne se saisit pas.`;
+
 const asObject = (input: unknown): Record<string, unknown> => (input && typeof input === "object" ? (input as Record<string, unknown>) : {});
 
 /**
  * Une clé qu'aucun champ saisissable ne prévoit répond 400 sous la clé (D55) : ignorée, elle ferait
- * croire à un enregistrement qui n'a pas eu lieu. Un champ personnalisé archivé reste une clé connue,
- * que le service refuse de son côté (409).
+ * croire à un enregistrement qui n'a pas eu lieu. Un champ calculé (le montant estimé) est refusé en
+ * le disant. Un champ personnalisé archivé reste une clé connue, que le service refuse de son côté (409).
  */
 async function refuseUnexpectedKeys(fields: Record<string, unknown>): Promise<void> {
   await loadCustomFields();
   const expected = new Set([...writableFieldsOf(TYPE).filter((field) => field.editable !== false), ...allCustomFieldsOf(TYPE)].map((field) => field.key));
   const unexpected = Object.keys(fields).filter((key) => !expected.has(key));
   if (unexpected.length === 0) return;
-  const errors = Object.fromEntries(unexpected.map((key) => [key, unexpectedKeyRule(key)]));
+  const derived = writableFieldsOf(TYPE).filter((field) => field.editable === false);
+  const errors = Object.fromEntries(unexpected.map((key) => [key, derived.some((field) => field.key === key) ? derivedFieldRule(derived.find((field) => field.key === key)!.label) : unexpectedKeyRule(key)]));
   throw new HttpError(400, "cle_imprevue", Object.values(errors)[0], { fields: errors });
 }
 

@@ -91,6 +91,8 @@ export const OPPORTUNITY_FIELDS: readonly FieldDescriptor[] = [
   { key: "modules", label: "Modules Workday", type: "multilist", required: true, values: MODULES, retiredValues: RETIRED_MODULES, sortable: true, order: 40 },
   { key: "targetDailyRate", label: "TJM de vente cible", type: "number", unit: "€", decimals: 2, min: 0, minExclusive: true, max: TARGET_DAILY_RATE_MAX, sortable: true, order: 60 },
   { key: "estimatedDays", label: "Durée estimée", type: "number", unit: "jours", integer: true, min: 1, max: ESTIMATED_DAYS_MAX, sortable: true, order: 70 },
+  /* Calculé à la lecture (TJM × durée), jamais saisi : colonne, filtre et tri de la liste. */
+  { key: "estimatedAmount", label: "Montant estimé", type: "number", unit: "€", decimals: 2, editable: false, sortable: true, order: 80 },
   { key: "desiredStart", label: "Démarrage souhaité", type: "date", sortable: true, order: 90 },
   { key: "expectedClose", label: "Clôture prévue", type: "date", required: true, sortable: true, order: 100 },
   { key: "ownerId", label: "Responsable", type: "user", required: true, default: "actor", sortable: true, order: 130 },
