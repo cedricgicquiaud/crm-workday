@@ -1,3 +1,5 @@
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
 import { afterAll, describe, expect, it } from "vitest";
 import "@/features/objects/manifest";
 import { runMigrations } from "@/db/migrate";
@@ -5,6 +7,7 @@ import { MODULES, RETIRED_MODULES } from "@/features/consultants/schema";
 import { validateValues } from "@/features/objects/fields";
 import { displayValue } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
+import { SetControl } from "@/features/objects/set-control";
 import { LOSS_REASONS, PROPOSAL_RESULTS, resultRank, STAGES, stageProbability, stageRank } from "@/features/opportunities/schema";
 import { closeDb, rawSql } from "@/lib/db";
 import { appliedMigrationsCount, schemaSnapshot } from "../helpers/db";
@@ -40,6 +43,14 @@ describe("modules Workday d'une opportunité (CRM-103, D31)", () => {
     const retiring: FieldDescriptor = { ...field("modules"), values: MODULES.filter((entry) => entry !== student), retiredValues: [student] };
     expect(displayValue(retiring, ["hcm", "student"], [])).toBe("HCM, Student (retirée)");
     expect(Object.keys(validateValues([retiring], { modules: ["hcm", "student"] }, { partial: true }).errors)).toEqual(["modules"]);
+  });
+
+  it("ne proposent un module retiré, marqué et coché, que sur la fiche qui le porte", () => {
+    const student = MODULES.find((entry) => entry.value === "student")!;
+    const values = MODULES.filter((entry) => entry !== student);
+    const render = (value: string[]) => renderToString(createElement(SetControl, { id: "champ-modules", label: "Modules Workday", value, values, retired: [student], onSave: async () => true }));
+    expect(render(["hcm", "student"])).toMatch(/aria-label="Student \(retirée\)"[^>]*aria-checked="true"|aria-checked="true"[^>]*aria-label="Student \(retirée\)"/);
+    expect(render(["hcm"])).not.toContain("Student");
   });
 });
 
