@@ -4,6 +4,7 @@ import { GET as getOpportunity, PATCH as patchOpportunity } from "@/app/api/oppo
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
 import { auditLog, company, opportunity, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { listHistory } from "@/features/history/history";
 import { createObject } from "@/features/objects/service";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
@@ -92,5 +93,13 @@ describe("modification d'une opportunité (CRM-103, D34)", () => {
     const id = await create({ title: "Refonte Payroll", companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30" });
     expect((await patch(id, { expectedClose: "2021-03-01" })).status).toBe(200);
     expect((await read(id)).expectedClose).toBe("2021-03-01");
+  });
+
+  it("remplace les modules en une écriture, relus dans l'ordre de la liste, avec une seule ligne d'historique", async () => {
+    const id = await create({ title: "Refonte Payroll", companyId: bankId, modules: ["hcm", "payroll"], expectedClose: "2026-10-30" });
+    expect((await patch(id, { modules: ["finance", "hcm"] })).status).toBe(200);
+    expect((await read(id)).modules).toEqual(["hcm", "finance"]);
+    const lines = (await listHistory("opportunity", id)).filter((entry) => entry.field === "modules").map((entry) => [entry.oldValue, entry.newValue]);
+    expect(lines).toEqual([["hcm,payroll", "hcm,finance"]]);
   });
 });
