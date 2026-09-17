@@ -168,6 +168,8 @@ export function validateValues(fields: readonly FieldDescriptor[], input: unknow
     if (Array.isArray(value)) {
       const unknown = value.find((entry) => !field.values?.some((v) => v.value === entry));
       if (unknown !== undefined) errors[field.key] = MESSAGES.outOfList(field.label);
+      /* Un ensemble obligatoire porte au moins une valeur : vide, il manque comme un champ vide. */
+      else if (field.required && value.length === 0) errors[field.key] = MESSAGES.required(field.label);
       else values[field.key] = value;
       continue;
     }
