@@ -7,8 +7,12 @@
  */
 import type { LucideIcon } from "lucide-react";
 
-/** `multilist` : plusieurs valeurs d'une liste fermée dans un même champ (modules Workday, Profils, D19). */
-export type FieldType = "text" | "list" | "date" | "number" | "user" | "multilist";
+/**
+ * `multilist` : plusieurs valeurs d'une liste fermée dans un même champ (modules Workday, Profils, D19).
+ * `relation` : l'identifiant d'une fiche liée, désignée par la relation que l'objet déclare sur ce champ
+ * (`relations`, même `fkColumn`) ; elle se choisit dans un sélecteur de fiches et se lit par son titre (D60).
+ */
+export type FieldType = "text" | "list" | "date" | "number" | "user" | "multilist" | "relation";
 
 /**
  * `reserved` : une valeur que seul un geste de l'objet pose (« converti », « écarté » d'un lead, D21).

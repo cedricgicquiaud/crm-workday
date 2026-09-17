@@ -14,7 +14,7 @@ import { attachCustomValues, splitCustomValues, writeCustomValues } from "@/feat
 import { recordHistory } from "@/features/history/history";
 import { fieldsOf, isLocked, serializeValue, validateValues, writableFieldsOf, type FieldValues } from "@/features/objects/fields";
 import { userName, type SerializedRecord, type UserOption } from "@/features/objects/labels";
-import { getObject } from "@/features/objects/registry";
+import { getObject, type FieldDescriptor, type Relation } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
 import { objectRedirect, user } from "@/db/schema";
 import { HttpError } from "@/lib/auth/session";
@@ -98,7 +98,31 @@ async function validateOrThrow(type: string, input: unknown, { partial, customRe
   const { values, errors } = validateValues(fields, input, { partial });
   if (Object.keys(errors).length > 0) throw invalid(errors);
   await assertUsersExist(type, values);
-  return values;
+  return resolveRelations(type, values);
+}
+
+/** La relation qu'un objet déclare sur un champ `relation` : c'est elle qui dit de quel objet est la fiche liée. */
+const relationOf = (type: string, field: FieldDescriptor): Relation => getObject(type).relations.find((relation) => relation.fkColumn === field.key)!;
+
+/**
+ * Un champ `relation` désigne une fiche qui existe (D60) : un identifiant inconnu ou mal formé répond
+ * 400 sous le champ, avant que la clé étrangère ne le refuse en base. Une fiche absorbée par une fusion
+ * est remplacée par la fiche conservée : c'est elle qu'on enregistre, l'absorbée n'existe plus.
+ */
+async function resolveRelations(type: string, values: FieldValues): Promise<FieldValues> {
+  const resolved = { ...values };
+  const errors: Record<string, string> = {};
+  for (const field of writableFieldsOf(type)) {
+    const value = values[field.key];
+    if (field.type !== "relation" || typeof value !== "string") continue;
+    const { to } = relationOf(type, field);
+    const { table } = getServerObject(to);
+    const row = UUID.test(value) ? ((await rowById(table, value)) ?? (await keptRow(to, table, value).catch(() => null))) : null;
+    if (row) resolved[field.key] = String(row.id);
+    else errors[field.key] = `« ${field.label} » ne désigne ${getObject(to).labels.article === "une" ? "aucune" : "aucun"} ${getObject(to).labels.singular.toLowerCase()}.`;
+  }
+  if (Object.keys(errors).length > 0) throw invalid(errors);
+  return resolved;
 }
 
 /**

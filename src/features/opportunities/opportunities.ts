@@ -12,10 +12,6 @@ import { db } from "@/lib/db";
 
 const TYPE = "opportunity";
 
-const COMPANY_FIELD = "companyId";
-
-export const UNKNOWN_COMPANY_RULE = "« Entreprise » ne désigne aucune entreprise.";
-
 const unexpectedKeyRule = (key: string) => `« ${key} » n'est pas un champ d'une opportunité.`;
 
 const derivedFieldRule = (label: string) => `« ${label} » se calcule et ne se saisit pas.`;
@@ -41,27 +37,10 @@ async function refuseUnexpectedKeys(fields: Record<string, unknown>): Promise<vo
   throw new HttpError(400, "cle_imprevue", Object.values(errors)[0], { fields: errors });
 }
 
-/**
- * L'entreprise désignée doit exister (D31) : un identifiant inconnu ou mal formé répond 400 sous le
- * champ, avant que la clé étrangère ne le refuse en base. Une entreprise absente relève de la règle
- * « obligatoire » des descripteurs.
- */
-async function assertCompanyExists(fields: Record<string, unknown>): Promise<void> {
-  const companyId = fields[COMPANY_FIELD];
-  if (typeof companyId !== "string" || companyId.trim() === "") return;
-  try {
-    await getObjectRecord("company", companyId.trim());
-  } catch (error) {
-    if (error instanceof HttpError && error.status === 404) throw new HttpError(400, "donnees_invalides", UNKNOWN_COMPANY_RULE, { fields: { [COMPANY_FIELD]: UNKNOWN_COMPANY_RULE } });
-    throw error;
-  }
-}
-
 /** Création (D34) : la fiche et ses modules s'écrivent ensemble, ou rien ne s'écrit. */
 export async function createOpportunity(input: unknown, actor: Actor): Promise<ObjectRecord> {
   const fields = asObject(input);
   await refuseUnexpectedKeys(fields);
-  await assertCompanyExists(fields);
   const created = await db.transaction((tx) => createObject(TYPE, fields, actor, tx));
   return getObjectRecord(TYPE, created.id);
 }
@@ -72,6 +51,5 @@ export const getOpportunity = (id: string): Promise<ObjectRecord> => getObjectRe
 export async function updateOpportunity(id: string, patch: unknown, actor: Actor): Promise<ObjectRecord> {
   const fields = asObject(patch);
   await refuseUnexpectedKeys(fields);
-  await assertCompanyExists(fields);
   return updateObject(TYPE, id, fields, actor);
 }

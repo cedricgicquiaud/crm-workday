@@ -18,5 +18,5 @@ registerObject({
   fields: OPPORTUNITY_FIELDS,
   /** Montant estimé, clôture prévue, responsable ; les colonnes de la vue « Opportunités en cours » arrivent avec elle (D38). */
   listColumns: ["estimatedAmount", "expectedClose", "ownerId"],
-  relations: [],
+  relations: [{ to: "company", fkColumn: "companyId", label: "Entreprise", inverseLabel: "Opportunités", prefill: "companyId" }],
 });
