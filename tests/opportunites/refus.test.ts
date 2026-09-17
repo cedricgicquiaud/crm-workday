@@ -115,4 +115,8 @@ describe("bornes d'une opportunité à la création (CRM-103, D31, contrat 39)",
     }
     expect(await count()).toBe(0);
   });
+
+  it("accepte un TJM de vente cible de 0,01, de 19,99 ou de 5 000", async () => {
+    for (const targetDailyRate of [0.01, 19.99, 5000]) expect((await post({ ...valid(), targetDailyRate })).status, String(targetDailyRate)).toBe(201);
+  });
 });
