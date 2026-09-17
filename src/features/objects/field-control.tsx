@@ -167,7 +167,7 @@ function FieldSelect({ id, label, placement, kind, value, options, placeholder, 
   const record = kind === "record";
   const items = record && value && !options.some((option) => option.value === value) ? [...options, { value, label: "…" }] : options;
   return (
-    <Select items={items} value={value || null} onValueChange={(next) => (record ? next && onChoose(next) : onChoose(next ?? ""))}>
+    <Select items={items} value={value || null} onValueChange={(next) => (record ? next !== null && onChoose(next) : onChoose(next ?? ""))}>
       <SelectTrigger id={id} aria-label={label} size={placement === "sheet" ? "sm" : "default"} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="w-full min-w-0">
         <SelectValue className="min-w-0 truncate" placeholder={placeholder ?? (record || placement === "dialog" ? "Choisir…" : "—")} />
       </SelectTrigger>

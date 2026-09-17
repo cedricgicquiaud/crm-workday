@@ -6,12 +6,15 @@ import "@/features/objects/manifest";
 import { DuplicateWarning, type DuplicateHint } from "@/features/duplicates/duplicate-warning";
 import { FieldControl, type FieldControlKind, type FieldControlOption } from "@/features/objects/field-control";
 import { isLocked, sheetFieldsOf } from "@/features/objects/fields";
-import { displayValue, selectableValues, type SerializedRecord, type UserOption } from "@/features/objects/labels";
+import { cellText, displayValue, EMPTY, selectableValues, type RelationOptions, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 import { SetControl } from "@/features/objects/set-control";
 
-/** `readOnly` : la fiche entière ne se modifie plus (fiche archivée, D21) ; `field.editable` reste la règle du champ. */
-type Props = { type: string; record: SerializedRecord; users: readonly UserOption[]; readOnly?: boolean };
+/**
+ * `readOnly` : la fiche entière ne se modifie plus (fiche archivée, D21) ; `field.editable` reste la règle du champ.
+ * `relationOptions` : les fiches que chaque champ `relation` propose, lues par la page pour cette fiche (D35).
+ */
+type Props = { type: string; record: SerializedRecord; users: readonly UserOption[]; relationOptions?: Readonly<Record<string, RelationOptions>>; readOnly?: boolean };
 
 const MAIN_SECTION = "Champs";
 
@@ -37,7 +40,7 @@ const asSet = (value: unknown): string[] => (Array.isArray(value) ? value.map(St
  * valeur enregistrée revient. Les champs s'empilent sur une seule colonne et prennent toute la
  * largeur de la colonne centrale : une adresse email ou une rue s'y lit en entier.
  */
-export function FieldsSection({ type, record: initial, users, readOnly = false }: Props) {
+export function FieldsSection({ type, record: initial, users, relationOptions = {}, readOnly = false }: Props) {
   const router = useRouter();
   const definition = getObject(type);
   const [record, setRecord] = useState(initial);
@@ -107,8 +110,10 @@ export function FieldsSection({ type, record: initial, users, readOnly = false }
                   <SetControl id={`champ-${type}-${field.key}`} label={field.label} value={asSet(record[field.key])} values={field.values ?? []} retired={field.retiredValues} error={errors[field.key]} onSave={(value) => save(field, value)} />
                 ) : (
                   /* Un champ que la fiche fige (D21) se lit comme sur une fiche archivée ; ses voisins restent modifiables. */
-                  <EditableField type={type} field={field} value={asString(record[field.key])} error={errors[field.key]} users={users} readOnly={readOnly || isLocked(field, record)} onSave={(value) => save(field, value)} />
+                  <EditableField type={type} field={field} record={record} value={asString(record[field.key])} error={errors[field.key]} users={users} relationOptions={relationOptions[field.key]} readOnly={readOnly || isLocked(field, record)} onSave={(value) => save(field, value)} />
                 )}
+                {/* Le sélecteur est borné (D35) : ce qu'il ne propose pas est compté, jamais tu. */}
+                {field.type === "relation" && !readOnly && (relationOptions[field.key]?.more ?? 0) > 0 && <p className="text-xs text-muted-foreground">{`et ${relationOptions[field.key].more} autre${relationOptions[field.key].more > 1 ? "s" : ""}`}</p>}
                 <DuplicateWarning type={type} duplicates={warnings[field.key] ?? []} note={null} />
               </div>
             ))}
@@ -119,13 +124,25 @@ export function FieldsSection({ type, record: initial, users, readOnly = false }
   );
 }
 
-type EditableProps = { type: string; field: FieldDescriptor; value: string; error?: string; users: readonly UserOption[]; readOnly: boolean; onSave: (value: string) => Promise<boolean> };
+type EditableProps = { type: string; field: FieldDescriptor; record: SerializedRecord; value: string; error?: string; users: readonly UserOption[]; relationOptions?: RelationOptions; readOnly: boolean; onSave: (value: string) => Promise<boolean> };
 
-/** Forme du contrôle d'un champ de fiche : un responsable se choisit dans la liste des utilisateurs, comme une liste fermée. */
+/** Forme du contrôle d'un champ de fiche : un responsable se choisit dans la liste des utilisateurs, comme une liste fermée ; une fiche liée dans un sélecteur de fiches. */
 function kindOf(field: FieldDescriptor): FieldControlKind {
   if (field.type === "list" || field.type === "user") return "list";
+  if (field.type === "relation") return "record";
   if (field.multiline) return "multiline";
   return field.type === "date" ? "date" : field.type === "number" ? "number" : "text";
+}
+
+/**
+ * Fiches proposées par un champ `relation` (D60) : « — » pour vider le champ, puis les fiches que la page
+ * a lues. La fiche liée enregistrée, si elle n'est plus proposée (archivée, contact parti), s'ajoute
+ * éteinte avec sa marque : le sélecteur dit ce que la fiche porte sans le proposer (D36).
+ */
+function recordOptionsOf(record: SerializedRecord, field: FieldDescriptor, saved: string, loaded?: RelationOptions): FieldControlOption[] {
+  const options = (loaded?.options ?? []).map((option) => ({ value: option.id, label: option.name }));
+  const carried = saved !== "" && !options.some((option) => option.value === saved) ? [{ value: saved, label: cellText(field, record, []), disabled: true }] : [];
+  return [{ value: "", label: EMPTY }, ...options, ...carried];
 }
 
 /** Valeurs proposées par un champ de liste ou de responsable ; rien pour un champ de saisie. */
@@ -136,8 +153,9 @@ function optionsOf(field: FieldDescriptor, saved: string, users: readonly UserOp
 }
 
 /** Un champ de la fiche, éditable en place ou lu comme du texte quand il ne se saisit pas (champ dérivé, fiche archivée). */
-function EditableField({ type, field, value: saved, error, users, readOnly, onSave }: EditableProps) {
+function EditableField({ type, field, record, value: saved, error, users, relationOptions, readOnly, onSave }: EditableProps) {
   const editable = field.editable !== false && !readOnly;
+  const relation = field.type === "relation";
   return (
     <FieldControl
       id={`champ-${type}-${field.key}`}
@@ -145,10 +163,10 @@ function EditableField({ type, field, value: saved, error, users, readOnly, onSa
       placement="sheet"
       kind={kindOf(field)}
       value={saved}
-      options={optionsOf(field, saved, users)}
+      options={relation ? recordOptionsOf(record, field, saved, relationOptions) : optionsOf(field, saved, users)}
       error={error}
       readOnly={!editable}
-      display={displayValue(field, saved, users)}
+      display={relation ? cellText(field, record, users) : displayValue(field, saved, users)}
       onSave={onSave}
     />
   );

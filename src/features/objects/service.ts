@@ -13,7 +13,7 @@ import { allCustomFieldsOf, isCustomFieldKey } from "@/features/custom-fields/fi
 import { attachCustomValues, splitCustomValues, writeCustomValues } from "@/features/custom-fields/values";
 import { recordHistory } from "@/features/history/history";
 import { fieldsOf, isLocked, serializeValue, validateValues, writableFieldsOf, type FieldValues } from "@/features/objects/fields";
-import { linkedLabelKey, userName, type SerializedRecord, type UserOption } from "@/features/objects/labels";
+import { linkedLabelKey, userName, type RelationOptions, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor, type ObjectDefinition, type ObjectLabels, type Relation } from "@/features/objects/registry";
 import { getServerObject, type RelationScope } from "@/features/objects/registry.server";
 import { objectRedirect, user } from "@/db/schema";
@@ -465,9 +465,6 @@ function withScopesCleared(type: string, values: FieldValues, current: ObjectRec
   }
   return cleared;
 }
-
-/** Options d'un sélecteur de fiche liée : les fiches proposées, et combien d'autres au-delà de la borne (« et N autres »). */
-export type RelationOptions = { options: { id: string; name: string }[]; more: number };
 
 /**
  * Options du sélecteur d'un champ `relation` sur une fiche (D60) : les fiches actives de l'objet lié,

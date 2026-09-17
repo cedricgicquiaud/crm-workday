@@ -14,7 +14,7 @@ import { LinksColumn } from "@/features/objects/links-column";
 import { ObjectActionsMenu } from "@/features/objects/object-actions-menu";
 import { getObject } from "@/features/objects/registry";
 import { getServerObject, sectionsOf, visibleActions } from "@/features/objects/registry.server";
-import { getObjectRecord, listUserOptions, serializeRecord, type ObjectRecord } from "@/features/objects/service";
+import { getObjectRecord, listRelationOptions, listUserOptions, serializeRecord, type ObjectRecord } from "@/features/objects/service";
 import { HttpError, requireSession } from "@/lib/auth/session";
 
 /** La fiche se lit par le chargeur que l'objet déclare, sinon par la lecture générique du service. */
@@ -45,7 +45,14 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
   /* Fiche absorbée par une fusion : son adresse mène à la fiche conservée (contrat 29). */
   if (record.id !== id) redirect(definition.href(record.id));
   const sections = sectionsOf(type);
-  const [users, session, sectionData] = await Promise.all([listUserOptions(), requireSession(), Promise.all(sections.map((section) => section.load(id)))]);
+  /* Les fiches proposées par chaque champ `relation`, lues une fois pour la fiche selon ses valeurs (D35) : la section ne les relit pas. */
+  const relationKeys = fieldsOf(type).filter((field) => field.type === "relation").map((field) => field.key);
+  const [users, session, sectionData, relationOptions] = await Promise.all([
+    listUserOptions(),
+    requireSession(),
+    Promise.all(sections.map((section) => section.load(id))),
+    Promise.all(relationKeys.map(async (key) => [key, await listRelationOptions(type, key, record)] as const)).then(Object.fromEntries),
+  ]);
   /* Les options d'utilisateurs sont lues une fois pour la fiche, puis passées au fil : il ne les relit pas. */
   const feed = await listFeed(type, id, users);
   const fields = fieldsOf(type);
@@ -58,7 +65,7 @@ export async function ObjectSheet({ type, id }: { type: string; id: string }) {
   const frozen = definition.frozen?.test(record) === true;
   const isAdmin = session.user.role === "administrateur";
   const serialized = serializeRecord(record);
-  const fieldsSection = <FieldsSection type={type} record={serialized} users={users} readOnly={archived || frozen} />;
+  const fieldsSection = <FieldsSection type={type} record={serialized} users={users} relationOptions={relationOptions} readOnly={archived || frozen} />;
   /* Gestes propres à l'objet (D21), visibles selon la fiche : à côté du menu commun, jamais dedans. */
   const actions = visibleActions(type, record);
   return (

@@ -7,6 +7,9 @@ import type { FieldDescriptor, ObjectLabels } from "@/features/objects/registry"
 
 export type UserOption = { id: string; name: string };
 
+/** Options d'un sélecteur de fiche liée : les fiches proposées, et combien d'autres au-delà de la borne (« et N autres »). */
+export type RelationOptions = { options: { id: string; name: string }[]; more: number };
+
 /** Une fiche telle que l'API la sérialise : les dates sont des chaînes ISO. */
 export type SerializedRecord = { id: string; createdAt: string; updatedAt: string; createdBy: string; ownerId: string; archivedAt: string | null } & Record<string, string | number | null>;
 
