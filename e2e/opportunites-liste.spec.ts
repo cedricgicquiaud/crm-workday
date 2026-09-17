@@ -97,3 +97,20 @@ test.describe("création rapide refusée (CRM-104, contrat 39)", () => {
   });
 });
 
+test.describe("entreprise en colonne (CRM-104, D60)", () => {
+  test("la colonne « Entreprise » écrit le nom de l'entreprise, et trie Acme avant Banque X", async ({ memberPage }) => {
+    const mark = tag();
+    const bankId = await post(memberPage, "/api/entreprises", { name: named("Banque X", mark), type: "prospect" });
+    const acmeId = await post(memberPage, "/api/entreprises", { name: named("Acme", mark), type: "prospect" });
+    const atBank = named("Refonte Payroll", mark);
+    const atAcme = named("Audit Finance", mark);
+    await post(memberPage, "/api/opportunites", { title: atBank, companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30" });
+    await post(memberPage, "/api/opportunites", { title: atAcme, companyId: acmeId, modules: ["finance"], expectedClose: "2026-10-30" });
+
+    await memberPage.goto(`/opportunites?colonnes=companyId&tri=companyId:asc&f=title:contient:${encodeURIComponent(mark)}`);
+    const rows = memberPage.getByRole("table", { name: "Opportunités" }).getByRole("row");
+    await expect(rows.filter({ has: memberPage.getByRole("link", { name: atBank }) })).toContainText(named("Banque X", mark));
+    await expect(rows.getByRole("link")).toHaveText([atAcme, atBank]);
+  });
+});
+
