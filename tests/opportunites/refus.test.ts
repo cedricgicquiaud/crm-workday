@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { GET as getOpportunity, PATCH as patchOpportunity } from "@/app/api/opportunites/[id]/route";
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
 import { auditLog, company, opportunity, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
@@ -23,6 +24,22 @@ async function post(input: Record<string, unknown>): Promise<Refusal> {
   const body = (await res.json()) as { fields?: Record<string, string> };
   return { status: res.status, fields: body.fields ?? {} };
 }
+
+const byId = (id: string) => ({ params: Promise.resolve({ id }) });
+
+async function created(): Promise<string> {
+  const res = await postOpportunity(jsonRequest("POST", "/api/opportunites", valid(), memberCookie));
+  expect(res.status).toBe(201);
+  return ((await res.json()) as { id: string }).id;
+}
+
+async function patch(id: string, input: Record<string, unknown>): Promise<Refusal> {
+  const res = await patchOpportunity(jsonRequest("PATCH", `/api/opportunites/${id}`, input, memberCookie), byId(id));
+  const body = (await res.json()) as { fields?: Record<string, string> };
+  return { status: res.status, fields: body.fields ?? {} };
+}
+
+const read = async (id: string) => (await getOpportunity(jsonRequest("GET", `/api/opportunites/${id}`, undefined, memberCookie), byId(id))).json() as Promise<Record<string, unknown>>;
 
 const count = async () => (await db.select({ id: opportunity.id }).from(opportunity)).length;
 
@@ -145,5 +162,19 @@ describe("bornes d'une opportunité à la création (CRM-103, D31, contrat 39)",
     expect(refusal.status).toBe(400);
     expect(Object.keys(refusal.fields)).toEqual(["budget"]);
     expect(await count()).toBe(0);
+  });
+});
+
+/** D34, contrat 39 : sur la fiche, un champ obligatoire ne se vide pas ; le refus tombe sous le champ et la valeur enregistrée reste. */
+describe("champs obligatoires vidés en modification (CRM-103, D34, contrat 39)", () => {
+  it("refuse sous le champ de vider le titre, l'entreprise ou la clôture prévue, ou de retirer le dernier module, et garde la valeur enregistrée", async () => {
+    const id = await created();
+    for (const input of [{ title: "  " }, { companyId: null }, { expectedClose: "" }, { modules: [] }]) {
+      const [key] = Object.keys(input);
+      const refusal = await patch(id, input);
+      expect(refusal.status, key).toBe(400);
+      expect(Object.keys(refusal.fields), key).toEqual([key]);
+    }
+    expect(await read(id)).toMatchObject(valid());
   });
 });
