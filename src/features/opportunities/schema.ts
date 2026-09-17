@@ -11,6 +11,9 @@ import type { FieldDescriptor, ListValue } from "@/features/objects/registry";
  * Étapes du pipeline (D32), dans leur ordre : le rang d'une étape est sa place ici. Gagnée et perdue
  * sont des fins posées par leur geste (4.2d), jamais à la main.
  */
+/** Étape d'une opportunité gagnée, posée par son geste (4.2d). */
+export const WON_STAGE = "gagnee";
+
 export const STAGES: readonly ListValue[] = [
   { value: "nouveau_besoin", label: "Nouveau besoin" },
   { value: "qualifie", label: "Qualifié" },
@@ -18,7 +21,7 @@ export const STAGES: readonly ListValue[] = [
   { value: "entretien_client", label: "Entretien client" },
   { value: "proposition_envoyee", label: "Proposition envoyée" },
   { value: "negociation", label: "Négociation" },
-  { value: "gagnee", label: "Gagnée", reserved: true },
+  { value: WON_STAGE, label: "Gagnée", reserved: true },
   { value: "perdue", label: "Perdue", reserved: true },
 ];
 

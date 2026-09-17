@@ -7,7 +7,7 @@ import { eq, exists } from "drizzle-orm";
 import { contactProfile, opportunity, opportunityModule, person } from "@/db/schema";
 import { registerServerObject } from "@/features/objects/registry.server";
 import { db } from "@/lib/db";
-import { CONTACT_OUTSIDE_COMPANY_RULE, estimatedAmount, FROM_LEAD_DELETE_RULE, WON_DELETE_RULE } from "./schema";
+import { CONTACT_OUTSIDE_COMPANY_RULE, estimatedAmount, FROM_LEAD_DELETE_RULE, WON_DELETE_RULE, WON_STAGE } from "./schema";
 
 registerServerObject({
   key: "opportunity",
@@ -27,7 +27,7 @@ registerServerObject({
     },
   ],
   /* Deux motifs retiennent la suppression (D43) : la victoire, puis l'origine dans un lead. */
-  deletable: (record) => (record.stage === "gagnee" ? WON_DELETE_RULE : record.leadId != null ? FROM_LEAD_DELETE_RULE : null),
+  deletable: (record) => (record.stage === WON_STAGE ? WON_DELETE_RULE : record.leadId != null ? FROM_LEAD_DELETE_RULE : null),
   /*
    * Le TJM arrive de la base en décimal écrit (« 650.00 ») : il se lit en nombre, pour que la saisie
    * montre « 650 ». Le montant estimé n'est pas stocké (D53) : chaque lecture le calcule, la liste le
