@@ -33,6 +33,15 @@ export const DISCARDED_STAGE = "ecarte";
 /** Posé par la conversion (4.1b) seule. */
 export const CONVERTED_STAGE = "converti";
 
+/** D18 : un lead converti ne change plus ; ce refus (409) le dit. */
+export const CONVERTED_RULE = "Lead converti : ses champs ne se modifient plus.";
+
+/** D18 : un lead converti ne se supprime pas. */
+export const CONVERTED_DELETE_RULE = "Un lead converti ne se supprime pas : il s'archive.";
+
+/** L'action d'historique que la conversion écrit sur le lead, lue « Converti en … » (D16). */
+export const CONVERSION_ACTION = "conversion";
+
 /** « Rouvrir » remet un lead écarté à « contacté » (D7). */
 export const REOPENED_STAGE = "contacte";
 

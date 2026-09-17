@@ -56,7 +56,7 @@ describe("aperçu d'une fusion (CRM-59, contrat 29)", () => {
     await updateObject("company", absorbed.id, { [customFieldKey(segment.id)]: "PME" }, actor());
 
     expect((await planMerge("company", kept.id, absorbed.id)).moved).toEqual([
-      { key: "person-companyId", label: "Contacts", count: 1 },
+      { key: "person-companyId", label: "Contacts", count: 1, titles: ["Claire Bonnet"] },
       { key: "activites", label: "Activités", count: 2 },
       { key: "emails", label: "Emails", count: 1 },
       { key: "historique", label: "Historique", count: 2 },

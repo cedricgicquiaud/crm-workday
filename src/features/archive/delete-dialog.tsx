@@ -67,7 +67,11 @@ export function DeleteDialog({ type, id, open, onOpenChange }: Props) {
             {failure.blockers && failure.blockers.length > 0 && (
               <ul className="grid gap-0.5 text-xs">
                 {failure.blockers.map((blocker) => (
-                  <li key={blocker.key} className="tabular">{`${blocker.label} : ${blocker.count}`}</li>
+                  <li key={blocker.key} className="tabular min-w-0 break-words">
+                    {blocker.titles && blocker.titles.length > 0
+                      ? `${blocker.label} : ${blocker.titles.join(", ")}${blocker.count > blocker.titles.length ? ` et ${blocker.count - blocker.titles.length} autre${blocker.count - blocker.titles.length > 1 ? "s" : ""}` : ""}`
+                      : `${blocker.label} : ${blocker.count}`}
+                  </li>
                 ))}
               </ul>
             )}

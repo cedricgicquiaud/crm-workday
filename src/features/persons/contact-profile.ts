@@ -11,9 +11,9 @@ import { company, contactProfile, person } from "@/db/schema";
 import { recordHistory } from "@/features/history/history";
 import { validateValues, type FieldValues } from "@/features/objects/fields";
 import type { FieldDescriptor } from "@/features/objects/registry";
-import { assertWritable, getObjectRecord, type Actor } from "@/features/objects/service";
+import { assertWritable, getObjectRecord, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
-import { db } from "@/lib/db";
+import { db, type Executor } from "@/lib/db";
 import { profilesLabel, recomputeProfiles, registerProfileSource } from "./profiles";
 import { COMPANY_FIELD, DECISION_ROLES, DECISION_ROLE_FIELD, DEFAULT_DECISION_ROLE, JOB_TITLE_FIELD } from "./schema";
 
@@ -40,15 +40,15 @@ async function loadCompany(id: string): Promise<CompanyRow> {
   return row;
 }
 
-async function companyNameOf(id: string | null): Promise<string | null> {
+async function companyNameOf(id: string | null, exec: Executor = db): Promise<string | null> {
   if (!id) return null;
-  const [row] = await db.select({ name: company.name }).from(company).where(eq(company.id, id)).limit(1);
+  const [row] = await exec.select({ name: company.name }).from(company).where(eq(company.id, id)).limit(1);
   return row?.name ?? null;
 }
 
 /** Lecture directe du profil, sans mémoire : celle d'une écriture, qui relit ce qu'elle vient d'écrire. Un écran passe par `getContactProfile`. */
-export async function readContactProfile(personId: string): Promise<ContactProfile | null> {
-  const [row] = await db
+export async function readContactProfile(personId: string, exec: Executor = db): Promise<ContactProfile | null> {
+  const [row] = await exec
     .select({ personId: contactProfile.personId, companyId: person.companyId, companyName: company.name, jobTitle: contactProfile.jobTitle, decisionRole: contactProfile.decisionRole })
     .from(contactProfile)
     .innerJoin(person, eq(person.id, contactProfile.personId))
@@ -89,14 +89,27 @@ export async function prepareContactProfile(input: unknown, existing: ContactPro
 
 const roleLabel = (value: unknown): string | null => DECISION_ROLES.find((role) => role.value === value)?.label ?? (value == null ? null : String(value));
 
-/** Écrit un profil préparé (création ou modification) et son historique ; la personne doit être modifiable. */
-export async function writeContactProfile(personId: string, prepared: PreparedContactProfile, actor: Actor): Promise<ContactProfile> {
-  const current = await getObjectRecord(TYPE, personId);
+/** La personne telle que l'écriture d'un profil la lit, par `exec` : dans une transaction, une personne qui vient d'y être créée n'est visible que d'elle. */
+async function personOf(personId: string, exec: Executor): Promise<ObjectRecord> {
+  const [row] = UUID.test(personId) ? await exec.select().from(person).where(eq(person.id, personId)).limit(1) : [];
+  if (!row) throw new HttpError(404, "fiche_introuvable", "Personne introuvable.");
+  return row as unknown as ObjectRecord;
+}
+
+/**
+ * Écrit un profil préparé (création ou modification) et son historique ; la personne doit être
+ * modifiable. `exec` reçoit la transaction en cours quand ce profil n'a de sens qu'avec d'autres
+ * écritures (la conversion d'un lead, F8) : tout y est lu et écrit, historique compris.
+ */
+export async function writeContactProfile(personId: string, prepared: PreparedContactProfile, actor: Actor, exec: Executor = db): Promise<ContactProfile> {
+  const current = exec === db ? await getObjectRecord(TYPE, personId) : await personOf(personId, exec);
   assertWritable(TYPE, current);
-  const existing = await readContactProfile(personId);
+  const existing = await readContactProfile(personId, exec);
   const { values, company: target } = prepared;
   const changes: { field: string; oldValue: string | null; newValue: string | null }[] = [];
   const now = new Date();
+  /* Hors transaction reçue, les écritures indissociables ouvrent la leur ; dans une transaction reçue, elles s'y rangent. */
+  const together = (write: (tx: Executor) => Promise<void>) => (exec === db ? db.transaction(write) : write(exec));
 
   if (!existing) {
     if (!target) throw invalid({ companyId: "« Entreprise » est obligatoire." });
@@ -105,13 +118,13 @@ export async function writeContactProfile(personId: string, prepared: PreparedCo
        échoué violerait le contrat 10 et ne serait plus lisible (contrat 10, défaut d'audit 2.2). « Profils »
        se recalcule depuis les profils présents, il ne se recopie pas (D8). */
     let after: string[] = [];
-    await db.transaction(async (tx) => {
+    await together(async (tx) => {
       await tx.insert(contactProfile).values({ personId, jobTitle: (values.jobTitle as string | null) ?? null, decisionRole: String(values.decisionRole) });
       await tx.update(person).set({ companyId: target.id, updatedAt: now }).where(eq(person.id, personId));
       after = await recomputeProfiles(personId, tx);
     });
     changes.push({ field: "profiles", oldValue: before, newValue: profilesLabel(after) });
-    changes.push({ field: "companyId", oldValue: await companyNameOf(current.companyId as string | null), newValue: target.name });
+    changes.push({ field: "companyId", oldValue: await companyNameOf(current.companyId as string | null, exec), newValue: target.name });
     changes.push({ field: "jobTitle", oldValue: null, newValue: (values.jobTitle as string | null) ?? null });
     changes.push({ field: "decisionRole", oldValue: null, newValue: roleLabel(values.decisionRole) });
   } else {
@@ -125,16 +138,19 @@ export async function writeContactProfile(personId: string, prepared: PreparedCo
       changes.push({ field: "decisionRole", oldValue: roleLabel(existing.decisionRole), newValue: roleLabel(values.decisionRole) });
     }
     if (target && target.id !== existing.companyId) {
-      await db.update(person).set({ companyId: target.id, updatedAt: now }).where(eq(person.id, personId));
+      await exec.update(person).set({ companyId: target.id, updatedAt: now }).where(eq(person.id, personId));
       changes.push({ field: "companyId", oldValue: existing.companyName, newValue: target.name });
     }
     if (Object.keys(patch).length > 0) {
-      await db.update(contactProfile).set({ ...patch, updatedAt: now }).where(eq(contactProfile.personId, personId));
-      await db.update(person).set({ updatedAt: now }).where(eq(person.id, personId));
+      await exec.update(contactProfile).set({ ...patch, updatedAt: now }).where(eq(contactProfile.personId, personId));
+      await exec.update(person).set({ updatedAt: now }).where(eq(person.id, personId));
     }
   }
-  await recordHistory(changes.filter((c) => c.oldValue !== c.newValue).map((c) => ({ objectType: TYPE, objectId: personId, action: "modifiee" as const, ...c, authorId: actor.id })));
-  return (await readContactProfile(personId))!;
+  await recordHistory(
+    changes.filter((c) => c.oldValue !== c.newValue).map((c) => ({ objectType: TYPE, objectId: personId, action: "modifiee" as const, ...c, authorId: actor.id })),
+    exec,
+  );
+  return (await readContactProfile(personId, exec))!;
 }
 
 /** Le profil contact compte dans « Profils » (D8), en premier : la personne le porte dès qu'une ligne existe. */

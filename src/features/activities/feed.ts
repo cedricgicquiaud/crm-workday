@@ -164,10 +164,13 @@ function changeLabel(fields: readonly FieldDescriptor[], entry: HistoryEntry, us
 
 /** Phrase d'une entrée d'historique — « Fiche créée », « Type : Prospect → Client » (D12). */
 function historyLabel(type: string, entry: HistoryEntry, users: readonly UserOption[]): string {
+  /* Une action propre à un geste de l'objet se lit par la phrase qu'il déclare (« Converti en … », D21). */
+  const declared = getObject(type).historyActions?.[entry.action];
+  if (declared) return declared(entry);
   if (entry.action === "modifiee") return changeLabel(historyFieldsOf(type), entry, users);
   /* Une fusion nomme la fiche absorbée (contrat 29) : son titre est dans `newValue`. */
   if (entry.action === "fusionnee" && entry.newValue) return `${ACTION_LABELS.fusionnee} ${entry.newValue}`;
-  return ACTION_LABELS[entry.action];
+  return ACTION_LABELS[entry.action] ?? entry.action;
 }
 
 /**

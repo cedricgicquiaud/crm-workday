@@ -6,6 +6,7 @@
  */
 import type { PgTable } from "drizzle-orm/pg-core";
 import type { ReactNode } from "react";
+import type { Banner } from "@/features/objects/banners";
 import type { SerializedRecord } from "@/features/objects/labels";
 import type { ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
@@ -127,7 +128,21 @@ export type ServerObjectDefinition = {
    * avec un champ dérivé faux.
    */
   recompute?: (id: string, exec: Executor) => Promise<void>;
+  /**
+   * Refus de suppression selon la fiche (D21) : la phrase du refus (409) quand la fiche ne se supprime
+   * pas (« un lead converti s'archive »), `null` quand rien dans son état ne la retient. Absent, seules
+   * les fiches et entrées qui la désignent la retiennent.
+   */
+  deletable?: (record: ObjectRecord) => string | null;
+  /** Bannières propres à l'objet, rangées parmi les communes par leur rang déclaré (D21) ; une seule s'affiche. */
+  banners?: readonly DeclaredBanner[];
 };
+
+/**
+ * Source de bannière déclarée par un objet : son rang (`order`, comparé à ceux des signalements
+ * communs — archivée 10, doublon 20, tâche échue 30) et ce qu'elle lit de la fiche.
+ */
+export type DeclaredBanner = { rank: string; order: number; source: (record: ObjectRecord) => Promise<Banner[]> };
 
 const objects = new Map<string, ServerObjectDefinition>();
 
