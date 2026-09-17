@@ -111,4 +111,20 @@ test.describe("modules Workday sur la fiche (CRM-103, contrat 39)", () => {
     await expect(fields.getByRole("alert")).toHaveText("« Modules Workday » est obligatoire.");
     await expect(modules.getByRole("checkbox", { name: "Payroll", exact: true })).toBeChecked();
   });
+
+  test("cocher HCM puis quitter la liste enregistre les modules en un geste, relus après rechargement", async ({ memberPage }) => {
+    const id = await createOpportunity(memberPage, tag(), { modules: ["payroll"] });
+    await memberPage.goto(`/opportunites/${id}`);
+    const fields = memberPage.getByRole("region", { name: "Champs", exact: true });
+    const modules = fields.getByRole("group", { name: "Modules Workday" });
+
+    await saved(memberPage, id, async () => {
+      await modules.getByRole("checkbox", { name: "HCM", exact: true }).click();
+      await fields.getByLabel("TJM de vente cible").focus();
+    });
+    await memberPage.reload();
+    await expect(modules.getByRole("checkbox", { name: "HCM", exact: true })).toBeChecked();
+    await expect(modules.getByRole("checkbox", { name: "Payroll", exact: true })).toBeChecked();
+    await expect(fields.getByRole("alert")).toHaveCount(0);
+  });
 });
