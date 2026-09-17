@@ -3,16 +3,35 @@
  * dans sa table fille (D53), la condition sur son contact (D35), son montant estimé et sa probabilité,
  * calculés à chaque lecture. Importé par le manifeste serveur.
  */
-import { eq, exists } from "drizzle-orm";
-import { contactProfile, opportunity, opportunityModule, person } from "@/db/schema";
-import { registerServerObject } from "@/features/objects/registry.server";
+import { and, desc, eq, exists, ilike, isNull } from "drizzle-orm";
+import { company, contactProfile, opportunity, opportunityModule, person } from "@/db/schema";
+import { registerServerObject, type SearchHit } from "@/features/objects/registry.server";
 import { db } from "@/lib/db";
-import { CONTACT_OUTSIDE_COMPANY_RULE, estimatedAmount, FROM_LEAD_DELETE_RULE, stageProbability, WON_DELETE_RULE, WON_STAGE } from "./schema";
+import { CONTACT_OUTSIDE_COMPANY_RULE, estimatedAmount, FROM_LEAD_DELETE_RULE, STAGES, stageProbability, WON_DELETE_RULE, WON_STAGE } from "./schema";
+
+const MAX_HITS = 20;
+
+/**
+ * Palette ⌘K (D48) : sous-chaîne du titre, sous-titre « Étape · Entreprise ». Une opportunité gagnée
+ * ou perdue y reste — on la cherche pour la relire ; une opportunité archivée en sort.
+ */
+async function search(query: string): Promise<SearchHit[]> {
+  const text = query.trim();
+  if (!text) return [];
+  const rows = await db
+    .select({ id: opportunity.id, title: opportunity.title, stage: opportunity.stage, companyName: company.name })
+    .from(opportunity)
+    .innerJoin(company, eq(company.id, opportunity.companyId))
+    .where(and(isNull(opportunity.archivedAt), ilike(opportunity.title, `%${text}%`)))
+    .orderBy(desc(opportunity.updatedAt))
+    .limit(MAX_HITS);
+  return rows.map((row) => ({ id: row.id, title: row.title, subtitle: `${STAGES.find((stage) => stage.value === row.stage)?.label ?? row.stage} · ${row.companyName}` }));
+}
 
 registerServerObject({
   key: "opportunity",
   table: opportunity,
-  search: async () => [],
+  search,
   duplicateKey: () => null,
   sets: [{ field: "modules", table: opportunityModule, fkColumn: "opportunityId", valueColumn: "module" }],
   /* Le contact est une personne portant un profil contact rattaché à l'entreprise de l'opportunité (D35). */
