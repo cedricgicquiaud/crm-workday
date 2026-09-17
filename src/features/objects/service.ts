@@ -104,8 +104,11 @@ async function validateOrThrow(type: string, input: unknown, { partial, customRe
 /** « « Entreprise » ne désigne aucune entreprise. » : le déterminant suit l'article déclaré de l'objet lié. */
 const unknownRecordRule = (field: FieldDescriptor, labels: ObjectLabels) => `« ${field.label} » ne désigne ${labels.article === "une" ? "aucune" : "aucun"} ${labels.singular.toLowerCase()}.`;
 
-/** « Entreprise archivée : « Banque X » ne se choisit plus. » : l'accord suit l'article déclaré de l'objet lié. */
-const archivedRecordRule = (target: ObjectDefinition, title: string) => `${target.labels.singular} ${target.labels.article === "une" ? "archivée" : "archivé"} : « ${title} » ne se choisit plus.`;
+/** « Entreprise archivée : « Banque X » ne se choisit plus. » */
+const archivedRecordRule = (target: ObjectDefinition, title: string) => `${target.labels.singular} ${archivedMark(target.labels)} : « ${title} » ne se choisit plus.`;
+
+/** « archivée », « archivé » : l'accord suit l'article déclaré de l'objet. */
+const archivedMark = (labels: ObjectLabels) => (labels.article === "une" ? "archivée" : "archivé");
 
 /** La relation qu'un objet déclare sur un champ `relation` : c'est elle qui dit de quel objet est la fiche liée. */
 const relationOf = (type: string, key: string): Relation => getObject(type).relations.find((relation) => relation.fkColumn === key)!;
@@ -276,8 +279,7 @@ async function linkedTitles(type: string, key: string, records: readonly ObjectR
   const { table } = getServerObject(target.key);
   const columns = getTableColumns(table);
   const rows = await db.select({ id: columns.id, title: columns[target.titleField], archivedAt: columns.archivedAt }).from(table).where(inArray(columns.id, ids));
-  const archived = target.labels.article === "une" ? "archivée" : "archivé";
-  return new Map(rows.map((row) => [String(row.id), { title: String(row.title ?? ""), archived: row.archivedAt == null ? null : archived }]));
+  return new Map(rows.map((row) => [String(row.id), { title: String(row.title ?? ""), archived: row.archivedAt == null ? null : archivedMark(target.labels) }]));
 }
 
 /**
