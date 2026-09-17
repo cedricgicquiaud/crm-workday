@@ -7,8 +7,9 @@
 import { MODULES, RETIRED_MODULES } from "@/features/consultants/schema";
 import type { FieldDescriptor, ListValue } from "@/features/objects/registry";
 
-/** Étape d'une opportunité gagnée, posée par son geste (4.2d). */
+/** Étapes d'une opportunité gagnée et d'une opportunité perdue, posées par leur geste (4.2d). */
 export const WON_STAGE = "gagnee";
+export const LOST_STAGE = "perdue";
 
 /**
  * Étapes du pipeline (D32), dans leur ordre : le rang d'une étape est sa place ici. Gagnée et perdue
@@ -22,7 +23,7 @@ export const STAGES: readonly ListValue[] = [
   { value: "proposition_envoyee", label: "Proposition envoyée" },
   { value: "negociation", label: "Négociation" },
   { value: WON_STAGE, label: "Gagnée", reserved: true },
-  { value: "perdue", label: "Perdue", reserved: true },
+  { value: LOST_STAGE, label: "Perdue", reserved: true },
 ];
 
 /** Probabilité de gagner, en pourcentage, déduite de l'étape (D33) ; elle ne se saisit pas. */
