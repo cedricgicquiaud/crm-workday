@@ -7,6 +7,8 @@ import { activity, auditLog, company, opportunity, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { listHistory } from "@/features/history/history";
 import { listForState } from "@/features/lists/apply-filters";
+import { selectableValues } from "@/features/objects/labels";
+import { getObject } from "@/features/objects/registry";
 import { createObject, listObjectRecords } from "@/features/objects/service";
 import { listStateWithView } from "@/features/views/views";
 import { closeDb, db } from "@/lib/db";
@@ -122,5 +124,23 @@ describe("tri par étape (CRM-105, D32, contrat 36)", () => {
     const state = await listStateWithView("opportunity", new URLSearchParams("tri=stage:asc&f=title:contient:Étape"));
     const sorted = listForState("opportunity", await listObjectRecords("opportunity"), state);
     expect(sorted.map((record) => record.stage)).toEqual(["nouveau_besoin", "qualifie", "profils_proposes", "entretien_client", "proposition_envoyee", "negociation", "gagnee", "perdue"]);
+  });
+});
+
+/** D32, contrat 40 : « Gagnée » et « Perdue » se posent par leur geste (4.2d), jamais à la main. */
+describe("étapes réservées (CRM-105, D32, contrat 40)", () => {
+  it("ne propose au sélecteur de la fiche et de la cellule que les six étapes en cours", () => {
+    const stage = getObject("opportunity").fields.find((field) => field.key === "stage")!;
+    expect(selectableValues(stage, "qualifie").map((option) => option.label)).toEqual(["Nouveau besoin", "Qualifié", "Profils proposés", "Entretien client", "Proposition envoyée", "Négociation"]);
+  });
+
+  it("refuse (400) de poser « Gagnée » ou « Perdue » par une modification, sous le champ, et garde l'étape", async () => {
+    const id = await create();
+    for (const stage of ["gagnee", "perdue"]) {
+      const refused = await patch(id, { stage });
+      expect(refused.status, stage).toBe(400);
+      expect(Object.keys(((await refused.json()) as { fields: Record<string, string> }).fields), stage).toEqual(["stage"]);
+    }
+    expect((await read(id)).stage).toBe("nouveau_besoin");
   });
 });
