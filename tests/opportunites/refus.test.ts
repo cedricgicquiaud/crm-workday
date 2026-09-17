@@ -211,3 +211,42 @@ describe("clé imprévue en modification (CRM-103, D55)", () => {
     expect((await read(id)).title).toBe("Refonte Payroll");
   });
 });
+
+/** D55, contrat 40 : la probabilité et le montant se calculent ; la clôture, la perte et le lead d'origine se posent par leur geste. */
+describe("clés posées par un geste (CRM-105, D55, contrat 40)", () => {
+  const GESTURE_KEYS: Record<string, unknown> = { closedAt: "2026-10-01T09:00:00.000Z", lossReason: "prix", lossComment: "Trop cher", leadId: "00000000-0000-4000-8000-000000000000" };
+  const COMPUTED_KEYS: Record<string, unknown> = { probability: 80, estimatedAmount: 50000 };
+
+  it("refuse sous la clé, à la création, une date « Gagnée ou perdue le », un motif ou un commentaire de perte, ou un lien vers un lead, en disant qu'ils se posent par un geste, et n'en crée aucune", async () => {
+    for (const [key, value] of Object.entries(GESTURE_KEYS)) {
+      const refusal = await post({ ...valid(), [key]: value });
+      expect(refusal.status, key).toBe(400);
+      expect(Object.keys(refusal.fields), key).toEqual([key]);
+      expect(refusal.fields[key], key).toMatch(/se pose par un geste/);
+    }
+    expect(await count()).toBe(0);
+  });
+
+  it("refuse sous la clé, en modification, les mêmes clés, et garde l'opportunité telle quelle", async () => {
+    const id = await created();
+    for (const [key, value] of Object.entries(GESTURE_KEYS)) {
+      const refusal = await patch(id, { [key]: value });
+      expect(refusal.status, key).toBe(400);
+      expect(refusal.fields[key], key).toMatch(/se pose par un geste/);
+    }
+    expect(await read(id)).toMatchObject({ closedAt: null, lossReason: null, lossComment: null, leadId: null });
+  });
+
+  it("refuse sous la clé une probabilité fournie à la création ou en modification, en disant qu'elle se calcule", async () => {
+    for (const [key, value] of Object.entries(COMPUTED_KEYS)) {
+      const creation = await post({ ...valid(), [key]: value });
+      expect(creation.status, key).toBe(400);
+      expect(creation.fields[key], key).toMatch(/se calcule/);
+    }
+    const id = await created();
+    const modification = await patch(id, { probability: 80 });
+    expect(modification.status).toBe(400);
+    expect(modification.fields.probability).toMatch(/se calcule/);
+    expect((await read(id)).probability).toBe(10);
+  });
+});
