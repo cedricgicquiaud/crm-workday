@@ -16,7 +16,8 @@ lancement et le rapport final : ni l'avancement, ni la dépense. Une ligne suffi
 qu'un agent démarre ou rend, sans attendre qu'on te le demande :
 
 ```
-Livraison 1/3 « Saisie des lignes » — producteur lancé
+Livraison 1/3 « Saisie des lignes » (L) — tâche 1/2 — producteur lancé
+Livraison 1/3 — tâche 2/2 — producteur lancé
 Livraison 1/3 — PR #42 ouverte, audit en cours
 Livraison 1/3 — verifier : 2 points importants · testeur : 1 défaut → correcteur
 Livraison 2/3 « Numérotation » — producteur lancé
@@ -79,10 +80,11 @@ les suivantes. Moins de 200 caractères, ce qu'il doit faire en premier.
    conflit apparaît quand même au merge, l'humain demande sa résolution : la skill
    `resolving-merge-conflicts` la fait par intention (pourquoi chaque côté a changé), jamais
    en choisissant des lignes. Y écrire
-   `MISSION.md` depuis le gabarit. **Il ne porte que le variable** : tâches (codes), fichiers
-   modifiables (ceux du jalon), décisions produit recopiées de la fiche feature, **le texte des
-   phrases du contrat** affectées à cette livraison (le numéro seul ne dit pas ce qu'il faut
-   prouver), idiomes du `CLAUDE.md` qui touchent ces fichiers, commande de tests, titre de la PR.
+   `MISSION.md` depuis le gabarit. **Il ne porte que le variable** : tâches (codes, dans l'ordre
+   de production), fichiers modifiables (ceux du jalon), décisions produit recopiées de la fiche
+   feature, **le texte des phrases du contrat** affectées à cette livraison, chacune avec la
+   tâche qui la prouve (le numéro seul ne dit pas ce qu'il faut prouver), idiomes du `CLAUDE.md`
+   qui touchent ces fichiers, commande de tests, titre de la PR.
    **La liste des fichiers se déduit du contrat, phrase par phrase** : pour chaque phrase,
    écris les fichiers qui la portent, et vérifie qu'ils sont dans la liste. Deux fois de suite
    sur crm-workday, une phrase du contrat demandait un écran que la liste n'ouvrait pas ; le
@@ -134,15 +136,35 @@ les suivantes. Moins de 200 caractères, ce qu'il doit faire en premier.
    feature, section « Décisions produit », avec la mention « amende la décision n° X ». Puis
    recopiée dans `MISSION.md`. La règle existait pour les décisions prises au merge ; elle
    vaut à tout moment.
-3. **Lancer les producteurs**, un agent `tdd-writer` par worktree, au plus `n` à la fois
-   (une livraison finie libère une place pour la suivante ; le plafond reste le nombre de
-   livraisons disjointes). Session indépendante (pane) quand le travail est long et doit être
-   visible ; sous-agent quand seul le rapport compte. **Dans les deux cas la fiche doit
-   s'appliquer** : un pane se lance par `claude --agent tdd-writer` dans le worktree, sinon la
-   session est un Claude ordinaire et n'a aucune des règles de la boucle.
-   Chaque producteur : cycles test rouge → code → vert, un commit par transition, tâches
-   → « Terminée » au fil de l'eau, `UAT.md` (sa section : une case par « Terminé quand »,
-   avec sa donnée et son refus, **non cochée**), push, PR au gabarit de `git.md`, stop.
+3. **Lancer les producteurs.** Au plus `n` livraisons en production à la fois (une livraison
+   finie libère une place pour la suivante ; le plafond reste le nombre de livraisons
+   disjointes). Le nombre de producteurs par livraison dépend de sa taille :
+   - **S et M : un `tdd-writer` pour toute la livraison.** Consigne : « Produis la livraison
+     décrite dans `MISSION.md`. »
+   - **L et XL : un `tdd-writer` neuf par tâche**, dans l'ordre des tâches, l'un après l'autre
+     dans le même worktree. Consigne : « Tâche <CODE>-b, 2/3 de la livraison <n>. Dernière :
+     non. » Nom de l'agent : `producteur-<livraison>-t<rang>` (`producteur-4-1b-t2`).
+   **Pourquoi la taille décide.** Une session relit à chaque échange tout ce qu'elle a
+   accumulé ; une session neuve relit la fiche, la mission et le code avant de commencer.
+   Sur une petite livraison, le second coût l'emporte : au banc TST-B1 du 17/09 (300 lignes,
+   trois tâches), trois producteurs ont relu 43 % de jetons de plus qu'un seul, pour la même
+   qualité. Sur une grosse, le premier : au banc du 16/09 (livraison XL de 2 000 lignes), le
+   producteur unique a atteint sa limite de 150 tours puis a été tué faute de mémoire, quand
+   la méthode d'en face, une session par ticket, relisait un quart de jetons en moins. Le
+   seuil L est une hypothèse, à confirmer par la mesure du premier run L ou XL.
+   **Entre deux tâches, lis le rapport** avant de lancer la suivante :
+   - « Arrêt avant la fin » ou « Ce qui manque » : la livraison s'arrête là, sans PR ; dis-le
+     à l'humain avec le rapport. Les tâches suivantes s'appuieraient sur un travail inachevé.
+   - « Décisions à prendre » : notées pour le rapport de PR, la tâche suivante part.
+   - Rien de cela : la tâche suivante part.
+   Session indépendante (pane) quand le travail est long et doit être visible ; sous-agent
+   quand seul le rapport compte. **Dans les deux cas la fiche doit s'appliquer** : un pane se
+   lance par `claude --agent tdd-writer` dans le worktree, sinon la session est un Claude
+   ordinaire et n'a aucune des règles de la boucle.
+   Chaque producteur : cycles test rouge → code → vert, un commit par transition, ses tâches
+   → « Terminée », `UAT.md` (une case par « Terminé quand », avec sa donnée et son refus,
+   **non cochée**), stop. Celui qui finit la livraison pousse et ouvre la PR au gabarit de
+   `git.md`.
 4. **Audit et recette**, en parallèle sur chaque PR, par deux agents qui n'ont pas écrit le
    code :
    - `verifier` sur `git diff main...HEAD` : sécurité, idiomes, couverture des numéros de
@@ -174,7 +196,7 @@ les suivantes. Moins de 200 caractères, ce qu'il doit faire en premier.
    le rapport du testeur avant ses re-tests. L'outil du testeur relance le serveur du poste ;
    une suite lancée à côté tombe en `ECONNREFUSED` (15/09 : deux suites perdues, le verifier
    relancé à la main). Ils sont en lecture seule : ils **chevauchent la production de la livraison
-   suivante** (le producteur n+1 démarre dès que le producteur n a ouvert sa PR). Seuls les
+   suivante** (la livraison n+1 démarre dès que la livraison n a ouvert sa PR). Seuls les
    producteurs sont limités à `Agents en parallèle` ; les contrôleurs, non.
    Bloquant ou important de `verifier`, **ou défaut constaté** par `testeur` → l'agent
    `correcteur`, avec la liste fermée des corrections (les deux rapports réunis), re-tests, push.

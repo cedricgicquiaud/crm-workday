@@ -185,9 +185,18 @@ fabrique et dans quel fichier.
    Puis proposer le **squelette de toute la feature** : pour chaque livraison (jalon), ses tâches
    (titre court + une ligne, label Type), **les fichiers qu'elle touche** (code et fichier de
    tests, disjoints de ceux des autres livraisons), et **les phrases du contrat qu'elle
-   couvre** (par numéro). Vérifier : chaque phrase du contrat a une livraison ; aucun fichier
-   n'apparaît dans deux livraisons ; chaque tâche a un « Terminé quand » avec au moins un
-   constat de refus. **Toutes les tâches de la feature sont créées à son ouverture**, pas
+   couvre** (par numéro). **Les tâches se coupent par situation de l'utilisateur**, pas par
+   couche technique : « Convertir un lead dont la personne existe déjà », pas « Transaction de
+   conversion » puis « Fenêtre de conversion ». Chaque tâche porte le serveur, l'écran et les
+   tests de sa situation. Son « Terminé quand » a **une case par règle observable** des
+   décisions produit et du contrat, recopiée avec ses sources, et ses cas de test attendus
+   (`template-tache.md`).
+   Au banc du 16/09, les deux défauts de règle de notre version portaient sur deux clauses
+   que `MISSION.md` recopiait dans un paragraphe de 23 décisions ; la méthode d'en face, qui
+   en faisait deux cases de ticket, ne les avait pas.
+   Vérifier : chaque phrase du contrat a une livraison ; chaque règle de chaque décision
+   produit est la case d'une tâche et d'une seule ; aucun fichier n'apparaît dans deux
+   livraisons ; chaque tâche a un « Terminé quand » avec au moins un constat de refus. **Toutes les tâches de la feature sont créées à son ouverture**, pas
    livraison par livraison : Linear calcule l'avancement sur le total, qui ne redescend jamais.
    Une feature sans jalon = une seule livraison implicite. **Ne rien créer.**
 5. **S'arrêter : l'humain valide la liste.** Si le découpage a déplacé une clause du contrat
