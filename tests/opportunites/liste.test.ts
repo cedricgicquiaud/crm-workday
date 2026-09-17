@@ -141,3 +141,16 @@ describe("filtre sur la probabilité (CRM-106, D33, contrat 36)", () => {
     expect(await shown("f=probability:plus_grand:50")).toEqual(["Étape proposition_envoyee", "Étape negociation", "Étape gagnee"]);
   });
 });
+
+/** D31, contrat 36 : le montant estimé se filtre et se trie comme une colonne, et l'absence de montant se range en fin de liste. */
+describe("filtre et tri sur le montant estimé (CRM-106, D31, contrat 36)", () => {
+  it("ne garde au-dessus de 30 000 que les montants qui y sont, et range en dernier une opportunité sans montant quand on trie par montant", async () => {
+    await create({ title: "Cinquante mille", targetDailyRate: 1000, estimatedDays: 50 });
+    await create({ title: "Trente-neuf mille", targetDailyRate: 650, estimatedDays: 60 });
+    await create({ title: "Vingt-six mille", targetDailyRate: 650, estimatedDays: 40 });
+    await create({ title: "Sans montant", targetDailyRate: 650 });
+
+    expect(await shown("f=estimatedAmount:plus_grand:30000&tri=estimatedAmount:desc")).toEqual(["Cinquante mille", "Trente-neuf mille"]);
+    expect(await shown("tri=estimatedAmount:asc")).toEqual(["Vingt-six mille", "Trente-neuf mille", "Cinquante mille", "Sans montant"]);
+  });
+});
