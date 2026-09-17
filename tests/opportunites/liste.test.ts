@@ -2,12 +2,15 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { POST as archiveRecord } from "@/app/api/objets/[type]/[id]/archiver/route";
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
-import { auditLog, company, opportunity, user } from "@/db/schema";
+import { POST as postPin } from "@/app/api/vues-epinglees/route";
+import { POST as postView } from "@/app/api/vues/route";
+import { auditLog, company, opportunity, pinnedView, savedView, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { listForState } from "@/features/lists/apply-filters";
 import { columnsOf, defaultColumnKeys } from "@/features/lists/columns";
 import { getObject } from "@/features/objects/registry";
 import { createObject, listObjectRecords } from "@/features/objects/service";
+import { listPinnedViews } from "@/features/views/pinned";
 import { listStateWithView, listViews } from "@/features/views/views";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
@@ -43,6 +46,8 @@ async function archive(id: string): Promise<void> {
 
 /** Les enfants avant les parents : une opportunité retient son entreprise (clé sans cascade) ; ses modules partent avec elle. */
 async function cleanup() {
+  await db.delete(pinnedView);
+  await db.delete(savedView);
   await db.delete(auditLog);
   await db.delete(opportunity);
 }
@@ -152,5 +157,26 @@ describe("filtre et tri sur le montant estimé (CRM-106, D31, contrat 36)", () =
 
     expect(await shown("f=estimatedAmount:plus_grand:30000&tri=estimatedAmount:desc")).toEqual(["Cinquante mille", "Trente-neuf mille"]);
     expect(await shown("tri=estimatedAmount:asc")).toEqual(["Vingt-six mille", "Trente-neuf mille", "Cinquante mille", "Sans montant"]);
+  });
+});
+
+/** D37, contrat 36 : une liste d'opportunités se range sous un nom, s'épingle, et se rouvre au même état. */
+describe("vue enregistrée et épinglée (CRM-106, D37, contrat 36)", () => {
+  const QUERY = "f=estimatedAmount:plus_grand:30000&tri=estimatedAmount:desc";
+
+  it("rouvre au même état la vue « Grosses affaires » enregistrée, et la porte dans la barre latérale une fois épinglée", async () => {
+    await create({ title: "Cinquante mille", targetDailyRate: 1000, estimatedDays: 50 });
+    await create({ title: "Vingt-six mille", targetDailyRate: 650, estimatedDays: 40 });
+
+    const saved = await postView(jsonRequest("POST", "/api/vues", { objectType: "opportunity", name: "Grosses affaires", query: QUERY }, memberCookie));
+    expect(saved.status).toBe(201);
+    const { id } = (await saved.json()) as { id: string };
+    expect((await listViews("opportunity")).map((view) => view.name)).toEqual(["Opportunités en cours", "Grosses affaires"]);
+
+    expect(await shown(`vue=${id}`)).toEqual(["Cinquante mille"]);
+
+    const pinned = await postPin(jsonRequest("POST", "/api/vues-epinglees", { viewId: id }, memberCookie));
+    expect(pinned.status).toBe(201);
+    expect((await listPinnedViews(memberId)).map((view) => view.name)).toEqual(["Grosses affaires"]);
   });
 });
