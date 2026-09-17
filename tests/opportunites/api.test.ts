@@ -85,3 +85,12 @@ describe("montant estimé (CRM-103, D31, contrat 33)", () => {
     expect((await read(id)).estimatedAmount).toBeNull();
   });
 });
+
+/** D34 : tout champ saisissable se règle sur la fiche et se relit. */
+describe("modification d'une opportunité (CRM-103, D34)", () => {
+  it("accepte de reporter la clôture prévue à une date déjà passée (D48)", async () => {
+    const id = await create({ title: "Refonte Payroll", companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30" });
+    expect((await patch(id, { expectedClose: "2021-03-01" })).status).toBe(200);
+    expect((await read(id)).expectedClose).toBe("2021-03-01");
+  });
+});
