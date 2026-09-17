@@ -64,6 +64,7 @@ export const getOpportunity = (id: string): Promise<ObjectRecord> => getObjectRe
 /** Modification (D34) : 400 par champ, 404 inconnue, 409 archivée ; chaque champ changé entre dans l'historique. */
 export async function updateOpportunity(id: string, patch: unknown, actor: Actor): Promise<ObjectRecord> {
   const fields = asObject(patch);
+  await refuseUnexpectedKeys(fields);
   await assertCompanyExists(fields);
   return updateObject(TYPE, id, fields, actor);
 }
