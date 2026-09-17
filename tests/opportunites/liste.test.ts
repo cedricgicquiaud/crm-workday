@@ -1,0 +1,76 @@
+import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { POST as postOpportunity } from "@/app/api/opportunites/route";
+import { auditLog, company, opportunity, user } from "@/db/schema";
+import { createUserWithPassword } from "@/features/auth/accounts";
+import { listForState } from "@/features/lists/apply-filters";
+import { createObject, listObjectRecords } from "@/features/objects/service";
+import { listStateWithView, listViews } from "@/features/views/views";
+import { closeDb, db } from "@/lib/db";
+import { jsonRequest, sessionCookie } from "../helpers/auth";
+
+const MEMBER = { email: "membre-liste-opportunite@exemple.fr", firstName: "Awa", lastName: "Sylla", password: "MotDePasse-Liste-Opp-1", role: "membre" as const };
+
+let memberId: string;
+let memberCookie: string;
+let bankId: string;
+
+/** Les opportunités de la liste, dans l'état porté par une adresse : ce que l'écran et l'API rendent tous deux. */
+async function shown(query: string): Promise<string[]> {
+  const state = await listStateWithView("opportunity", new URLSearchParams(query));
+  const records = await listObjectRecords("opportunity", { includeArchived: state.includeArchived });
+  return listForState("opportunity", records, state).map((record) => String(record.title));
+}
+
+type OpportunityInput = { title: string; expectedClose?: string; stage?: string; targetDailyRate?: number; estimatedDays?: number };
+
+/** Une opportunité par l'API ; les étapes gagnée et perdue, posées par leur geste (4.2d), s'écrivent en base. */
+async function create({ title, expectedClose = "2026-10-30", stage, ...rest }: OpportunityInput): Promise<string> {
+  const res = await postOpportunity(jsonRequest("POST", "/api/opportunites", { title, companyId: bankId, modules: ["hcm"], expectedClose, ...rest }, memberCookie));
+  expect(res.status).toBe(201);
+  const { id } = (await res.json()) as { id: string };
+  if (stage) await db.update(opportunity).set({ stage }).where(eq(opportunity.id, id));
+  return id;
+}
+
+/** Les enfants avant les parents : une opportunité retient son entreprise (clé sans cascade) ; ses modules partent avec elle. */
+async function cleanup() {
+  await db.delete(auditLog);
+  await db.delete(opportunity);
+}
+
+beforeAll(async () => {
+  await cleanup();
+  await db.delete(company);
+  await db.delete(user).where(eq(user.email, MEMBER.email));
+  memberId = (await createUserWithPassword(MEMBER)).id;
+  memberCookie = await sessionCookie(MEMBER.email, MEMBER.password);
+  bankId = (await createObject("company", { name: "Banque X", type: "prospect" }, { id: memberId })).id;
+});
+
+beforeEach(cleanup);
+
+afterAll(async () => {
+  await cleanup();
+  await db.delete(company);
+  await closeDb();
+});
+
+/** D38, contrat 36 : la liste s'ouvre sur les affaires en cours, de la clôture la plus proche à la plus lointaine. */
+describe("vue par défaut « Opportunités en cours » (CRM-106, D38, contrat 36)", () => {
+  it("écarte les gagnées et les perdues par deux puces, trie par clôture prévue croissante, et porte ce nom dans la barre des vues", async () => {
+    await create({ title: "Gagnée", stage: "gagnee", expectedClose: "2026-10-05" });
+    await create({ title: "Perdue", stage: "perdue", expectedClose: "2026-10-06" });
+    await create({ title: "Négociation lointaine", stage: "negociation", expectedClose: "2026-12-01" });
+    await create({ title: "Nouveau besoin proche", expectedClose: "2026-10-30" });
+
+    const state = await listStateWithView("opportunity", new URLSearchParams());
+    expect(state.filters).toEqual([
+      { field: "stage", operator: "n_est_pas", value: "gagnee" },
+      { field: "stage", operator: "n_est_pas", value: "perdue" },
+    ]);
+    expect(state.sort).toEqual({ field: "expectedClose", direction: "asc" });
+    expect(await shown("")).toEqual(["Nouveau besoin proche", "Négociation lointaine"]);
+    expect((await listViews("opportunity")).map((view) => view.name)).toEqual(["Opportunités en cours"]);
+  });
+});
