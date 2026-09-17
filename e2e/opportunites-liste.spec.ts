@@ -115,3 +115,13 @@ test.describe("entreprise en colonne (CRM-104, D60)", () => {
   });
 });
 
+test.describe("création rapide à 375 px (CRM-104)", () => {
+  test("la liste des modules défile dans le dialogue, et « Créer » reste visible", async ({ memberPage }) => {
+    await memberPage.setViewportSize({ width: 375, height: 667 });
+    await memberPage.goto("/opportunites?creation=1");
+    const dialog = memberPage.getByRole("dialog", { name: "Nouvelle opportunité" });
+    await expect(dialog.getByRole("group", { name: "Modules Workday" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Créer" })).toBeInViewport();
+  });
+});
+
