@@ -93,4 +93,10 @@ describe("bornes d'une opportunité à la création (CRM-103, D31, contrat 39)",
     }
     expect(await count()).toBe(0);
   });
+
+  it("refuse sous le champ un module hors de la liste des modules Workday", async () => {
+    const refusal = await post({ ...valid(), modules: ["hcm", "sap_fico"] });
+    expect(refusal.status).toBe(400);
+    expect(Object.keys(refusal.fields)).toEqual(["modules"]);
+  });
 });
