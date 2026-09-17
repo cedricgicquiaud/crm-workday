@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, seedAccounts, test } from "./fixtures/auth";
 import { resetObjects } from "./fixtures/objets";
-import { pickOption, resetOpportunities } from "./fixtures/opportunites";
+import { pickOption, resetOpportunities, setStage } from "./fixtures/opportunites";
 
 /* Les fiches finissent par « (e2e) » : les fixtures les effacent, et rien d'autre. */
 const tag = () => Date.now().toString(36);
@@ -154,3 +154,48 @@ test.describe("création rapide à 375 px (CRM-104)", () => {
   });
 });
 
+test.describe("vue par défaut « Opportunités en cours » (CRM-106, D38, contrat 36)", () => {
+  test("s'ouvre sur ses deux puces et ses sept colonnes, sans l'opportunité gagnée, que le retrait des puces ramène", async ({ memberPage }) => {
+    const mark = tag();
+    const companyId = await post(memberPage, "/api/entreprises", { name: named("Banque X", mark), type: "prospect" });
+    const running = named("Refonte Payroll", mark);
+    const won = named("Portail RH", mark);
+    await post(memberPage, "/api/opportunites", { title: running, companyId, modules: ["hcm"], expectedClose: "2026-12-01" });
+    await post(memberPage, "/api/opportunites", { title: won, companyId, modules: ["hcm"], expectedClose: "2026-10-05" });
+    setStage(won, "gagnee");
+
+    await memberPage.goto(`/opportunites?f=title:contient:${encodeURIComponent(mark)}`);
+    /* Les colonnes de la vue, dans leur ordre ; « Modifiée le » suit, comme sur toute liste. */
+    await expect(memberPage.getByRole("table", { name: "Opportunités" }).getByRole("columnheader")).toHaveText(["Titre", "Entreprise", "Étape", "Probabilité", "Montant estimé", "Clôture prévue", "Responsable", "Modifiée le"]);
+
+    await memberPage.goto("/opportunites");
+    const bar = memberPage.locator('[data-slot="view-bar"]');
+    await expect(bar.getByRole("button", { name: "Vue : Opportunités en cours" })).toBeVisible();
+    const links = memberPage.getByRole("table", { name: "Opportunités" }).getByRole("row").getByRole("link", { name: mark });
+    await expect(links).toHaveText([running]);
+
+    /* Les deux puces se retirent : les affaires terminées reviennent, la plus proche en tête. */
+    await memberPage.getByRole("button", { name: "Retirer le filtre Étape n'est pas Gagnée" }).click();
+    await memberPage.getByRole("button", { name: "Retirer le filtre Étape n'est pas Perdue" }).click();
+    await expect(memberPage).toHaveURL(/filtres=aucun/);
+    await expect(links).toHaveText([won, running]);
+  });
+});
+
+test.describe("liste des opportunités à 375 px (CRM-106, D49, contrat 59)", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test("s'affiche en cartes sans défilement horizontal, avec « Nouvelle opportunité » atteignable", async ({ memberPage }) => {
+    const mark = tag();
+    const companyId = await post(memberPage, "/api/entreprises", { name: named("Banque des Territoires et des Régions", mark), type: "prospect" });
+    const title = named("Refonte de la paie et des temps", mark);
+    await post(memberPage, "/api/opportunites", { title, companyId, modules: ["hcm", "payroll"], expectedClose: "2026-10-30", targetDailyRate: 650, estimatedDays: 60 });
+
+    await memberPage.goto("/opportunites");
+    await expect(memberPage.getByRole("heading", { level: 1 })).toHaveCount(1);
+    const card = memberPage.getByRole("list", { name: "Opportunités" }).getByRole("listitem").filter({ has: memberPage.getByRole("link", { name: title }) });
+    await expect(card).toContainText("39 000,00 €");
+    await expect(memberPage.getByRole("button", { name: "Nouvelle opportunité" })).toBeInViewport();
+    expect(await memberPage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  });
+});

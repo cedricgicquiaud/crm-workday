@@ -26,6 +26,14 @@ export function resetOpportunities(): void {
   runDbCommand("reset");
 }
 
+/**
+ * Pose l'étape d'une opportunité en base, par son titre. « Gagnée » et « Perdue » se posent par leur
+ * geste (4.2d) et l'API les refuse : les écrans qui ont besoin d'une affaire terminée passent par ici.
+ */
+export function setStage(title: string, stage: string): void {
+  runDbCommand("set-stage", title, stage);
+}
+
 /** Choisit une option d'un sélecteur (liste fermée ou fiche liée) : les deux suites des opportunités le partagent. */
 export async function pickOption(page: Page, combobox: Locator, option: string): Promise<void> {
   await combobox.click();
@@ -52,6 +60,12 @@ async function main(command: string) {
       await db.delete(customFieldValue).where(and(eq(customFieldValue.objectType, "opportunity"), inArray(customFieldValue.objectId, doomed)));
       await db.delete(auditLog).where(and(eq(auditLog.objectType, "opportunity"), inArray(auditLog.objectId, doomed)));
       await db.delete(opportunity).where(inArray(opportunity.id, doomed));
+    } else if (command === "set-stage") {
+      const { eq } = await import("drizzle-orm");
+      const { opportunity } = await import("../../src/db/schema");
+      const [title, stage] = [process.argv[3], process.argv[4]];
+      const updated = await db.update(opportunity).set({ stage }).where(eq(opportunity.title, title)).returning({ id: opportunity.id });
+      if (updated.length === 0) throw new Error(`Aucune opportunité « ${title} ».`);
     } else {
       throw new Error(`Commande inconnue : ${command}`);
     }
