@@ -187,6 +187,20 @@ describe("champs obligatoires vidés en modification (CRM-103, D34, contrat 39)"
   });
 });
 
+/** D31 : le montant estimé se calcule depuis le TJM et la durée ; il ne se saisit ni à la création ni en modification. */
+describe("montant estimé en lecture seule (CRM-103, D31)", () => {
+  it("refuse sous le champ un montant estimé fourni à la création ou en modification, en disant qu'il se calcule", async () => {
+    const creation = await post({ ...valid(), estimatedAmount: 50000 });
+    expect(creation.status).toBe(400);
+    expect(creation.fields.estimatedAmount).toMatch(/se calcule/);
+    const id = await created();
+    const modification = await patch(id, { estimatedAmount: 50000 });
+    expect(modification.status).toBe(400);
+    expect(modification.fields.estimatedAmount).toMatch(/se calcule/);
+    expect((await read(id)).estimatedAmount).toBeNull();
+  });
+});
+
 /** D55 : une modification ne porte que des champs saisissables ; le reste répond 400 et rien n'est écrit. */
 describe("clé imprévue en modification (CRM-103, D55)", () => {
   it("refuse sous la clé une clé qu'aucun champ ne prévoit, et n'écrit pas le titre envoyé avec elle", async () => {
