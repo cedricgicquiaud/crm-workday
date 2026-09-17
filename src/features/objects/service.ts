@@ -394,6 +394,17 @@ export async function listRecordOptions(type: string, { limit = RECORD_OPTIONS_L
 }
 
 /**
+ * Ce que l'historique écrit d'une valeur (D12) : sa sérialisation, et pour une fiche liée son titre —
+ * « Contact : Julie Martin → vide » se relit après que la personne a changé d'entreprise ou disparu.
+ */
+async function historyValue(type: string, field: FieldDescriptor, value: string | null): Promise<string | null> {
+  if (field.type !== "relation" || value === null) return value;
+  const target = getObject(relationOf(type, field.key).to);
+  const row = await rowById(getServerObject(target.key).table, value);
+  return row ? String(row[target.titleField] ?? "") : value;
+}
+
+/**
  * Une fiche liée choisie sous condition ne survit pas au changement du champ dont elle dépend (D35) :
  * l'écriture qui change l'entreprise vide le contact, sauf si elle en désigne un nouveau.
  */
@@ -431,6 +442,7 @@ export async function updateObject(type: string, id: string, patch: unknown, act
    */
   const { columns: columnValues, sets: setValues } = splitSets(type, Object.fromEntries(changed.filter(({ field }) => !isCustomFieldKey(field.key)).map(({ field }) => [field.key, values[field.key]])));
   const customChanges = changed.filter(({ field }) => isCustomFieldKey(field.key));
+  const historyLines = await Promise.all(changed.map(async ({ field, oldValue, newValue }) => ({ field: field.key, oldValue: await historyValue(type, field, oldValue), newValue: await historyValue(type, field, newValue) })));
   const row = await db.transaction(async (tx) => {
     const [updated] = await tx
       .update(table)
@@ -439,7 +451,7 @@ export async function updateObject(type: string, id: string, patch: unknown, act
       .returning();
     await writeSets(type, id, setValues, tx);
     await writeCustomValues(type, id, Object.fromEntries(customChanges.map(({ field, newValue }) => [field.key, newValue])), tx);
-    await recordHistory(changed.map(({ field, oldValue, newValue }) => ({ objectType: type, objectId: id, action: "modifiee" as const, field: field.key, oldValue, newValue, authorId: actor.id })), tx);
+    await recordHistory(historyLines.map((line) => ({ objectType: type, objectId: id, action: "modifiee" as const, ...line, authorId: actor.id })), tx);
     return updated;
   });
   return withCustomValues(type, row as ObjectRecord);
