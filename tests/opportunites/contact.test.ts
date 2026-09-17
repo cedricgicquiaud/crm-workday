@@ -83,4 +83,18 @@ describe("contact d'une opportunité (CRM-104, D35)", () => {
     }
     expect((await read(id)).contactPersonId).toBeNull();
   });
+
+  it("juge le contact contre la nouvelle entreprise quand la même écriture change l'entreprise (contrat 41)", async () => {
+    const julie = await contactAt(bankId, "Julie", "Martin");
+    const marc = await contactAt(acmeId, "Marc", "Acme");
+    const id = await opportunityAt(bankId);
+
+    const refusal = await patch(id, { companyId: acmeId, contactPersonId: julie });
+    expect(refusal.status).toBe(400);
+    expect(Object.keys(refusal.body.fields ?? {})).toEqual(["contactPersonId"]);
+    expect(await read(id)).toMatchObject({ companyId: bankId, contactPersonId: null });
+
+    expect((await patch(id, { companyId: acmeId, contactPersonId: marc })).status).toBe(200);
+    expect(await read(id)).toMatchObject({ companyId: acmeId, contactPersonId: marc });
+  });
 });
