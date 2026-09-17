@@ -70,4 +70,11 @@ describe("montant estimé (CRM-103, D31, contrat 33)", () => {
     const id = await create({ title: "Refonte Payroll", companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30", targetDailyRate: 650, estimatedDays: 60 });
     expect((await read(id)).estimatedAmount).toBe(39000);
   });
+
+  it("est vide quand le TJM ou la durée manque", async () => {
+    const withoutDays = await create({ title: "Sans durée", companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30", targetDailyRate: 650 });
+    const withoutRate = await create({ title: "Sans TJM", companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30", estimatedDays: 60 });
+    expect((await read(withoutDays)).estimatedAmount).toBeNull();
+    expect((await read(withoutRate)).estimatedAmount).toBeNull();
+  });
 });
