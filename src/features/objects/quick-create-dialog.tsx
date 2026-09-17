@@ -26,7 +26,7 @@ type Failure = { message: string; fields?: FieldErrors; existingId?: string; exi
 export type RelationOption = { id: string; name: string };
 
 /** Une entrée du dialogue : un champ déclaré, ou une relation déclarée — un champ `relation`, ou le `prefill` d'une relation cité dans `quickCreate` (l'entreprise d'un contact). */
-type Entry = { kind: "field"; key: string; field: FieldDescriptor } | { kind: "relation"; key: string; relation: Relation };
+type Entry = { kind: "field"; key: string; field: FieldDescriptor } | { kind: "relation"; key: string; relation: Relation; field?: FieldDescriptor };
 
 const isSubmitShortcut = (event: KeyboardEvent) => (event.metaKey || event.ctrlKey) && event.key === "Enter";
 
@@ -52,7 +52,7 @@ function entriesOf(type: string, create?: ListCreate): Entry[] {
     const field = fields.find((f) => f.key === key);
     if (field && field.type !== "relation") return [{ kind: "field", key, field }];
     const relation = definition.relations.find((r) => (field ? r.fkColumn : r.prefill) === key);
-    return relation ? [{ kind: "relation", key, relation }] : [];
+    return relation ? [{ kind: "relation", key, relation, field }] : [];
   });
   const required = writableFieldsOf(type).filter((field) => field.required && field.default === undefined && !chosen.includes(field.key));
   return [...entries, ...required.map((field): Entry => ({ kind: "field", key: field.key, field }))];
@@ -85,6 +85,8 @@ export function QuickCreateDialog({ type, create, users, currentUserId, prefill,
   const definition = getObject(type);
   const entries = entriesOf(type, create);
   const fields = entries.flatMap((entry) => (entry.kind === "field" ? [entry.field] : []));
+  /* Un champ `relation` se valide avec les autres (obligatoire compris) ; un simple `prefill` n'a pas de règle. */
+  const relationFields = entries.flatMap((entry) => (entry.kind === "relation" && entry.field ? [entry.field] : []));
   const relations = entries.flatMap((entry) => (entry.kind === "relation" ? [entry] : []));
   /* Ouvert d'emblée quand l'adresse le demande : c'est ainsi que la palette crée depuis n'importe où (D12). */
   const [open, setOpen] = useState(defaultOpen);
@@ -155,10 +157,10 @@ export function QuickCreateDialog({ type, create, users, currentUserId, prefill,
     const form = event.currentTarget;
     /* Un nombre se saisit en texte, avec la virgule française : il part en nombre, comme l'API l'attend. */
     const input = Object.fromEntries(fields.map((f) => [f.key, f.type === "number" ? asNumber(valueOf(f)) : f.type === "multilist" ? setOf(f) : valueOf(f)]));
-    const checked = validateValues(fields, input, { partial: false });
+    const checked = validateValues([...fields, ...relationFields], { ...input, ...Object.fromEntries(relationFields.map((f) => [f.key, valueOf(f)])) }, { partial: false });
     setFailure(null);
     setErrors(checked.errors);
-    const firstInvalid = fields.find((f) => checked.errors[f.key]);
+    const firstInvalid = entries.find((entry) => checked.errors[entry.key]);
     if (firstInvalid) return form.querySelector<HTMLElement>(`#${fieldId(type, firstInvalid.key)}`)?.focus();
     const linked = Object.fromEntries(relations.filter(({ key }) => values[key]).map(({ key }) => [key, values[key]]));
     setPending(true);
