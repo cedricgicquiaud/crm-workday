@@ -70,8 +70,16 @@ export const TARGET_DAILY_RATE_MAX = 5_000;
 /** Durée estimée (D31) : un nombre entier de jours, de 1 à 1 000. */
 export const ESTIMATED_DAYS_MAX = 1_000;
 
-/** Montant estimé (D31) : le TJM de vente cible multiplié par la durée estimée. */
-export const estimatedAmount = (record: Record<string, unknown>): number | null => Number(record.targetDailyRate) * Number(record.estimatedDays);
+const absent = (value: unknown): boolean => value === null || value === undefined || value === "";
+
+/**
+ * Montant estimé (D31) : le TJM de vente cible multiplié par la durée estimée, arrondi au centime ;
+ * `null` quand l'un des deux manque. Le TJM arrive de la base en décimal écrit (« 650.00 »).
+ */
+export function estimatedAmount(record: Record<string, unknown>): number | null {
+  if (absent(record.targetDailyRate) || absent(record.estimatedDays)) return null;
+  return Math.round(Number(record.targetDailyRate) * Number(record.estimatedDays) * 100) / 100;
+}
 
 /**
  * Champs de l'opportunité (D31). L'entreprise est désignée par son identifiant ; les modules sont un
