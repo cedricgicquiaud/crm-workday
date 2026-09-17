@@ -82,3 +82,18 @@ test.describe("création depuis la palette (CRM-104, contrat 32)", () => {
   });
 });
 
+test.describe("création rapide refusée (CRM-104, contrat 39)", () => {
+  test("« Créer » sans titre, entreprise, module ni clôture prévue affiche le refus sous chacun des quatre champs, et aucune opportunité n'est créée", async ({ memberPage }) => {
+    const count = async () => ((await (await memberPage.request.get("/api/objets/opportunity/options")).json()) as { options: unknown[] }).options.length;
+    const before = await count();
+    await memberPage.goto("/opportunites");
+    await memberPage.getByRole("button", { name: "Nouvelle opportunité" }).click();
+    const dialog = memberPage.getByRole("dialog", { name: "Nouvelle opportunité" });
+    await dialog.getByRole("button", { name: "Créer" }).click();
+
+    await expect(dialog.getByRole("alert")).toHaveText(["« Titre » est obligatoire.", "« Entreprise » est obligatoire.", "« Modules Workday » est obligatoire.", "« Clôture prévue » est obligatoire."]);
+    await expect(dialog).toBeVisible();
+    expect(await count()).toBe(before);
+  });
+});
+
