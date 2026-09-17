@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GET as getOpportunity, PATCH as patchOpportunity } from "@/app/api/opportunites/[id]/route";
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
 import { auditLog, company, opportunity, person, user } from "@/db/schema";
+import { listFeed } from "@/features/activities/feed";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createObject } from "@/features/objects/service";
 import { createPerson } from "@/features/persons/persons";
@@ -103,5 +104,13 @@ describe("contact d'une opportunité (CRM-104, D35)", () => {
 
     expect((await patch(id, { companyId: acmeId })).status).toBe(200);
     expect(await read(id)).toMatchObject({ companyId: acmeId, contactPersonId: null });
+  });
+  it("écrit une ligne d'historique par champ, avec le nom des fiches liées : l'entreprise et l'ancien contact (D35, contrat 35)", async () => {
+    const julie = await contactAt(bankId, "Julie", "Martin");
+    const id = await opportunityAt(bankId, { contactPersonId: julie });
+
+    await patch(id, { companyId: acmeId });
+    const changes = (await listFeed("opportunity", id, [])).items.filter((item) => item.kind === "changement" && item.text !== "Fiche créée").map((item) => item.text);
+    expect(changes.sort()).toEqual(["Contact : Julie Martin → vide", "Entreprise : Banque X → Acme"]);
   });
 });
