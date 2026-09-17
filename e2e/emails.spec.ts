@@ -1,5 +1,6 @@
 import { ADMIN, MEMBER, expect, lastEmailTo, seedAccounts, test } from "./fixtures/auth";
 import { insertFailedEmail } from "./helpers/mailbox";
+import { parisDayFromToday } from "./helpers/paris-day";
 
 test.beforeAll(() => seedAccounts());
 
@@ -138,7 +139,7 @@ test.describe("journal des envois (CRM-24, contrat 29, D23)", () => {
     await expect(table.getByRole("row", { name: new RegExp(invitee) })).toHaveCount(1);
     await expect(table.getByRole("row", { name: new RegExp(failed.to) })).toHaveCount(0);
 
-    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    const tomorrow = parisDayFromToday(1);
     await filters.getByLabel("Type d'objet").fill("");
     await filters.getByLabel("Du").fill(tomorrow);
     await filters.getByRole("button", { name: "Filtrer" }).click();
