@@ -15,6 +15,19 @@ const labels = (values: readonly { label: string }[]) => values.map((entry) => e
 
 const field = (key: string): FieldDescriptor => getObject("opportunity").fields.find((candidate) => candidate.key === key)!;
 
+/** D31, contrat 33 : nombres et montants au format français, milliers séparés par une espace fine insécable. */
+describe("montants et durées au format français (CRM-103, D31, contrat 33)", () => {
+  it("écrit le montant estimé « 39 000,00 € », le TJM « 650,00 € » et la durée « 60 jours »", () => {
+    expect(displayValue(field("estimatedAmount"), 39000, [])).toBe("39\u202f000,00 €");
+    expect(displayValue(field("targetDailyRate"), "650.00", [])).toBe("650,00 €");
+    expect(displayValue(field("estimatedDays"), 60, [])).toBe("60 jours");
+  });
+
+  it("écrit « — » pour un montant absent", () => {
+    expect(displayValue(field("estimatedAmount"), null, [])).toBe("—");
+  });
+});
+
 /** D31 : les modules d'une opportunité sont ceux des consultants ; un module retiré de cette liste le reste ici. */
 describe("modules Workday d'une opportunité (CRM-103, D31)", () => {
   it("se choisissent dans la liste des modules des consultants, retirés compris", () => {
