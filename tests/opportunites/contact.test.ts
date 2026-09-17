@@ -70,4 +70,17 @@ describe("contact d'une opportunité (CRM-104, D35)", () => {
     expect((await patch(id, { contactPersonId: julie })).status).toBe(200);
     expect((await read(id)).contactPersonId).toBe(julie);
   });
+
+  it("refuse sous le champ une personne sans profil contact, ou contact d'une autre entreprise, et garde le contact vide", async () => {
+    const sansProfil = (await createPerson({ firstName: "Paul", lastName: "Sansprofil" }, { id: memberId })).id;
+    const chezAcme = await contactAt(acmeId, "Marc", "Acme");
+    const id = await opportunityAt(bankId);
+
+    for (const contactPersonId of [sansProfil, chezAcme]) {
+      const refusal = await patch(id, { contactPersonId });
+      expect(refusal.status, contactPersonId).toBe(400);
+      expect(Object.keys(refusal.body.fields ?? {}), contactPersonId).toEqual(["contactPersonId"]);
+    }
+    expect((await read(id)).contactPersonId).toBeNull();
+  });
 });
