@@ -4,6 +4,7 @@ import { GET as getOpportunity, PATCH as patchOpportunity } from "@/app/api/oppo
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
 import { auditLog, company, opportunity, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { listHistory } from "@/features/history/history";
 import { createObject } from "@/features/objects/service";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
@@ -68,5 +69,27 @@ describe("probabilité (CRM-105, D33, contrats 31 et 34)", () => {
     expect((await read(id)).probability).toBe(50);
     await patch(id, { stage: "qualifie" });
     expect((await read(id)).probability).toBe(20);
+  });
+});
+
+/** D32, D33, contrat 34 : chaque passage d'étape entre dans l'historique ; la probabilité qui le suit, jamais. */
+describe("historique des passages d'étape (CRM-105, D32, D33, contrat 34)", () => {
+  it("écrit une ligne par passage, avec ancienne et nouvelle étape, auteur et date, et aucune ligne de probabilité", async () => {
+    const id = await create();
+    const before = Date.now();
+    await patch(id, { stage: "entretien_client" });
+    await patch(id, { stage: "qualifie" });
+
+    const history = await listHistory("opportunity", id);
+    const passages = history.filter((entry) => entry.field === "stage").reverse();
+    expect(passages.map((entry) => [entry.oldValue, entry.newValue])).toEqual([
+      ["nouveau_besoin", "entretien_client"],
+      ["entretien_client", "qualifie"],
+    ]);
+    for (const entry of passages) {
+      expect(entry.author).toEqual({ id: memberId, name: "Nora Benali" });
+      expect(entry.createdAt.getTime()).toBeGreaterThanOrEqual(before - 1000);
+    }
+    expect(history.filter((entry) => entry.field === "probability")).toEqual([]);
   });
 });
