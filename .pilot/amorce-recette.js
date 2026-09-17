@@ -350,3 +350,78 @@ if (aConvertir.stage !== "converti" && aConvertir.stage !== "ecarte") {
     throw new Error(`amorce-recette : conversion du lead ${titreConverti} refusée (${conversion.status}).`);
   }
 }
+
+// Livraison 4.2a — une opportunité par étape en cours chez Banque Solveige et Assurances Vaubourg,
+// et un lead qualifié avec besoin, prêt à convertir en 4.2c. Même règle que les blocs précédents :
+// on lit d'abord les opportunités (gagnées, perdues et archivées comprises) et on ne crée que les
+// titres absents ; l'étape ne se pose que si elle n'est pas déjà la bonne, pour qu'une relance
+// n'émette aucune requête refusée.
+const listeEntreprises = await fetch("/api/entreprises");
+if (!listeEntreprises.ok) {
+  throw new Error(`amorce-recette : lecture des entreprises refusée (${listeEntreprises.status}).`);
+}
+const clientsParNom = new Map((await listeEntreprises.json()).companies.map((entreprise) => [entreprise.name, entreprise.id]));
+const listeOpportunites = await fetch("/api/objets/opportunity?filtres=aucun&archivees=1");
+if (!listeOpportunites.ok) {
+  throw new Error(`amorce-recette : lecture des opportunités refusée (${listeOpportunites.status}).`);
+}
+const opportunitesParTitre = new Map((await listeOpportunites.json()).records.map((fiche) => [fiche.title, fiche]));
+const opportunites = [
+  { titre: "Refonte Payroll Solveige", entreprise: "Banque Solveige", modules: ["hcm", "payroll"], expectedClose: "2026-10-30", targetDailyRate: 650, estimatedDays: 60, need: "Migration de la paie de 4 000 collaborateurs vers Workday Payroll.", etape: "nouveau_besoin" },
+  { titre: "Core HCM Vaubourg", entreprise: "Assurances Vaubourg", modules: ["hcm"], expectedClose: "2026-11-15", targetDailyRate: 700, estimatedDays: 40, etape: "qualifie" },
+  { titre: "Recrutement Solveige", entreprise: "Banque Solveige", modules: ["recruiting"], expectedClose: "2026-12-04", targetDailyRate: 600, estimatedDays: 30, etape: "profils_proposes" },
+  { titre: "Temps et activités Ferrandi", entreprise: "Groupe Ferrandi", modules: ["time_tracking"], expectedClose: "2027-01-20", etape: "entretien_client" },
+  { titre: "Finance Vaubourg", entreprise: "Assurances Vaubourg", modules: ["finance"], expectedClose: "2026-11-27", targetDailyRate: 750, estimatedDays: 80, etape: "proposition_envoyee" },
+  { titre: "Intégrations Solveige", entreprise: "Banque Solveige", modules: ["integration", "projects"], expectedClose: "2026-10-09", targetDailyRate: 720, estimatedDays: 25, etape: "negociation" },
+];
+for (const { titre, entreprise, etape, ...champs } of opportunites) {
+  const companyId = clientsParNom.get(entreprise);
+  if (!companyId) {
+    throw new Error(`amorce-recette : entreprise ${entreprise} absente pour l'opportunité ${titre}.`);
+  }
+  let fiche = opportunitesParTitre.get(titre);
+  if (!fiche) {
+    const creation = await fetch("/api/opportunites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: titre, companyId, ...champs }) });
+    if (!creation.ok) {
+      throw new Error(`amorce-recette : création de l'opportunité ${titre} refusée (${creation.status}).`);
+    }
+    fiche = { id: (await creation.json()).id, stage: "nouveau_besoin" };
+  }
+  if (fiche.stage === etape || fiche.stage === "gagnee" || fiche.stage === "perdue") continue;
+  const passage = await fetch(`/api/opportunites/${fiche.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ stage: etape }) });
+  if (!passage.ok) {
+    throw new Error(`amorce-recette : étape de l'opportunité ${titre} refusée (${passage.status}).`);
+  }
+}
+
+// Un lead qualifié avec son besoin, prêt à convertir en opportunité (4.2c) : il reste « Qualifié »
+// tant que personne ne l'a converti, et la relance ne le touche plus une fois converti ou écarté.
+const leadsAvantOpportunite = await fetch("/api/leads");
+if (!leadsAvantOpportunite.ok) {
+  throw new Error(`amorce-recette : lecture des leads refusée (${leadsAvantOpportunite.status}).`);
+}
+const titreAConvertir = "Nadia Ferrand · Cliniques Aurore";
+let leadAConvertir = (await leadsAvantOpportunite.json()).leads.find((fiche) => fiche.title === titreAConvertir);
+if (!leadAConvertir) {
+  const creation = await fetch("/api/leads", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ firstName: "Nadia", lastName: "Ferrand", companyName: "Cliniques Aurore", email: "nadia.ferrand@cliniques-aurore.fr", jobTitle: "DRH", origin: "recommandation", score: 3, need: "Déploiement Workday HCM et Recruiting sur 12 cliniques, décision au premier trimestre 2027." }),
+  });
+  if (!creation.ok) {
+    throw new Error(`amorce-recette : création du lead ${titreAConvertir} refusée (${creation.status}).`);
+  }
+  leadAConvertir = { id: (await creation.json()).id, stage: "nouveau" };
+}
+if (leadAConvertir.stage !== "qualifie" && leadAConvertir.stage !== "converti" && leadAConvertir.stage !== "ecarte") {
+  const qualification = await fetch(`/api/leads/${leadAConvertir.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ stage: "qualifie" }) });
+  if (!qualification.ok) {
+    throw new Error(`amorce-recette : avancement du lead ${titreAConvertir} refusé (${qualification.status}).`);
+  }
+}
+
+// Livraison 4.2b — propositions de consultants sur une opportunité.
+
+// Livraison 4.2c — conversion d'un lead en opportunité.
+
+// Livraison 4.2d — opportunités gagnée, perdue et rouverte.
