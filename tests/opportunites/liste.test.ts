@@ -99,4 +99,12 @@ describe("vue par défaut « Opportunités en cours » (CRM-106, D38, contrat 36
     expect(await shown("")).toEqual(["Nouveau besoin proche", "Négociation lointaine"]);
     expect((await listViews("opportunity")).map((view) => view.name)).toEqual(["Opportunités en cours"]);
   });
+
+  it("fait apparaître les gagnées et les perdues quand on retire ses deux puces", async () => {
+    await create({ title: "Gagnée", stage: "gagnee", expectedClose: "2026-10-05" });
+    await create({ title: "Perdue", stage: "perdue", expectedClose: "2026-10-06" });
+    await create({ title: "Nouveau besoin", expectedClose: "2026-10-30" });
+
+    expect(await shown("filtres=aucun")).toEqual(["Gagnée", "Perdue", "Nouveau besoin"]);
+  });
 });
