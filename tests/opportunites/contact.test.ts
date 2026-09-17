@@ -6,7 +6,11 @@ import { auditLog, company, opportunity, person, user } from "@/db/schema";
 import { listFeed } from "@/features/activities/feed";
 import { archiveRecord } from "@/features/archive/archive";
 import { createUserWithPassword } from "@/features/auth/accounts";
-import { createObject, getObjectRecord, listRelationOptions } from "@/features/objects/service";
+import { listForState } from "@/features/lists/apply-filters";
+import { parseListState } from "@/features/lists/url-state";
+import { fieldsOf } from "@/features/objects/fields";
+import { cellText } from "@/features/objects/labels";
+import { createObject, getObjectRecord, listObjectRecords, listRelationOptions } from "@/features/objects/service";
 import { createPerson, updatePerson } from "@/features/persons/persons";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
@@ -182,6 +186,20 @@ describe("lecture d'une fiche liée qui a changé (CRM-104, D35, D36, contrat 41
     await archiveRecord("company", other, { id: memberId });
 
     expect(await read(id)).toMatchObject({ companyId: other, companyIdLabel: "Banque Fermée (archivée)", contactPersonId: julie, contactPersonIdLabel: "Julie Martin (archivée)" });
+  });
+});
+
+/** D60 : dans la liste, une fiche liée se lit par son titre et se trie sur lui. */
+describe("entreprise en colonne de liste (CRM-104, D60)", () => {
+  it("écrit « Banque X » dans la cellule de l'entreprise, et trie Acme avant Banque X", async () => {
+    const atBank = await opportunityAt(bankId);
+    const atAcme = await opportunityAt(acmeId);
+    const records = await listObjectRecords("opportunity");
+    const companyField = fieldsOf("opportunity").find((field) => field.key === "companyId")!;
+
+    expect(cellText(companyField, records.find((record) => record.id === atBank)!, [])).toBe("Banque X");
+    const sorted = listForState("opportunity", records, parseListState("opportunity", new URLSearchParams("tri=companyId:asc")));
+    expect(sorted.map((record) => record.id)).toEqual([atAcme, atBank]);
   });
 });
 
