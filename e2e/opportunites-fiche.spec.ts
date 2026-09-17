@@ -96,3 +96,19 @@ test.describe("champs obligatoires vidés sur la fiche (CRM-103, contrat 39)", (
     await expect(close).toHaveValue("2026-10-30");
   });
 });
+
+test.describe("modules Workday sur la fiche (CRM-103, contrat 39)", () => {
+  test("décocher le dernier module affiche le refus sous la liste, et la case revient cochée", async ({ memberPage }) => {
+    const id = await createOpportunity(memberPage, tag(), { modules: ["payroll"] });
+    await memberPage.goto(`/opportunites/${id}`);
+    const fields = memberPage.getByRole("region", { name: "Champs", exact: true });
+    const modules = fields.getByRole("group", { name: "Modules Workday" });
+
+    await saved(memberPage, id, async () => {
+      await modules.getByRole("checkbox", { name: "Payroll", exact: true }).click();
+      await memberPage.keyboard.press("Enter");
+    });
+    await expect(fields.getByRole("alert")).toHaveText("« Modules Workday » est obligatoire.");
+    await expect(modules.getByRole("checkbox", { name: "Payroll", exact: true })).toBeChecked();
+  });
+});
