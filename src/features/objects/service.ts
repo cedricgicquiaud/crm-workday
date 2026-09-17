@@ -6,7 +6,7 @@
  * lecture de sa valeur passent par une autre table.
  */
 import "@/features/objects/manifest.server";
-import { and, asc, desc, eq, getTableColumns, isNull, ne, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, inArray, isNull, ne, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { loadCustomFields } from "@/features/custom-fields/definitions";
 import { allCustomFieldsOf, isCustomFieldKey } from "@/features/custom-fields/fields-source";
@@ -138,15 +138,59 @@ export async function createObject(type: string, input: unknown, actor: Actor, e
   const values = withDefaults(type, await validateOrThrow(type, input, { partial: false, customRequired }), actor);
   await assertUnique(type, values, null);
   const { base, custom } = splitCustomValues(values);
+  const { columns, sets } = splitSets(type, base);
   const [row] = await exec
     .insert(table)
-    .values({ ...base, createdBy: actor.id })
+    .values({ ...columns, createdBy: actor.id })
     .returning();
   const record = row as ObjectRecord;
+  await writeSets(type, record.id, sets, exec);
   await writeCustomValues(type, record.id, serializeAll(type, custom), exec);
   await recordHistory([{ objectType: type, objectId: record.id, action: "creee", authorId: actor.id }], exec);
   /* Dans une transaction, la fiche n'est pas encore visible des lectures complémentaires : l'appelant la relira une fois l'ensemble écrit. */
   return exec === db ? withCustomValues(type, record) : record;
+}
+
+/** Sépare les valeurs qui vont dans la table de la fiche de celles des ensembles rangés dans une table fille (`sets`). */
+function splitSets(type: string, values: FieldValues): { columns: FieldValues; sets: FieldValues } {
+  const keys = new Set((getServerObject(type).sets ?? []).map((set) => set.field));
+  const entries = Object.entries(values);
+  return { columns: Object.fromEntries(entries.filter(([key]) => !keys.has(key))), sets: Object.fromEntries(entries.filter(([key]) => keys.has(key))) };
+}
+
+/** Remplace, pour chaque ensemble reçu, les lignes de sa table fille par ses valeurs : une ligne par valeur. */
+async function writeSets(type: string, id: string, values: FieldValues, exec: Executor): Promise<void> {
+  for (const set of getServerObject(type).sets ?? []) {
+    const entries = values[set.field];
+    if (!Array.isArray(entries)) continue;
+    const columns = getTableColumns(set.table);
+    await exec.delete(set.table).where(eq(columns[set.fkColumn], id));
+    if (entries.length > 0) await exec.insert(set.table).values(entries.map((entry) => ({ [set.fkColumn]: id, [set.valueColumn]: entry })));
+  }
+}
+
+/**
+ * Les ensembles rangés dans une table fille, joints aux fiches : une requête par ensemble pour toutes
+ * les fiches. Les valeurs suivent l'ordre de la liste du champ ; une valeur qu'elle ne porte plus
+ * (retirée) vient après, pour rester lisible.
+ */
+async function attachSets(type: string, records: ObjectRecord[]): Promise<ObjectRecord[]> {
+  const sets = getServerObject(type).sets ?? [];
+  if (sets.length === 0 || records.length === 0) return records;
+  const ids = records.map((record) => record.id);
+  const held = new Map<string, Record<string, string[]>>(ids.map((id) => [id, Object.fromEntries(sets.map((set) => [set.field, []]))]));
+  for (const set of sets) {
+    const columns = getTableColumns(set.table);
+    const rows = await db
+      .select({ owner: columns[set.fkColumn], value: columns[set.valueColumn] })
+      .from(set.table)
+      .where(inArray(columns[set.fkColumn], ids));
+    for (const row of rows) held.get(String(row.owner))![set.field].push(String(row.value));
+    const listed = (fieldsOf(type).find((field) => field.key === set.field)?.values ?? []).map((entry) => entry.value);
+    const rank = (value: string) => (listed.includes(value) ? listed.indexOf(value) : listed.length);
+    for (const entry of held.values()) entry[set.field].sort((a, b) => rank(a) - rank(b));
+  }
+  return records.map((record) => ({ ...record, ...held.get(record.id) }));
 }
 
 /** Valeurs personnalisées sous leur forme enregistrée (jour ISO, décimal canonique), comme l'historique les lit. */
@@ -161,7 +205,7 @@ function serializeAll(type: string, values: FieldValues): Record<string, string 
  * tri et l'historique ne distinguent pas ce qui vient de la table de ce qui vient d'ailleurs.
  */
 async function completed(type: string, records: ObjectRecord[]): Promise<ObjectRecord[]> {
-  const withValues = await attachCustomValues(type, records);
+  const withValues = await attachSets(type, await attachCustomValues(type, records));
   const attach = getServerObject(type).attach;
   return attach ? attach(withValues) : withValues;
 }

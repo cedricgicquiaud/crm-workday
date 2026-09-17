@@ -4,7 +4,8 @@
  * (API) et par les formulaires ; les livraisons 4.2b à 4.2d les lisent sans y toucher.
  * Ce fichier est importable côté client : aucune table, aucune base.
  */
-import type { ListValue } from "@/features/objects/registry";
+import { MODULES, RETIRED_MODULES } from "@/features/consultants/schema";
+import type { FieldDescriptor, ListValue } from "@/features/objects/registry";
 
 /**
  * Étapes du pipeline (D32), dans leur ordre : le rang d'une étape est sa place ici. Gagnée et perdue
@@ -62,3 +63,15 @@ const RESULT_RANKS: Readonly<Record<string, number>> = { retenu: 3, entretien: 2
 
 /** Rang d'un résultat, `-1` pour une valeur inconnue. */
 export const resultRank = (result: string): number => RESULT_RANKS[result] ?? -1;
+
+/**
+ * Champs de l'opportunité (D31). L'entreprise est désignée par son identifiant ; les modules sont un
+ * ensemble rangé dans `opportunity_module`, pris dans la liste des modules des consultants.
+ */
+export const OPPORTUNITY_FIELDS: readonly FieldDescriptor[] = [
+  { key: "title", label: "Titre", type: "text", required: true, maxLength: 120, sortable: true, wide: true, order: 10 },
+  { key: "companyId", label: "Entreprise", type: "text", required: true, order: 20 },
+  { key: "modules", label: "Modules Workday", type: "multilist", required: true, values: MODULES, retiredValues: RETIRED_MODULES, sortable: true, order: 40 },
+  { key: "expectedClose", label: "Clôture prévue", type: "date", required: true, sortable: true, order: 100 },
+  { key: "ownerId", label: "Responsable", type: "user", required: true, default: "actor", sortable: true, order: 130 },
+];

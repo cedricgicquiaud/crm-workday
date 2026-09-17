@@ -50,7 +50,7 @@ afterAll(async () => {
  */
 describe("liste « Consultants » déclarée au registre (CRM-83, D10)", () => {
   it("prend sa place dans la barre latérale après « Personnes », avec son libellé et son adresse", () => {
-    expect(listLists().map((list) => list.key)).toEqual(["company", "person", "consultants", "lead"]);
+    expect(listLists().map((list) => list.key)).toEqual(["company", "person", "consultants", "lead", "opportunity"]);
     expect(getList(LIST)).toMatchObject({ key: LIST, objectKey: "person", label: "Consultants", href: "/consultants" });
     /* La liste d'un objet est une liste comme une autre : on la lit par la même fonction. */
     expect(getList("person")).toMatchObject({ objectKey: "person", label: "Personnes", href: "/personnes" });

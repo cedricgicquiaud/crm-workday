@@ -38,6 +38,21 @@ export type DependentTable = {
   describe?: (row: Record<string, unknown>, record: ObjectRecord) => Promise<string>;
 };
 
+/**
+ * Champ à plusieurs valeurs rangé dans une table fille, une ligne par valeur (les modules Workday
+ * d'une fiche) : le service écrit l'ensemble avec la fiche, par l'exécuteur de son écriture, et le
+ * relit à chaque lecture comme une colonne de la fiche.
+ */
+export type SetTable = {
+  /** clé du champ `multilist` que la table porte */
+  field: string;
+  table: PgTable;
+  /** colonne de la table fille qui porte l'identifiant de la fiche */
+  fkColumn: string;
+  /** colonne de la table fille qui porte une valeur de l'ensemble */
+  valueColumn: string;
+};
+
 /** Ce qu'une section reçoit pour se rendre : la fiche, ce que son chargeur a lu, et si la fiche ne s'écrit plus (fiche archivée, D21). */
 export type SectionProps<T> = { id: string; data: T; readOnly: boolean };
 
@@ -104,6 +119,8 @@ export type ServerObjectDefinition = {
   entryWarnings?: (values: Record<string, unknown>, exceptId: string | null) => Promise<EntryWarning[]>;
   /** tables qui dépendent d'une fiche de cet objet, lues par la fusion (2.6a) ; absentes, la fiche n'en a pas */
   dependents?: readonly DependentTable[];
+  /** champs à plusieurs valeurs rangés dans une table fille ; absents, un ensemble est une colonne de la table */
+  sets?: readonly SetTable[];
   /** sections propres à l'objet, rendues par la fiche sous « Champs » (D20) ; absentes, la fiche n'en montre aucune */
   sections?: readonly ObjectSection[];
   /** gestes d'en-tête propres à l'objet, visibles selon la fiche (D21) ; absents, la fiche n'offre que le menu commun */

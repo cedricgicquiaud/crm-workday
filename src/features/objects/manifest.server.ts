@@ -1,9 +1,10 @@
 /**
  * Manifeste des objets, côté serveur : les déclarations client puis, une ligne par objet, la part
  * serveur (table, recherche). Le service générique et les routes d'API l'importent.
- * Objets déclarés : `company` (2.1a), `person` (2.2), `lead` (4.1a).
+ * Objets déclarés : `company` (2.1a), `person` (2.2), `lead` (4.1a), `opportunity` (4.2a).
  */
 import "@/features/objects/manifest";
 import "@/features/companies/register.server";
 import "@/features/persons/register.server";
 import "@/features/leads/register.server";
+import "@/features/opportunities/register.server";
