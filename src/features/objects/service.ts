@@ -394,6 +394,19 @@ export async function listRecordOptions(type: string, { limit = RECORD_OPTIONS_L
 }
 
 /**
+ * Une fiche liée choisie sous condition ne survit pas au changement du champ dont elle dépend (D35) :
+ * l'écriture qui change l'entreprise vide le contact, sauf si elle en désigne un nouveau.
+ */
+function withScopesCleared(type: string, values: FieldValues, current: ObjectRecord): FieldValues {
+  const cleared = { ...values };
+  for (const scope of getServerObject(type).relationScopes ?? []) {
+    const moved = scope.dependsOn in values && values[scope.dependsOn] !== current[scope.dependsOn];
+    if (moved && !(scope.field in values) && current[scope.field] != null) cleared[scope.field] = null;
+  }
+  return cleared;
+}
+
+/**
  * Un champ ne change que si sa sérialisation stable change (`serializeValue`) : une valeur absente et
  * une chaîne vide sont la même chose, « 99.00 » relu en base et 99 reçu aussi ; l'historique reçoit
  * ces mêmes sérialisations, lisibles quel que soit le type (D12).
@@ -405,7 +418,7 @@ export async function updateObject(type: string, id: string, patch: unknown, act
   assertWritable(type, current);
   assertNotFrozen(type, current);
   assertUnlocked(type, current, patch);
-  const values = withSetsInListOrder(type, await validateOrThrow(type, patch, { partial: true, current }));
+  const values = withScopesCleared(type, withSetsInListOrder(type, await validateOrThrow(type, patch, { partial: true, current })), current);
   await assertUnique(type, values, id);
   const changed = writableFieldsOf(type)
     .filter((field) => field.key in values)
