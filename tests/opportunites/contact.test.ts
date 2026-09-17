@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import type { TransactionSql } from "postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GET as getOpportunity, PATCH as patchOpportunity } from "@/app/api/opportunites/[id]/route";
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
@@ -12,7 +13,7 @@ import { fieldsOf } from "@/features/objects/fields";
 import { cellText } from "@/features/objects/labels";
 import { createObject, getObjectRecord, listObjectRecords, listRelationOptions } from "@/features/objects/service";
 import { createPerson, updatePerson } from "@/features/persons/persons";
-import { closeDb, db } from "@/lib/db";
+import { closeDb, db, rawSql } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
 const MEMBER = { email: "membre-contact-opportunite@exemple.fr", firstName: "Hugo", lastName: "Lemaire", password: "MotDePasse-Contact-Opp-1", role: "membre" as const };
@@ -119,6 +120,71 @@ describe("contact d'une opportunité (CRM-104, D35)", () => {
     await patch(id, { companyId: acmeId });
     const changes = (await listFeed("opportunity", id, [])).items.filter((item) => item.kind === "changement" && item.text !== "Fiche créée").map((item) => item.text);
     expect(changes.sort()).toEqual(["Contact : Julie Martin → vide", "Entreprise : Banque X → Acme"]);
+  });
+});
+
+/**
+ * Attend qu'une écriture de l'opportunité bute sur le verrou de la ligne, plutôt qu'un délai fixe :
+ * la course se joue alors dans le même ordre sur une machine lente comme sur une rapide.
+ */
+async function waitForBlockedWriter(): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const blocked = await rawSql()`SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_type = 'Lock' AND query ILIKE ${"%opportunity%"}`;
+    if (blocked.length > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error("Aucune écriture n'a buté sur le verrou de l'opportunité.");
+}
+
+/**
+ * Rejoue une course sur une même opportunité : l'écriture testée part et bute sur la ligne verrouillée,
+ * l'écriture concurrente passe et s'engage, l'écriture testée n'aboutit qu'après elle. C'est l'ordre du
+ * défaut : la fiche a changé entre la lecture de l'écriture testée et son écriture.
+ */
+async function raceOnRow<T>(id: string, tested: () => Promise<T>, concurrent: (sql: TransactionSql) => Promise<unknown>): Promise<T> {
+  let pending!: Promise<T>;
+  await rawSql().begin(async (sql) => {
+    await sql`SELECT id FROM opportunity WHERE id = ${id} FOR UPDATE`;
+    pending = tested();
+    await waitForBlockedWriter();
+    await concurrent(sql);
+  });
+  return pending;
+}
+
+/**
+ * D35, contrat 35 : deux écritures simultanées sur la même opportunité. La condition du contact et le
+ * vidage qu'elle entraîne se jugent sur la fiche relue sous verrou, dans la transaction de l'écriture ;
+ * jugés sur la lecture d'avant, ils laisseraient l'opportunité chez Acme avec un contact de Banque X.
+ */
+describe("écriture concurrente sur l'entreprise et le contact (CRM-104, D35)", () => {
+  it("refuse (400) Julie Martin, contact de Banque X, quand l'opportunité est passée chez Acme entre la lecture et l'écriture", async () => {
+    const julie = await contactAt(bankId, "Julie", "Martin");
+    const id = await opportunityAt(bankId);
+
+    const refusal = await raceOnRow(
+      id,
+      () => patch(id, { contactPersonId: julie }),
+      (sql) => sql`UPDATE opportunity SET company_id = ${acmeId} WHERE id = ${id}`,
+    );
+
+    expect(refusal.status).toBe(400);
+    expect(Object.keys(refusal.body.fields ?? {})).toEqual(["contactPersonId"]);
+    expect(await read(id)).toMatchObject({ companyId: acmeId, contactPersonId: null });
+  });
+
+  it("vide le contact posé entre-temps quand l'écriture déplace l'opportunité chez Acme", async () => {
+    const julie = await contactAt(bankId, "Julie", "Martin");
+    const id = await opportunityAt(bankId);
+
+    const answer = await raceOnRow(
+      id,
+      () => patch(id, { companyId: acmeId }),
+      (sql) => sql`UPDATE opportunity SET contact_person_id = ${julie} WHERE id = ${id}`,
+    );
+
+    expect(answer.status).toBe(200);
+    expect(await read(id)).toMatchObject({ companyId: acmeId, contactPersonId: null });
   });
 });
 
