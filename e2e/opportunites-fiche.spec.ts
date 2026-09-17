@@ -96,6 +96,18 @@ test.describe("champs obligatoires vidés sur la fiche (CRM-103, contrat 39)", (
     await expect(fields.getByRole("alert").filter({ hasText: "Clôture prévue" })).toHaveText("« Clôture prévue » est obligatoire.");
     await expect(close).toHaveValue("2026-10-30");
   });
+
+  test("vider l'entreprise affiche le refus sous le champ, et l'entreprise enregistrée revient", async ({ memberPage }) => {
+    const mark = tag();
+    const id = await createOpportunity(memberPage, mark);
+    await memberPage.goto(`/opportunites/${id}`);
+    const fields = memberPage.getByRole("region", { name: "Champs", exact: true });
+    const company = fields.getByRole("combobox", { name: "Entreprise" });
+
+    await saved(memberPage, id, () => pickOption(memberPage, company, "—"));
+    await expect(fields.getByRole("alert")).toHaveText("« Entreprise » est obligatoire.");
+    await expect(company).toContainText(named("Banque X", mark));
+  });
 });
 
 test.describe("modules Workday sur la fiche (CRM-103, contrat 39)", () => {
