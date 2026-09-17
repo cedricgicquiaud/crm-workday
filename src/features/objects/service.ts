@@ -46,12 +46,12 @@ function withDefaults(type: string, values: FieldValues, actor: Actor): FieldVal
 const invalid = (errors: Record<string, string>) => new HttpError(400, "donnees_invalides", Object.values(errors)[0], { fields: errors });
 
 /** Un champ `user` doit désigner un utilisateur existant : la clé étrangère ne suffit pas, il faut un 400 rattaché au champ. */
-async function assertUsersExist(type: string, values: FieldValues): Promise<void> {
+async function assertUsersExist(type: string, values: FieldValues, exec: Executor): Promise<void> {
   const errors: Record<string, string> = {};
   for (const field of writableFieldsOf(type)) {
     const value = values[field.key];
     if (field.type !== "user" || typeof value !== "string") continue;
-    const [found] = await db.select({ id: user.id }).from(user).where(eq(user.id, value)).limit(1);
+    const [found] = await exec.select({ id: user.id }).from(user).where(eq(user.id, value)).limit(1);
     if (!found) errors[field.key] = `« ${field.label} » ne désigne aucun utilisateur.`;
   }
   if (Object.keys(errors).length > 0) throw invalid(errors);
@@ -91,14 +91,20 @@ function assertNotProfileField(type: string, input: unknown): void {
  */
 type ValidationOptions = { partial: boolean; customRequired?: boolean; current?: ObjectRecord | null };
 
-async function validateOrThrow(type: string, input: unknown, { partial, customRequired = true, current = null }: ValidationOptions): Promise<FieldValues> {
+/**
+ * Valide les valeurs reçues et résout les fiches liées. Ses lectures passent par `exec` : dans la
+ * transaction d'un geste, elles y restent — sans quoi la création tiendrait une transaction et
+ * demanderait une seconde connexion pour se relire. La condition d'une relation (D35) est jugée par
+ * l'appelant, qui seul sait sur quelle fiche : celle relue sous verrou pour une modification.
+ */
+async function validateOrThrow(type: string, input: unknown, { partial, customRequired = true, current = null }: ValidationOptions, exec: Executor): Promise<FieldValues> {
   assertNotArchived(type, input);
   assertNotProfileField(type, input);
   const fields = writableFieldsOf(type).map((field) => (!customRequired && isCustomFieldKey(field.key) ? { ...field, required: false } : field));
   const { values, errors } = validateValues(fields, input, { partial });
   if (Object.keys(errors).length > 0) throw invalid(errors);
-  await assertUsersExist(type, values);
-  return resolveRelations(type, values, current);
+  await assertUsersExist(type, values, exec);
+  return resolveRelations(type, values, current, exec);
 }
 
 /** « « Entreprise » ne désigne aucune entreprise. » : le déterminant suit l'article déclaré de l'objet lié. */
@@ -119,7 +125,7 @@ const relationOf = (type: string, key: string): Relation => getObject(type).rela
  * est remplacée par la fiche conservée : c'est elle qu'on enregistre, l'absorbée n'existe plus. Une
  * fiche archivée ne se choisit plus (409, D36) ; le lien que la fiche `current` porte déjà reste, lui.
  */
-async function resolveRelations(type: string, values: FieldValues, current: ObjectRecord | null): Promise<FieldValues> {
+async function resolveRelations(type: string, values: FieldValues, current: ObjectRecord | null, exec: Executor): Promise<FieldValues> {
   const resolved = { ...values };
   const errors: Record<string, string> = {};
   const archived: Record<string, string> = {};
@@ -128,7 +134,7 @@ async function resolveRelations(type: string, values: FieldValues, current: Obje
     if (field.type !== "relation" || typeof value !== "string") continue;
     const { to } = relationOf(type, field.key);
     const { table } = getServerObject(to);
-    const row = UUID.test(value) ? ((await rowById(table, value)) ?? (await keptRow(to, table, value).catch(() => null))) : null;
+    const row = UUID.test(value) ? ((await rowById(table, value, exec)) ?? (await keptRow(to, table, value, exec).catch(() => null))) : null;
     const target = getObject(to);
     if (!row) {
       errors[field.key] = unknownRecordRule(field, target.labels);
@@ -139,16 +145,16 @@ async function resolveRelations(type: string, values: FieldValues, current: Obje
   }
   if (Object.keys(errors).length > 0) throw invalid(errors);
   if (Object.keys(archived).length > 0) throw new HttpError(409, "fiche_liee_archivee", Object.values(archived)[0], { fields: archived });
-  await assertInScope(type, resolved, current);
   return resolved;
 }
 
 /**
  * Une fiche liée choisie remplit la condition que l'objet déclare sur son champ (D35), évaluée avec la
  * valeur enregistrée après l'écriture : une écriture qui change aussi le champ dont elle dépend est
- * jugée sur la nouvelle valeur. Un lien que l'écriture ne change pas n'est pas rejugé.
+ * jugée sur la nouvelle valeur. Un lien que l'écriture ne change pas n'est pas rejugé. `current` est la
+ * fiche telle qu'elle est au moment de l'écriture : `updateObject` la relit sous verrou pour cela.
  */
-async function assertInScope(type: string, values: FieldValues, current: ObjectRecord | null): Promise<void> {
+async function assertInScope(type: string, values: FieldValues, current: ObjectRecord | null, exec: Executor): Promise<void> {
   const errors: Record<string, string> = {};
   for (const scope of getServerObject(type).relationScopes ?? []) {
     const chosen = values[scope.field];
@@ -156,7 +162,7 @@ async function assertInScope(type: string, values: FieldValues, current: ObjectR
     if (typeof chosen !== "string" || (chosen === current?.[scope.field] && !(scope.dependsOn in values))) continue;
     const { table } = getServerObject(relationOf(type, scope.field).to);
     const columns = getTableColumns(table);
-    const [found] = typeof basis === "string" ? await db.select({ id: columns.id }).from(table).where(and(eq(columns.id, chosen), eq(columns[scope.matches], basis), scope.where)).limit(1) : [];
+    const [found] = typeof basis === "string" ? await exec.select({ id: columns.id }).from(table).where(and(eq(columns.id, chosen), eq(columns[scope.matches], basis), scope.where)).limit(1) : [];
     if (!found) errors[scope.field] = scope.refusal;
   }
   if (Object.keys(errors).length > 0) throw invalid(errors);
@@ -196,7 +202,9 @@ async function assertUnique(type: string, values: FieldValues, currentId: string
 export async function createObject(type: string, input: unknown, actor: Actor, exec: Executor = db, { customRequired = true }: { customRequired?: boolean } = {}): Promise<ObjectRecord> {
   const { table } = getServerObject(type);
   await loadCustomFields();
-  const values = withDefaults(type, await validateOrThrow(type, input, { partial: false, customRequired }), actor);
+  const validated = await validateOrThrow(type, input, { partial: false, customRequired }, exec);
+  await assertInScope(type, validated, null, exec);
+  const values = withDefaults(type, validated, actor);
   await assertUnique(type, values, null);
   const { base, custom } = splitCustomValues(values);
   const { columns, sets } = splitSets(type, base);
@@ -343,9 +351,9 @@ const notFound = (type: string) => new HttpError(404, "fiche_introuvable", `${ge
  * n'a été absorbée par personne. La table garde une ligne par fusion, et une fusion de suite
  * re-pointe les précédentes : une seule lecture suffit, la chaîne est déjà à plat.
  */
-export async function redirectedId(type: string, id: string): Promise<string | null> {
+export async function redirectedId(type: string, id: string, exec: Executor = db): Promise<string | null> {
   if (!UUID.test(id)) return null;
-  const [row] = await db
+  const [row] = await exec
     .select({ toId: objectRedirect.toId })
     .from(objectRedirect)
     .where(and(eq(objectRedirect.objectType, type), eq(objectRedirect.fromId, id)))
@@ -367,9 +375,22 @@ export async function getObjectRecord(type: string, id: string): Promise<ObjectR
 }
 
 /** Ligne d'une table par son identifiant, ou `null` : la lecture d'une fiche et le suivi d'une redirection la partagent. */
-async function rowById(table: PgTable, id: string): Promise<Record<string, unknown> | null> {
-  const [row] = await db.select().from(table).where(eq(getTableColumns(table).id, id)).limit(1);
+async function rowById(table: PgTable, id: string, exec: Executor = db): Promise<Record<string, unknown> | null> {
+  const [row] = await exec.select().from(table).where(eq(getTableColumns(table).id, id)).limit(1);
   return (row as Record<string, unknown> | undefined) ?? null;
+}
+
+/**
+ * La fiche relue et verrouillée (`FOR UPDATE`) dans la transaction de l'écriture : les conditions de ses
+ * relations et le vidage qu'elles entraînent (D35) se jugent sur la fiche telle qu'elle est au moment
+ * d'écrire, pas sur celle lue plus tôt. Sans ce verrou, une écriture concurrente qui change le champ
+ * dont un lien dépend passe entre les deux : l'opportunité partie chez Acme garderait un contact de
+ * Banque X, sans que la règle le refuse. Disparue entre-temps, la fiche n'existe plus : 404.
+ */
+async function lockedRow(type: string, table: PgTable, id: string, tx: Executor): Promise<Record<string, unknown>> {
+  const [row] = await tx.select().from(table).where(eq(getTableColumns(table).id, id)).limit(1).for("update");
+  if (!row) throw notFound(type);
+  return row as Record<string, unknown>;
 }
 
 /**
@@ -377,9 +398,9 @@ async function rowById(table: PgTable, id: string): Promise<Record<string, unkno
  * des redirections (elle re-pointe celles qui menaient à l'absorbée), donc un second saut ne pourrait
  * être qu'un cycle — le suivre ferait tourner la lecture sans fin. Sans fiche au bout, 404.
  */
-async function keptRow(type: string, table: PgTable, id: string): Promise<Record<string, unknown>> {
-  const kept = await redirectedId(type, id);
-  const row = kept && kept !== id ? await rowById(table, kept) : null;
+async function keptRow(type: string, table: PgTable, id: string, exec: Executor = db): Promise<Record<string, unknown>> {
+  const kept = await redirectedId(type, id, exec);
+  const row = kept && kept !== id ? await rowById(table, kept, exec) : null;
   if (!row) throw notFound(type);
   return row;
 }
@@ -446,16 +467,17 @@ export async function listRecordOptions(type: string, { limit = RECORD_OPTIONS_L
  * Ce que l'historique écrit d'une valeur (D12) : sa sérialisation, et pour une fiche liée son titre —
  * « Contact : Julie Martin → vide » se relit après que la personne a changé d'entreprise ou disparu.
  */
-async function historyValue(type: string, field: FieldDescriptor, value: string | null): Promise<string | null> {
+async function historyValue(type: string, field: FieldDescriptor, value: string | null, exec: Executor): Promise<string | null> {
   if (field.type !== "relation" || value === null) return value;
   const target = getObject(relationOf(type, field.key).to);
-  const row = await rowById(getServerObject(target.key).table, value);
+  const row = await rowById(getServerObject(target.key).table, value, exec);
   return row ? String(row[target.titleField] ?? "") : value;
 }
 
 /**
  * Une fiche liée choisie sous condition ne survit pas au changement du champ dont elle dépend (D35) :
- * l'écriture qui change l'entreprise vide le contact, sauf si elle en désigne un nouveau.
+ * l'écriture qui change l'entreprise vide le contact, sauf si elle en désigne un nouveau. `current` est
+ * la fiche relue sous verrou : le contact posé entre-temps par une autre écriture se vide comme un autre.
  */
 function withScopesCleared(type: string, values: FieldValues, current: ObjectRecord): FieldValues {
   const cleared = { ...values };
@@ -504,21 +526,30 @@ export async function updateObject(type: string, id: string, patch: unknown, act
   assertWritable(type, current);
   assertNotFrozen(type, current);
   assertUnlocked(type, current, patch);
-  const values = withScopesCleared(type, withSetsInListOrder(type, await validateOrThrow(type, patch, { partial: true, current })), current);
-  await assertUnique(type, values, id);
-  const changed = writableFieldsOf(type)
-    .filter((field) => field.key in values)
-    .map((field) => ({ field, oldValue: serializeValue(field, current[field.key]), newValue: serializeValue(field, values[field.key]) }))
-    .filter((change) => change.oldValue !== change.newValue);
-  if (changed.length === 0) return current;
-  /*
-   * Les colonnes de la fiche partent dans sa table, ses ensembles dans leur table fille ; les champs
-   * personnalisés dans la leur, déjà sérialisés, comme l'historique les lit. Tout s'écrit ensemble ou rien.
-   */
-  const { columns: columnValues, sets: setValues } = splitSets(type, Object.fromEntries(changed.filter(({ field }) => !isCustomFieldKey(field.key)).map(({ field }) => [field.key, values[field.key]])));
-  const customChanges = changed.filter(({ field }) => isCustomFieldKey(field.key));
-  const historyLines = await Promise.all(changed.map(async ({ field, oldValue, newValue }) => ({ field: field.key, oldValue: await historyValue(type, field, oldValue), newValue: await historyValue(type, field, newValue) })));
+  const received = withSetsInListOrder(type, await validateOrThrow(type, patch, { partial: true, current }, db));
+  await assertUnique(type, received, id);
   const row = await db.transaction(async (tx) => {
+    /*
+     * La fiche verrouillée par-dessus celle lue plus tôt : ses colonnes sont celles du moment d'écrire,
+     * ses valeurs personnalisées et ses ensembles restent ceux de la lecture complète, qui les a joints
+     * depuis leurs tables filles. C'est sur elle que se jugent la condition des relations, le vidage
+     * qu'elle entraîne (D35) et les champs qui changent vraiment.
+     */
+    const record = { ...current, ...(await lockedRow(type, table, id, tx)) } as ObjectRecord;
+    await assertInScope(type, received, record, tx);
+    const values = withScopesCleared(type, received, record);
+    const changed = writableFieldsOf(type)
+      .filter((field) => field.key in values)
+      .map((field) => ({ field, oldValue: serializeValue(field, record[field.key]), newValue: serializeValue(field, values[field.key]) }))
+      .filter((change) => change.oldValue !== change.newValue);
+    if (changed.length === 0) return null;
+    /*
+     * Les colonnes de la fiche partent dans sa table, ses ensembles dans leur table fille ; les champs
+     * personnalisés dans la leur, déjà sérialisés, comme l'historique les lit. Tout s'écrit ensemble ou rien.
+     */
+    const { columns: columnValues, sets: setValues } = splitSets(type, Object.fromEntries(changed.filter(({ field }) => !isCustomFieldKey(field.key)).map(({ field }) => [field.key, values[field.key]])));
+    const customChanges = changed.filter(({ field }) => isCustomFieldKey(field.key));
+    const historyLines = await Promise.all(changed.map(async ({ field, oldValue, newValue }) => ({ field: field.key, oldValue: await historyValue(type, field, oldValue, tx), newValue: await historyValue(type, field, newValue, tx) })));
     const [updated] = await tx
       .update(table)
       .set({ ...columnValues, updatedAt: new Date() })
@@ -529,7 +560,8 @@ export async function updateObject(type: string, id: string, patch: unknown, act
     await recordHistory(historyLines.map((line) => ({ objectType: type, objectId: id, action: "modifiee" as const, ...line, authorId: actor.id })), tx);
     return updated;
   });
-  return withCustomValues(type, row as ObjectRecord);
+  /* Aucun champ changé : la fiche telle qu'elle a été lue, sans écriture ni entrée d'historique. */
+  return row === null ? current : withCustomValues(type, row as ObjectRecord);
 }
 
 /** Utilisateurs actifs ou invités, pour les champs « responsable » (les désactivés ne sont plus proposés). */
