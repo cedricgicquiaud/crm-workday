@@ -186,3 +186,14 @@ describe("champs obligatoires vidés en modification (CRM-103, D34, contrat 39)"
     expect((await read(id)).companyId).toBe(bankId);
   });
 });
+
+/** D55 : une modification ne porte que des champs saisissables ; le reste répond 400 et rien n'est écrit. */
+describe("clé imprévue en modification (CRM-103, D55)", () => {
+  it("refuse sous la clé une clé qu'aucun champ ne prévoit, et n'écrit pas le titre envoyé avec elle", async () => {
+    const id = await created();
+    const refusal = await patch(id, { title: "Refonte Payroll 2027", budget: 40000 });
+    expect(refusal.status).toBe(400);
+    expect(Object.keys(refusal.fields)).toEqual(["budget"]);
+    expect((await read(id)).title).toBe("Refonte Payroll");
+  });
+});
