@@ -140,10 +140,20 @@ function normalize(field: FieldDescriptor, value: FieldValue): FieldValue {
   return text === "" ? null : text;
 }
 
+/**
+ * Vrai si le nombre s'écrit avec `decimals` décimales au plus. Le produit par la puissance de dix
+ * n'est pas exact en virgule flottante (19,99 × 100 donne 1 998,999…) : il se compare à son arrondi
+ * avec une tolérance bien plus fine que la décimale suivante.
+ */
+function hasDecimalsAtMost(value: number, decimals: number): boolean {
+  const scaled = value * 10 ** decimals;
+  return Math.abs(scaled - Math.round(scaled)) < 1e-6;
+}
+
 /** Ce que les précisions d'un nombre reprochent à une valeur, ou rien : entier, décimales, bornes (D5, D7). */
 function numberProblem(field: FieldDescriptor, value: number): string | undefined {
   if (field.integer === true && !Number.isInteger(value)) return MESSAGES.notAnInteger(field.label);
-  if (field.decimals !== undefined && !Number.isInteger(value * 10 ** field.decimals)) return MESSAGES.tooManyDecimals(field.label, field.decimals);
+  if (field.decimals !== undefined && !hasDecimalsAtMost(value, field.decimals)) return MESSAGES.tooManyDecimals(field.label, field.decimals);
   if (field.min !== undefined && field.max !== undefined) {
     const below = field.minExclusive === true ? value <= field.min : value < field.min;
     if (below || value > field.max) return (field.minExclusive === true ? MESSAGES.outOfRangeAbove : MESSAGES.outOfRange)(field.label, field.min, field.max);
