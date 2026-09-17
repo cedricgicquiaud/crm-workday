@@ -62,4 +62,8 @@ export async function createOpportunity(input: unknown, actor: Actor): Promise<O
 export const getOpportunity = (id: string): Promise<ObjectRecord> => getObjectRecord(TYPE, id);
 
 /** Modification (D34) : 400 par champ, 404 inconnue, 409 archivée ; chaque champ changé entre dans l'historique. */
-export const updateOpportunity = (id: string, patch: unknown, actor: Actor): Promise<ObjectRecord> => updateObject(TYPE, id, patch, actor);
+export async function updateOpportunity(id: string, patch: unknown, actor: Actor): Promise<ObjectRecord> {
+  const fields = asObject(patch);
+  await assertCompanyExists(fields);
+  return updateObject(TYPE, id, fields, actor);
+}
