@@ -6,7 +6,9 @@ import { POST as postOpportunity } from "@/app/api/opportunites/route";
 import { activity, auditLog, company, opportunity, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { listHistory } from "@/features/history/history";
-import { createObject } from "@/features/objects/service";
+import { listForState } from "@/features/lists/apply-filters";
+import { createObject, listObjectRecords } from "@/features/objects/service";
+import { listStateWithView } from "@/features/views/views";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
@@ -106,5 +108,19 @@ describe("activités sur une opportunité (CRM-105, D32)", () => {
     const task = await postActivity(jsonRequest("POST", `/api/objets/opportunity/${id}/activites`, { type: "tache", title: "Envoyer deux profils", assigneeId: memberId }, memberCookie), on("opportunity", id));
     expect(task.status).toBe(201);
     expect((await read(id)).stage).toBe("nouveau_besoin");
+  });
+});
+
+/** D32, contrat 36 : trier par étape suit le rang du pipeline, pas l'alphabet des libellés. */
+describe("tri par étape (CRM-105, D32, contrat 36)", () => {
+  it("range Nouveau besoin avant Qualifié, puis jusqu'à Négociation, Gagnée et Perdue en dernier", async () => {
+    /* Créées dans le désordre ; gagnée et perdue ne se posent que par leur geste (4.2d), posées ici en base. */
+    for (const stage of ["perdue", "negociation", "qualifie", "gagnee", "entretien_client", "nouveau_besoin", "proposition_envoyee", "profils_proposes"]) {
+      const id = await create(`Étape ${stage}`);
+      await db.update(opportunity).set({ stage }).where(eq(opportunity.id, id));
+    }
+    const state = await listStateWithView("opportunity", new URLSearchParams("tri=stage:asc&f=title:contient:Étape"));
+    const sorted = listForState("opportunity", await listObjectRecords("opportunity"), state);
+    expect(sorted.map((record) => record.stage)).toEqual(["nouveau_besoin", "qualifie", "profils_proposes", "entretien_client", "proposition_envoyee", "negociation", "gagnee", "perdue"]);
   });
 });
