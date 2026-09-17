@@ -1,6 +1,7 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GET as getOpportunity, PATCH as patchOpportunity } from "@/app/api/opportunites/[id]/route";
+import { POST as postMerge } from "@/app/api/objets/[type]/fusion/route";
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
 import { auditLog, company, opportunity, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
@@ -9,9 +10,11 @@ import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
 const MEMBER = { email: "membre-refus-opportunite@exemple.fr", firstName: "Malo", lastName: "Garnier", password: "MotDePasse-Refus-Opp-1", role: "membre" as const };
+const ADMIN = { email: "admin-refus-opportunite@exemple.fr", firstName: "Iris", lastName: "Noguès", password: "MotDePasse-Refus-Opp-2", role: "administrateur" as const };
 
 let memberId: string;
 let memberCookie: string;
+let adminCookie: string;
 let bankId: string;
 
 type Refusal = { status: number; fields: Record<string, string> };
@@ -55,9 +58,11 @@ async function cleanup() {
 beforeAll(async () => {
   await cleanup();
   await db.delete(company);
-  await db.delete(user).where(eq(user.email, MEMBER.email));
+  await db.delete(user).where(inArray(user.email, [MEMBER.email, ADMIN.email]));
   memberId = (await createUserWithPassword(MEMBER)).id;
   memberCookie = await sessionCookie(MEMBER.email, MEMBER.password);
+  await createUserWithPassword(ADMIN);
+  adminCookie = await sessionCookie(ADMIN.email, ADMIN.password);
   bankId = (await createObject("company", { name: "Banque X", type: "prospect" }, { id: memberId })).id;
 });
 
@@ -248,5 +253,17 @@ describe("clés posées par un geste (CRM-105, D55, contrat 40)", () => {
     expect(modification.status).toBe(400);
     expect(modification.fields.probability).toMatch(/se calcule/);
     expect((await read(id)).probability).toBe(10);
+  });
+});
+
+/** D37, contrat 42 : deux opportunités de même titre sont deux affaires, pas un doublon ; elles ne se fusionnent pas. */
+describe("refus de fusion d'une opportunité (CRM-106, D37, contrat 42)", () => {
+  it("répond 405 à la fusion de deux opportunités de même titre, et les laisse toutes deux intactes", async () => {
+    const kept = await created();
+    const absorbed = await created();
+
+    const refusal = await postMerge(jsonRequest("POST", "/api/objets/opportunity/fusion", { keptId: kept, absorbedId: absorbed }, adminCookie), { params: Promise.resolve({ type: "opportunity" }) });
+    expect(refusal.status).toBe(405);
+    expect(await count()).toBe(2);
   });
 });
