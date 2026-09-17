@@ -14,7 +14,7 @@ import { attachCustomValues, splitCustomValues, writeCustomValues } from "@/feat
 import { recordHistory } from "@/features/history/history";
 import { fieldsOf, isLocked, serializeValue, validateValues, writableFieldsOf, type FieldValues } from "@/features/objects/fields";
 import { userName, type SerializedRecord, type UserOption } from "@/features/objects/labels";
-import { getObject, type FieldDescriptor, type ObjectLabels, type Relation } from "@/features/objects/registry";
+import { getObject, type FieldDescriptor, type ObjectDefinition, type ObjectLabels, type Relation } from "@/features/objects/registry";
 import { getServerObject } from "@/features/objects/registry.server";
 import { objectRedirect, user } from "@/db/schema";
 import { HttpError } from "@/lib/auth/session";
@@ -89,20 +89,23 @@ function assertNotProfileField(type: string, input: unknown): void {
  * vient pas d'une saisie de la fiche (une fiche créée par le geste d'un autre objet) ne peut pas le
  * connaître ; il reste vide jusqu'à ce qu'on le renseigne sur la fiche.
  */
-type ValidationOptions = { partial: boolean; customRequired?: boolean };
+type ValidationOptions = { partial: boolean; customRequired?: boolean; current?: ObjectRecord | null };
 
-async function validateOrThrow(type: string, input: unknown, { partial, customRequired = true }: ValidationOptions): Promise<FieldValues> {
+async function validateOrThrow(type: string, input: unknown, { partial, customRequired = true, current = null }: ValidationOptions): Promise<FieldValues> {
   assertNotArchived(type, input);
   assertNotProfileField(type, input);
   const fields = writableFieldsOf(type).map((field) => (!customRequired && isCustomFieldKey(field.key) ? { ...field, required: false } : field));
   const { values, errors } = validateValues(fields, input, { partial });
   if (Object.keys(errors).length > 0) throw invalid(errors);
   await assertUsersExist(type, values);
-  return resolveRelations(type, values);
+  return resolveRelations(type, values, current);
 }
 
 /** « « Entreprise » ne désigne aucune entreprise. » : le déterminant suit l'article déclaré de l'objet lié. */
 const unknownRecordRule = (field: FieldDescriptor, labels: ObjectLabels) => `« ${field.label} » ne désigne ${labels.article === "une" ? "aucune" : "aucun"} ${labels.singular.toLowerCase()}.`;
+
+/** « Entreprise archivée : « Banque X » ne se choisit plus. » : l'accord suit l'article déclaré de l'objet lié. */
+const archivedRecordRule = (target: ObjectDefinition, title: string) => `${target.labels.singular} ${target.labels.article === "une" ? "archivée" : "archivé"} : « ${title} » ne se choisit plus.`;
 
 /** La relation qu'un objet déclare sur un champ `relation` : c'est elle qui dit de quel objet est la fiche liée. */
 const relationOf = (type: string, field: FieldDescriptor): Relation => getObject(type).relations.find((relation) => relation.fkColumn === field.key)!;
@@ -110,21 +113,29 @@ const relationOf = (type: string, field: FieldDescriptor): Relation => getObject
 /**
  * Un champ `relation` désigne une fiche qui existe (D60) : un identifiant inconnu ou mal formé répond
  * 400 sous le champ, avant que la clé étrangère ne le refuse en base. Une fiche absorbée par une fusion
- * est remplacée par la fiche conservée : c'est elle qu'on enregistre, l'absorbée n'existe plus.
+ * est remplacée par la fiche conservée : c'est elle qu'on enregistre, l'absorbée n'existe plus. Une
+ * fiche archivée ne se choisit plus (409, D36) ; le lien que la fiche `current` porte déjà reste, lui.
  */
-async function resolveRelations(type: string, values: FieldValues): Promise<FieldValues> {
+async function resolveRelations(type: string, values: FieldValues, current: ObjectRecord | null): Promise<FieldValues> {
   const resolved = { ...values };
   const errors: Record<string, string> = {};
+  const archived: Record<string, string> = {};
   for (const field of writableFieldsOf(type)) {
     const value = values[field.key];
     if (field.type !== "relation" || typeof value !== "string") continue;
     const { to } = relationOf(type, field);
     const { table } = getServerObject(to);
     const row = UUID.test(value) ? ((await rowById(table, value)) ?? (await keptRow(to, table, value).catch(() => null))) : null;
-    if (row) resolved[field.key] = String(row.id);
-    else errors[field.key] = unknownRecordRule(field, getObject(to).labels);
+    const target = getObject(to);
+    if (!row) {
+      errors[field.key] = unknownRecordRule(field, target.labels);
+      continue;
+    }
+    resolved[field.key] = String(row.id);
+    if (row.archivedAt != null && current?.[field.key] !== row.id) archived[field.key] = archivedRecordRule(target, String(row[target.titleField] ?? ""));
   }
   if (Object.keys(errors).length > 0) throw invalid(errors);
+  if (Object.keys(archived).length > 0) throw new HttpError(409, "fiche_liee_archivee", Object.values(archived)[0], { fields: archived });
   return resolved;
 }
 
@@ -374,7 +385,7 @@ export async function updateObject(type: string, id: string, patch: unknown, act
   assertWritable(type, current);
   assertNotFrozen(type, current);
   assertUnlocked(type, current, patch);
-  const values = withSetsInListOrder(type, await validateOrThrow(type, patch, { partial: true }));
+  const values = withSetsInListOrder(type, await validateOrThrow(type, patch, { partial: true, current }));
   await assertUnique(type, values, id);
   const changed = writableFieldsOf(type)
     .filter((field) => field.key in values)
