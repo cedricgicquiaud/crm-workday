@@ -268,15 +268,16 @@ function serializeAll(type: string, values: FieldValues): Record<string, string 
   return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, serializeValue(fields.find((field) => field.key === key)!, value)]));
 }
 
-/** Titres des fiches liées d'un champ `relation`, par identifiant : une requête pour toutes les fiches. */
-async function linkedTitles(type: string, key: string, records: readonly ObjectRecord[]): Promise<Map<string, string>> {
+/** Titre des fiches liées d'un champ `relation` et marque d'archivage, par identifiant : une requête pour toutes les fiches. */
+async function linkedTitles(type: string, key: string, records: readonly ObjectRecord[]): Promise<Map<string, { title: string; archived: string | null }>> {
   const ids = [...new Set(records.map((record) => record[key]).filter((id): id is string => typeof id === "string"))];
   if (ids.length === 0) return new Map();
   const target = getObject(relationOf(type, key).to);
   const { table } = getServerObject(target.key);
   const columns = getTableColumns(table);
-  const rows = await db.select({ id: columns.id, title: columns[target.titleField] }).from(table).where(inArray(columns.id, ids));
-  return new Map(rows.map((row) => [String(row.id), String(row.title ?? "")]));
+  const rows = await db.select({ id: columns.id, title: columns[target.titleField], archivedAt: columns.archivedAt }).from(table).where(inArray(columns.id, ids));
+  const archived = target.labels.article === "une" ? "archivée" : "archivé";
+  return new Map(rows.map((row) => [String(row.id), { title: String(row.title ?? ""), archived: row.archivedAt == null ? null : archived }]));
 }
 
 /**
@@ -302,11 +303,13 @@ async function attachLinkedLabels(type: string, records: ObjectRecord[]): Promis
   const inScope = new Map(await Promise.all(scopes.map(async (scope) => [scope.field, await linksInScope(type, scope, records)] as const)));
   return records.map((record) => {
     const labels = relationFields.map((field) => {
-      const title = titles.get(field.key)!.get(String(record[field.key]));
-      if (title === undefined) return [linkedLabelKey(field.key), null];
+      const linked = titles.get(field.key)!.get(String(record[field.key]));
+      if (linked === undefined) return [linkedLabelKey(field.key), null];
+      /* Archivée, la fiche liée le dit d'abord : c'est ce qui l'empêche d'être choisie à nouveau (D36). */
       const scope = scopes.find((candidate) => candidate.field === field.key);
-      const outside = scope && !inScope.get(field.key)!.has(record.id) ? scope.outsideMark(titles.get(scope.dependsOn)?.get(String(record[scope.dependsOn])) ?? "") : null;
-      return [linkedLabelKey(field.key), outside ? `${title} (${outside})` : title];
+      const outside = scope && !inScope.get(field.key)!.has(record.id) ? scope.outsideMark(titles.get(scope.dependsOn)?.get(String(record[scope.dependsOn]))?.title ?? "") : null;
+      const mark = linked.archived ?? outside;
+      return [linkedLabelKey(field.key), mark ? `${linked.title} (${mark})` : linked.title];
     });
     return { ...record, ...Object.fromEntries(labels) };
   });
