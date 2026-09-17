@@ -16,6 +16,8 @@ registerObject({
   apiBase: "/api/opportunites",
   titleField: "title",
   fields: OPPORTUNITY_FIELDS,
+  /** D34 : les quatre champs de la création rapide ; tout le reste se règle sur la fiche. */
+  quickCreate: ["title", "companyId", "modules", "expectedClose"],
   /** Montant estimé, clôture prévue, responsable ; les colonnes de la vue « Opportunités en cours » arrivent avec elle (D38). */
   listColumns: ["estimatedAmount", "expectedClose", "ownerId"],
   relations: [

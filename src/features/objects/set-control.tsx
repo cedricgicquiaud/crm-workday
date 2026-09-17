@@ -16,8 +16,10 @@ type Props = {
   retired?: readonly ListValue[];
   /** refus du serveur, affiché sous la liste */
   error?: string;
-  /** enregistre l'ensemble ; faux remet les cases enregistrées */
-  onSave: (next: string[]) => Promise<boolean>;
+  /** fiche : enregistre l'ensemble ; faux remet les cases enregistrées */
+  onSave?: (next: string[]) => Promise<boolean>;
+  /** dialogue : l'ensemble coché, à chaque case ; la valeur appartient au formulaire, qui l'envoie à la création */
+  onChange?: (next: string[]) => void;
 };
 
 const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((entry) => b.includes(entry));
@@ -29,7 +31,7 @@ const same = (a: readonly string[], b: readonly string[]) => a.length === b.leng
  * et remet les cases comme elles étaient enregistrées. Une valeur retirée de la liste reste lisible,
  * marquée, sur la fiche qui la porte : décochée, elle ne se recoche plus.
  */
-export function SetControl({ id, label, value, values, retired = [], error, onSave }: Props) {
+export function SetControl({ id, label, value, values, retired = [], error, onSave, onChange }: Props) {
   const [draft, setDraft] = useState<string[]>([...value]);
   /* La valeur enregistrée a changé ailleurs (réponse du serveur, rechargement) : le brouillon la suit. */
   const [seen, setSeen] = useState<readonly string[]>(value);
@@ -43,10 +45,15 @@ export function SetControl({ id, label, value, values, retired = [], error, onSa
   const shown = [...values.map((entry) => ({ ...entry, retired: false })), ...kept.map((entry) => ({ ...entry, retired: true }))];
   const errorId = `${id}-error`;
 
-  const toggle = (entry: string) => setDraft(held.has(entry) ? draft.filter((current) => current !== entry) : [...draft, entry]);
+  function toggle(entry: string) {
+    const next = held.has(entry) ? draft.filter((current) => current !== entry) : [...draft, entry];
+    setDraft(next);
+    onChange?.(next);
+  }
 
+  /* Dans un dialogue, rien ne s'enregistre ici : `onSave` est absent et la case remonte par `onChange`. */
   async function commit() {
-    if (same(draft, value)) return;
+    if (!onSave || same(draft, value)) return;
     if (!(await onSave([...draft]))) setDraft([...value]);
   }
 
