@@ -113,7 +113,7 @@ export function FieldsSection({ type, record: initial, users, relationOptions = 
                   <EditableField type={type} field={field} record={record} value={asString(record[field.key])} error={errors[field.key]} users={users} relationOptions={relationOptions[field.key]} readOnly={readOnly || isLocked(field, record)} onSave={(value) => save(field, value)} />
                 )}
                 {/* Le sélecteur est borné (D35) : ce qu'il ne propose pas est compté, jamais tu. */}
-                {field.type === "relation" && !readOnly && (relationOptions[field.key]?.more ?? 0) > 0 && <p className="text-xs text-muted-foreground">{`et ${relationOptions[field.key].more} autre${relationOptions[field.key].more > 1 ? "s" : ""}`}</p>}
+                {field.type === "relation" && !readOnly && <MoreRecords more={relationOptions[field.key]?.more ?? 0} />}
                 <DuplicateWarning type={type} duplicates={warnings[field.key] ?? []} note={null} />
               </div>
             ))}
@@ -122,6 +122,12 @@ export function FieldsSection({ type, record: initial, users, relationOptions = 
       ))}
     </div>
   );
+}
+
+/** « et 12 autres » sous un sélecteur borné ; rien quand il propose tout. */
+function MoreRecords({ more }: { more: number }) {
+  if (more === 0) return null;
+  return <p className="text-xs text-muted-foreground">{`et ${more} autre${more > 1 ? "s" : ""}`}</p>;
 }
 
 type EditableProps = { type: string; field: FieldDescriptor; record: SerializedRecord; value: string; error?: string; users: readonly UserOption[]; relationOptions?: RelationOptions; readOnly: boolean; onSave: (value: string) => Promise<boolean> };
