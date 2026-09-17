@@ -63,3 +63,11 @@ describe("création d'une opportunité (CRM-103, D31, D34)", () => {
     expect((await read(undated)).desiredStart).toBeNull();
   });
 });
+
+/** D31, contrat 33 : le montant estimé est le TJM de vente cible multiplié par la durée estimée ; il manque si l'un manque. */
+describe("montant estimé (CRM-103, D31, contrat 33)", () => {
+  it("vaut 39 000 pour un TJM de 650 sur 60 jours", async () => {
+    const id = await create({ title: "Refonte Payroll", companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30", targetDailyRate: 650, estimatedDays: 60 });
+    expect((await read(id)).estimatedAmount).toBe(39000);
+  });
+});
