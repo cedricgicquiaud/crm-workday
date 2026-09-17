@@ -177,4 +177,12 @@ describe("champs obligatoires vidés en modification (CRM-103, D34, contrat 39)"
     }
     expect(await read(id)).toMatchObject(valid());
   });
+
+  it("refuse sous le champ une entreprise qui n'existe pas, et garde l'entreprise enregistrée", async () => {
+    const id = await created();
+    const refusal = await patch(id, { companyId: "00000000-0000-4000-8000-000000000000" });
+    expect(refusal.status).toBe(400);
+    expect(Object.keys(refusal.fields)).toEqual(["companyId"]);
+    expect((await read(id)).companyId).toBe(bankId);
+  });
 });
