@@ -195,6 +195,19 @@ test.describe("entreprise et contact dans « Champs » (CRM-104, contrat 35)", (
   });
 });
 
+test.describe("sélecteur de contact borné (CRM-104, D35)", () => {
+  test("une entreprise à 201 contacts en propose 200 et annonce « et 1 autre »", async ({ memberPage }) => {
+    test.setTimeout(120_000);
+    const mark = tag();
+    const bankId = await post(memberPage, "/api/entreprises", { name: named("Grande Banque", mark), type: "prospect" });
+    for (let rank = 1; rank <= 201; rank += 1) await post(memberPage, "/api/personnes", { firstName: "Contact", lastName: `N${rank}${mark}`, companyId: bankId });
+    const id = await post(memberPage, "/api/opportunites", { title: named("Refonte Payroll", mark), companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30" });
+
+    await memberPage.goto(`/opportunites/${id}`);
+    await expect(memberPage.getByRole("region", { name: "Champs", exact: true }).getByText("et 1 autre", { exact: true })).toBeVisible();
+  });
+});
+
 test.describe("fiches liées qui ont changé (CRM-104, contrat 41)", () => {
   test("un contact passé chez Acme se lit « a quitté Banque X », et Banque X archivée ensuite se lit « archivée »", async ({ memberPage }) => {
     const mark = tag();
