@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { GET as getOpportunity } from "@/app/api/opportunites/[id]/route";
+import { GET as getOpportunity, PATCH as patchOpportunity } from "@/app/api/opportunites/[id]/route";
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
 import { auditLog, company, opportunity, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
@@ -16,6 +16,7 @@ let bankId: string;
 
 const byId = (id: string) => ({ params: Promise.resolve({ id }) });
 
+const patch = (id: string, input: Record<string, unknown>) => patchOpportunity(jsonRequest("PATCH", `/api/opportunites/${id}`, input, memberCookie), byId(id));
 const read = async (id: string) => (await getOpportunity(jsonRequest("GET", `/api/opportunites/${id}`, undefined, memberCookie), byId(id))).json() as Promise<Record<string, unknown>>;
 
 async function create(input: Record<string, unknown>): Promise<string> {
@@ -76,5 +77,11 @@ describe("montant estimé (CRM-103, D31, contrat 33)", () => {
     const withoutRate = await create({ title: "Sans TJM", companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30", estimatedDays: 60 });
     expect((await read(withoutDays)).estimatedAmount).toBeNull();
     expect((await read(withoutRate)).estimatedAmount).toBeNull();
+  });
+
+  it("redevient vide quand on vide la durée", async () => {
+    const id = await create({ title: "Refonte Payroll", companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30", targetDailyRate: 650, estimatedDays: 60 });
+    expect((await patch(id, { estimatedDays: null })).status).toBe(200);
+    expect((await read(id)).estimatedAmount).toBeNull();
   });
 });
