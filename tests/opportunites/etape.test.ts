@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { POST as postActivity } from "@/app/api/objets/[type]/[id]/activites/route";
 import { GET as getOpportunity, PATCH as patchOpportunity } from "@/app/api/opportunites/[id]/route";
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
-import { auditLog, company, opportunity, user } from "@/db/schema";
+import { activity, auditLog, company, opportunity, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { listHistory } from "@/features/history/history";
 import { createObject } from "@/features/objects/service";
@@ -16,6 +17,7 @@ let memberCookie: string;
 let bankId: string;
 
 const byId = (id: string) => ({ params: Promise.resolve({ id }) });
+const on = (type: string, id: string) => ({ params: Promise.resolve({ type, id }) });
 
 const patch = (id: string, input: Record<string, unknown>) => patchOpportunity(jsonRequest("PATCH", `/api/opportunites/${id}`, input, memberCookie), byId(id));
 const read = async (id: string) => (await getOpportunity(jsonRequest("GET", `/api/opportunites/${id}`, undefined, memberCookie), byId(id))).json() as Promise<Record<string, unknown>>;
@@ -28,6 +30,7 @@ async function create(title = "Refonte Payroll"): Promise<string> {
 
 /** Les enfants avant les parents : une opportunité retient son entreprise (clé sans cascade) ; ses modules partent avec elle. */
 async function cleanup() {
+  await db.delete(activity);
   await db.delete(auditLog);
   await db.delete(opportunity);
 }
@@ -91,5 +94,17 @@ describe("historique des passages d'étape (CRM-105, D32, D33, contrat 34)", () 
       expect(entry.createdAt.getTime()).toBeGreaterThanOrEqual(before - 1000);
     }
     expect(history.filter((entry) => entry.field === "probability")).toEqual([]);
+  });
+});
+
+/** D32 : aucun passage automatique — une activité ne fait pas avancer une opportunité. */
+describe("activités sur une opportunité (CRM-105, D32)", () => {
+  it("garde l'étape « Nouveau besoin » après une note et une tâche", async () => {
+    const id = await create();
+    const note = await postActivity(jsonRequest("POST", `/api/objets/opportunity/${id}/activites`, { type: "note", body: "Besoin confirmé par la DRH." }, memberCookie), on("opportunity", id));
+    expect(note.status).toBe(201);
+    const task = await postActivity(jsonRequest("POST", `/api/objets/opportunity/${id}/activites`, { type: "tache", title: "Envoyer deux profils", assigneeId: memberId }, memberCookie), on("opportunity", id));
+    expect(task.status).toBe(201);
+    expect((await read(id)).stage).toBe("nouveau_besoin");
   });
 });
