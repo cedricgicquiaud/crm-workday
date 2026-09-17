@@ -7,13 +7,13 @@
 import { MODULES, RETIRED_MODULES } from "@/features/consultants/schema";
 import type { FieldDescriptor, ListValue } from "@/features/objects/registry";
 
+/** Étape d'une opportunité gagnée, posée par son geste (4.2d). */
+export const WON_STAGE = "gagnee";
+
 /**
  * Étapes du pipeline (D32), dans leur ordre : le rang d'une étape est sa place ici. Gagnée et perdue
  * sont des fins posées par leur geste (4.2d), jamais à la main.
  */
-/** Étape d'une opportunité gagnée, posée par son geste (4.2d). */
-export const WON_STAGE = "gagnee";
-
 export const STAGES: readonly ListValue[] = [
   { value: "nouveau_besoin", label: "Nouveau besoin" },
   { value: "qualifie", label: "Qualifié" },
