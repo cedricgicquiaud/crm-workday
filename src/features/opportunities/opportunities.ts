@@ -33,7 +33,11 @@ async function refuseUnexpectedKeys(fields: Record<string, unknown>): Promise<vo
   const unexpected = Object.keys(fields).filter((key) => !expected.has(key));
   if (unexpected.length === 0) return;
   const derived = writableFieldsOf(TYPE).filter((field) => field.editable === false);
-  const errors = Object.fromEntries(unexpected.map((key) => [key, derived.some((field) => field.key === key) ? derivedFieldRule(derived.find((field) => field.key === key)!.label) : unexpectedKeyRule(key)]));
+  const ruleFor = (key: string) => {
+    const field = derived.find((candidate) => candidate.key === key);
+    return field ? derivedFieldRule(field.label) : unexpectedKeyRule(key);
+  };
+  const errors = Object.fromEntries(unexpected.map((key) => [key, ruleFor(key)]));
   throw new HttpError(400, "cle_imprevue", Object.values(errors)[0], { fields: errors });
 }
 
