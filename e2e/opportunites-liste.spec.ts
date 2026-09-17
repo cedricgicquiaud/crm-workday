@@ -110,7 +110,8 @@ test.describe("entreprise en colonne (CRM-104, D60)", () => {
     await memberPage.goto(`/opportunites?colonnes=companyId&tri=companyId:asc&f=title:contient:${encodeURIComponent(mark)}`);
     const rows = memberPage.getByRole("table", { name: "Opportunités" }).getByRole("row");
     await expect(rows.filter({ has: memberPage.getByRole("link", { name: atBank }) })).toContainText(named("Banque X", mark));
-    await expect(rows.getByRole("link")).toHaveText([atAcme, atBank]);
+    /* Les liens des fiches seulement : ceux de l'en-tête trient. */
+    await expect(rows.getByRole("link", { name: mark })).toHaveText([atAcme, atBank]);
   });
 });
 
