@@ -85,6 +85,13 @@
       "when": 1789582854211,
       "tag": "0011_leads",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789657200449,
+      "tag": "0012_opportunites",
+      "breakpoints": true
     }
   ]
 }

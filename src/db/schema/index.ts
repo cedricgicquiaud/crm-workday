@@ -14,3 +14,4 @@ export * from "./views";
 export * from "./merges";
 export * from "./consultants";
 export * from "./leads";
+export * from "./opportunities";
