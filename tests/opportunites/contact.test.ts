@@ -151,5 +151,15 @@ describe("lecture d'une fiche liée qui a changé (CRM-104, D35, D36, contrat 41
 
     expect(await read(id)).toMatchObject({ contactPersonId: julie, contactPersonIdLabel: "Julie Martin (a quitté Banque X)" });
   });
+
+  it("garde liées une entreprise et un contact archivés après coup, marqués « archivée » et « archivé »", async () => {
+    const other = (await createObject("company", { name: "Banque Fermée", type: "prospect" }, { id: memberId })).id;
+    const julie = await contactAt(other, "Julie", "Martin");
+    const id = await opportunityAt(other, { contactPersonId: julie });
+    await archiveRecord("person", julie, { id: memberId });
+    await archiveRecord("company", other, { id: memberId });
+
+    expect(await read(id)).toMatchObject({ companyId: other, companyIdLabel: "Banque Fermée (archivée)", contactPersonId: julie, contactPersonIdLabel: "Julie Martin (archivée)" });
+  });
 });
 
