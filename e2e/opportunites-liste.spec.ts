@@ -68,3 +68,17 @@ test.describe("création rapide depuis la liste (CRM-104, contrat 31)", () => {
   });
 });
 
+test.describe("création depuis la palette (CRM-104, contrat 32)", () => {
+  test("la palette ⌘K propose « Nouvelle opportunité », qui ouvre la même création rapide à quatre champs", async ({ memberPage }) => {
+    await memberPage.goto("/accueil");
+    await memberPage.keyboard.press("ControlOrMeta+k");
+    const palette = memberPage.getByRole("dialog");
+    await palette.getByRole("combobox").fill("Nouvelle opp");
+    await palette.getByRole("option", { name: /^Nouvelle opportunité/ }).click();
+
+    await expect(memberPage).toHaveURL(/\/opportunites\?creation=1/);
+    const dialog = memberPage.getByRole("dialog", { name: "Nouvelle opportunité" });
+    await expect(dialog.locator("label, [id$='-label']")).toHaveText(["Titre", "Entreprise", "Modules Workday", "Clôture prévue"]);
+  });
+});
+
