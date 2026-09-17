@@ -56,7 +56,7 @@ describe("tests d'écran liés à leur dossier (CRM-100)", () => {
       /* un chemin écrit depuis la racine du dépôt (« e2e/… », « src/… ») se résout depuis le dossier courant */
       for (const match of source.matchAll(/["'](?:\.\/)?(?:e2e|src)\/[^"']*["']/g)) offenders.push(`${name} : ${match[0]}`);
       /* chaque sous-processus fixe son dossier : le .env.local et l'alias @/ de l'enfant sont ceux de la copie */
-      for (const call of source.matchAll(/execFileSync\([^;]*?\)/gs)) if (!/\bcwd\s*:/.test(call[0])) offenders.push(`${name} : ${call[0].split("\n")[0]}`);
+      for (const call of source.matchAll(/execFileSync\([\s\S]*?\);/g)) if (!/\bcwd\s*:/.test(call[0])) offenders.push(`${name} : ${call[0].split("\n")[0]}`);
     }
     expect(offenders).toEqual([]);
   });

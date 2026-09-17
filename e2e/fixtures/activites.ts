@@ -10,8 +10,11 @@
  *   par le membre de test ou par le système, comme la feature 1 l'aurait écrit.
  */
 import { execFileSync } from "node:child_process";
+import { join } from "node:path";
 
-const SELF = "e2e/fixtures/activites.ts";
+/** Ce fichier et la racine de sa copie du dépôt : le sous-processus lit le `.env.local` de la copie, d'où qu'on lance la suite (CRM-100). */
+const SELF = __filename;
+const ROOT = join(__dirname, "..", "..");
 
 /** Modèle des emails posés par cette fixture : il les rend reconnaissables, et effaçables sans toucher aux autres. */
 export const E2E_TEMPLATE = "activites-e2e";
@@ -19,7 +22,7 @@ export const E2E_TEMPLATE = "activites-e2e";
 export type JournalEmailInput = { objectType: string; objectId: string; subject: string; status: "envoye" | "echec"; author: "membre" | "systeme" };
 
 function runDbCommand(...args: string[]): string {
-  return execFileSync("npx", ["tsx", SELF, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
+  return execFileSync("npx", ["tsx", SELF, ...args], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
 }
 
 export function resetActivities(): void {

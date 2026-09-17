@@ -10,15 +10,18 @@
  * - `archiveCompany(id)` pose `archived_at` sur une entreprise (l'archivage par l'écran arrive en 2.6b).
  */
 import { execFileSync } from "node:child_process";
+import { join } from "node:path";
 
-const SELF = "e2e/fixtures/personnes.ts";
+/** Ce fichier et la racine de sa copie du dépôt : le sous-processus lit le `.env.local` de la copie, d'où qu'on lance la suite (CRM-100). */
+const SELF = __filename;
+const ROOT = join(__dirname, "..", "..");
 
 function runDbCommand(...args: string[]): string {
-  return execFileSync("npx", ["tsx", SELF, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
+  return execFileSync("npx", ["tsx", SELF, ...args], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
 }
 
 export function resetPersons(): void {
-  execFileSync("npx", ["tsx", "e2e/fixtures/leads.ts", "reset"], { stdio: ["ignore", "pipe", "inherit"] }); // F10 : un lead converti retient sa personne (clé sans cascade)
+  execFileSync("npx", ["tsx", join(__dirname, "leads.ts"), "reset"], { cwd: ROOT, stdio: ["ignore", "pipe", "inherit"] }); // F10 : un lead converti retient sa personne (clé sans cascade)
   runDbCommand("reset");
 }
 

@@ -12,11 +12,14 @@
  *   arrive en 4.1b, les contrats 5 et 7 ont besoin d'un lead converti dès maintenant.
  */
 import { execFileSync } from "node:child_process";
+import { join } from "node:path";
 
-const SELF = "e2e/fixtures/leads.ts";
+/** Ce fichier et la racine de sa copie du dépôt : le sous-processus lit le `.env.local` de la copie, d'où qu'on lance la suite (CRM-100). */
+const SELF = __filename;
+const ROOT = join(__dirname, "..", "..");
 
 function runDbCommand(...args: string[]): string {
-  return execFileSync("npx", ["tsx", SELF, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
+  return execFileSync("npx", ["tsx", SELF, ...args], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
 }
 
 export function resetLeads(): void {
