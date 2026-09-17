@@ -85,11 +85,11 @@ export function selectableValues(field: FieldDescriptor, saved: string): Selecta
   return carried ? [...choosable, { value: saved, label: displayValue(field, saved, []), disabled: true }] : choosable;
 }
 
-/** « 650,00 € », « 6 » : décimales fixes quand le champ en déclare, unité après la valeur. */
+/** « 39 000,00 € », « 6 » : milliers séparés par l'espace fine insécable du français, décimales fixes quand le champ en déclare, unité après la valeur. */
 export function formatNumber(field: FieldDescriptor, value: number): string {
   if (!Number.isFinite(value)) return EMPTY;
   const digits = field.decimals ?? 0;
-  const text = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: Math.max(digits, 3), useGrouping: false }).format(value);
+  const text = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: Math.max(digits, 3) }).format(value);
   return field.unit ? `${text} ${field.unit}` : text;
 }
 
