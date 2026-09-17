@@ -64,6 +64,10 @@ const RESULT_RANKS: Readonly<Record<string, number>> = { retenu: 3, entretien: 2
 /** Rang d'un résultat, `-1` pour une valeur inconnue. */
 export const resultRank = (result: string): number => RESULT_RANKS[result] ?? -1;
 
+/** Refus de suppression (D43) : une opportunité gagnée, ou issue d'un lead, garde sa trace et s'archive. */
+export const WON_DELETE_RULE = "Une opportunité gagnée s'archive.";
+export const FROM_LEAD_DELETE_RULE = "Une opportunité issue d'un lead s'archive.";
+
 /** Refus d'un contact qui n'est pas un contact de l'entreprise de l'opportunité (D35). */
 export const CONTACT_OUTSIDE_COMPANY_RULE = "« Contact » doit être un contact de l'entreprise de l'opportunité.";
 
