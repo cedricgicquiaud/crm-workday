@@ -1,9 +1,10 @@
 /**
- * Part serveur de la déclaration de l'opportunité : sa table Drizzle et l'ensemble de ses modules,
- * rangé dans sa table fille (D53). Importé par le manifeste serveur.
+ * Part serveur de la déclaration de l'opportunité : sa table Drizzle, l'ensemble de ses modules rangé
+ * dans sa table fille (D53) et son montant estimé, calculé à chaque lecture. Importé par le manifeste serveur.
  */
 import { opportunity, opportunityModule } from "@/db/schema";
 import { registerServerObject } from "@/features/objects/registry.server";
+import { estimatedAmount } from "./schema";
 
 registerServerObject({
   key: "opportunity",
@@ -11,4 +12,6 @@ registerServerObject({
   search: async () => [],
   duplicateKey: () => null,
   sets: [{ field: "modules", table: opportunityModule, fkColumn: "opportunityId", valueColumn: "module" }],
+  /* Le montant estimé n'est pas stocké (D53) : chaque lecture le calcule, la liste le filtre et le trie comme une colonne. */
+  attach: async (records) => records.map((record) => ({ ...record, estimatedAmount: estimatedAmount(record) })),
 });

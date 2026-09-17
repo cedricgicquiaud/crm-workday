@@ -70,6 +70,9 @@ export const TARGET_DAILY_RATE_MAX = 5_000;
 /** Durée estimée (D31) : un nombre entier de jours, de 1 à 1 000. */
 export const ESTIMATED_DAYS_MAX = 1_000;
 
+/** Montant estimé (D31) : le TJM de vente cible multiplié par la durée estimée. */
+export const estimatedAmount = (record: Record<string, unknown>): number | null => Number(record.targetDailyRate) * Number(record.estimatedDays);
+
 /**
  * Champs de l'opportunité (D31). L'entreprise est désignée par son identifiant ; les modules sont un
  * ensemble rangé dans `opportunity_module`, pris dans la liste des modules des consultants.
