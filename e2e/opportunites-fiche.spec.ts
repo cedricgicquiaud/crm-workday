@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import { expect, seedAccounts, test } from "./fixtures/auth";
 import { resetObjects } from "./fixtures/objets";
 import { pickOption } from "./fixtures/opportunites";
-import { resetPersons } from "./fixtures/personnes";
+import { archiveCompany, resetPersons } from "./fixtures/personnes";
 
 /* Les fiches finissent par « (e2e) » : les fixtures les effacent, et rien d'autre. */
 const tag = () => Date.now().toString(36);
@@ -192,6 +192,24 @@ test.describe("entreprise et contact dans « Champs » (CRM-104, contrat 35)", (
     await expect(fields.getByRole("combobox", { name: "Entreprise" })).toContainText(acme);
     await expect(contact).not.toContainText(julie);
     await expect(memberPage.getByRole("region", { name: "Fil d'activité" }).getByText(`Contact : ${julie} → vide`)).toBeVisible();
+  });
+});
+
+test.describe("fiches liées qui ont changé (CRM-104, contrat 41)", () => {
+  test("un contact passé chez Acme se lit « a quitté Banque X », et Banque X archivée ensuite se lit « archivée »", async ({ memberPage }) => {
+    const mark = tag();
+    const bank = named("Banque X", mark);
+    const bankId = await post(memberPage, "/api/entreprises", { name: bank, type: "prospect" });
+    const acmeId = await post(memberPage, "/api/entreprises", { name: named("Acme", mark), type: "prospect" });
+    const julieId = await post(memberPage, "/api/personnes", { firstName: "Julie", lastName: `Martin${mark}`, companyId: bankId });
+    const id = await post(memberPage, "/api/opportunites", { title: named("Refonte Payroll", mark), companyId: bankId, contactPersonId: julieId, modules: ["payroll"], expectedClose: "2026-10-30" });
+    expect((await memberPage.request.patch(`/api/personnes/${julieId}`, { data: { companyId: acmeId } })).status()).toBe(200);
+    archiveCompany(bankId);
+
+    await memberPage.goto(`/opportunites/${id}`);
+    const fields = memberPage.getByRole("region", { name: "Champs", exact: true });
+    await expect(fields.getByRole("combobox", { name: "Contact" })).toContainText(`Julie Martin${mark} (a quitté ${bank})`);
+    await expect(fields.getByRole("combobox", { name: "Entreprise" })).toContainText(`${bank} (archivée)`);
   });
 });
 
