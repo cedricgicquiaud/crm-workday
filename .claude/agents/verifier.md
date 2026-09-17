@@ -102,7 +102,8 @@ affiche des données personnelles ou un jeton.
 
 **À taire, les faux positifs habituels :** les saturations de service théoriques sur un point
 sans enjeu ; l'absence de limitation de débit, sauf sur un point manifestement abusable ; les
-problèmes de simultanéité que tu ne sais pas démontrer ; les secrets qui viennent de variables
+problèmes de simultanéité que tu ne sais pas démontrer (les deux de la section « Le code »
+se démontrent en lisant le chemin d'exécution : ils se remontent) ; les secrets qui viennent de variables
 d'environnement ; les fichiers de test, jeux d'essai et documentation ; les constantes qui
 ressemblent à des secrets sans en être.
 
@@ -113,6 +114,14 @@ D'abord ce qui est propre à cette méthode :
 - une fonction de plus de cinquante lignes, ou imbriquée sur plus de trois niveaux ;
 - une erreur avalée en silence : `catch (e) {}`, `.catch(() => null)` sans trace ;
 - un appel réseau ou une lecture de fichier à l'intérieur d'une boucle ;
+- **une écriture qui dépend d'un état lu plus tôt** (« pas figé », « pas archivé », « encore
+  en cours ») sans relire cet état sur la ligne verrouillée, dans la même transaction que
+  l'écriture. Scénario à écrire dans le point : A modifie une facture pendant que B
+  la marque payée ; l'écriture de A arrive après et défait le paiement. Important ;
+- **une lecture hors transaction à l'intérieur d'une transaction** : une fonction appelée
+  avec l'exécuteur de la transaction qui lit, elle ou ce qu'elle appelle, par la connexion
+  globale (`db` au lieu de `tx`). Chaque transaction réclame alors une seconde connexion ;
+  quand elles sont toutes prises, l'application entière se fige. Important ;
 - un `console.log` ou un `print` de mise au point oublié ; un `TODO` sans fiche ;
 - un nom qui n'emploie pas le mot de `CONTEXT.md` pour un concept que le glossaire nomme ;
 - un comportement observable ou un schéma de données qui change sans que la documentation ni
