@@ -1,5 +1,10 @@
 import { afterAll, describe, expect, it } from "vitest";
+import "@/features/objects/manifest";
 import { runMigrations } from "@/db/migrate";
+import { MODULES, RETIRED_MODULES } from "@/features/consultants/schema";
+import { validateValues } from "@/features/objects/fields";
+import { displayValue } from "@/features/objects/labels";
+import { getObject, type FieldDescriptor } from "@/features/objects/registry";
 import { LOSS_REASONS, PROPOSAL_RESULTS, resultRank, STAGES, stageProbability, stageRank } from "@/features/opportunities/schema";
 import { closeDb, rawSql } from "@/lib/db";
 import { appliedMigrationsCount, schemaSnapshot } from "../helpers/db";
@@ -7,6 +12,23 @@ import { appliedMigrationsCount, schemaSnapshot } from "../helpers/db";
 afterAll(closeDb);
 
 const labels = (values: readonly { label: string }[]) => values.map((entry) => entry.label);
+
+const field = (key: string): FieldDescriptor => getObject("opportunity").fields.find((candidate) => candidate.key === key)!;
+
+/** D31 : les modules d'une opportunité sont ceux des consultants ; un module retiré de cette liste le reste ici. */
+describe("modules Workday d'une opportunité (CRM-103, D31)", () => {
+  it("se choisissent dans la liste des modules des consultants, retirés compris", () => {
+    expect(field("modules").values).toBe(MODULES);
+    expect(field("modules").retiredValues).toBe(RETIRED_MODULES);
+  });
+
+  it("lisent un module retiré, marqué, sur l'opportunité qui le porte, et refusent de le choisir", () => {
+    const student = MODULES.find((entry) => entry.value === "student")!;
+    const retiring: FieldDescriptor = { ...field("modules"), values: MODULES.filter((entry) => entry !== student), retiredValues: [student] };
+    expect(displayValue(retiring, ["hcm", "student"], [])).toBe("HCM, Student (retirée)");
+    expect(Object.keys(validateValues([retiring], { modules: ["hcm", "student"] }, { partial: true }).errors)).toEqual(["modules"]);
+  });
+});
 
 /** Les listes fermées de toute la feature 4.2 : posées ici une fois, lues par les livraisons suivantes sans y toucher. */
 describe("listes fermées des opportunités (CRM-103, D32, D33)", () => {
