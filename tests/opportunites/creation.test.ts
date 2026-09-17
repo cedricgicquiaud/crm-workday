@@ -4,6 +4,7 @@ import { GET as getOpportunity, PATCH as patchOpportunity } from "@/app/api/oppo
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
 import { auditLog, company, customFieldDefinition, customFieldValue, lead, objectRedirect, opportunity, user } from "@/db/schema";
 import { archiveRecord } from "@/features/archive/archive";
+import { deleteRecord } from "@/features/archive/delete";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createDefinition, loadCustomFields } from "@/features/custom-fields/definitions";
 import { createLead } from "@/features/leads/leads";
@@ -140,3 +141,22 @@ describe("création par un geste (CRM-104, D51, D55)", () => {
     expect((await linkedGroups("lead", alone.id)).map((group) => group.label)).not.toContain("Opportunité");
   });
 });
+
+/** D43, D59 : déclaré ici, prouvé avec ses gestes en 4.2c et 4.2d — une opportunité gagnée ou issue d'un lead s'archive. */
+describe("refus de suppression à deux motifs (CRM-104, D43, D59)", () => {
+  it("refuse (409) de supprimer une opportunité gagnée, puis une issue d'un lead, chacune avec sa phrase ; une opportunité en cours se supprime", async () => {
+    const bank = await newCompany("Banque X");
+    const won = await post(opportunityAt(bank));
+    await db.update(opportunity).set({ stage: "gagnee" }).where(eq(opportunity.id, String(won.body.id)));
+    await expect(deleteRecord("opportunity", String(won.body.id))).rejects.toMatchObject({ status: 409, message: "Une opportunité gagnée s'archive." });
+
+    const origin = await createLead({ firstName: "Julie", lastName: "Martin", origin: "linkedin" }, { id: memberId });
+    const converted = await db.transaction((tx) => createOpportunity(opportunityAt(bank), { id: memberId }, { exec: tx, stage: "qualifie", leadId: origin.id }));
+    await expect(deleteRecord("opportunity", converted.id)).rejects.toMatchObject({ status: 409, message: "Une opportunité issue d'un lead s'archive." });
+
+    const open_ = await post(opportunityAt(bank));
+    await deleteRecord("opportunity", String(open_.body.id));
+    expect(await db.select({ id: opportunity.id }).from(opportunity).where(eq(opportunity.id, String(open_.body.id)))).toHaveLength(0);
+  });
+});
+
