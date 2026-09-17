@@ -1,0 +1,73 @@
+import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { GET as getOpportunity, PATCH as patchOpportunity } from "@/app/api/opportunites/[id]/route";
+import { POST as postOpportunity } from "@/app/api/opportunites/route";
+import { auditLog, company, opportunity, person, user } from "@/db/schema";
+import { createUserWithPassword } from "@/features/auth/accounts";
+import { createObject } from "@/features/objects/service";
+import { createPerson } from "@/features/persons/persons";
+import { closeDb, db } from "@/lib/db";
+import { jsonRequest, sessionCookie } from "../helpers/auth";
+
+const MEMBER = { email: "membre-contact-opportunite@exemple.fr", firstName: "Hugo", lastName: "Lemaire", password: "MotDePasse-Contact-Opp-1", role: "membre" as const };
+
+let memberId: string;
+let memberCookie: string;
+let bankId: string;
+let acmeId: string;
+
+type Answer = { status: number; body: Record<string, unknown> & { fields?: Record<string, string>; message?: string } };
+
+const byId = (id: string) => ({ params: Promise.resolve({ id }) });
+
+async function patch(id: string, input: Record<string, unknown>): Promise<Answer> {
+  const res = await patchOpportunity(jsonRequest("PATCH", `/api/opportunites/${id}`, input, memberCookie), byId(id));
+  return { status: res.status, body: (await res.json()) as Answer["body"] };
+}
+
+const read = async (id: string) => (await getOpportunity(jsonRequest("GET", `/api/opportunites/${id}`, undefined, memberCookie), byId(id))).json() as Promise<Record<string, unknown>>;
+
+async function opportunityAt(companyId: string, extra: Record<string, unknown> = {}): Promise<string> {
+  const res = await postOpportunity(jsonRequest("POST", "/api/opportunites", { title: "Refonte Payroll", companyId, modules: ["payroll"], expectedClose: "2026-10-30", ...extra }, memberCookie));
+  expect(res.status).toBe(201);
+  return ((await res.json()) as { id: string }).id;
+}
+
+/** Une personne portant un profil contact chez l'entreprise donnée. */
+const contactAt = async (companyId: string, firstName: string, lastName: string) => (await createPerson({ firstName, lastName, companyId }, { id: memberId })).id;
+
+/** Les enfants avant les parents : l'opportunité retient son contact et son entreprise, la personne son entreprise. */
+async function cleanup() {
+  await db.delete(auditLog);
+  await db.delete(opportunity);
+  await db.delete(person);
+}
+
+beforeAll(async () => {
+  await cleanup();
+  await db.delete(company);
+  await db.delete(user).where(eq(user.email, MEMBER.email));
+  memberId = (await createUserWithPassword(MEMBER)).id;
+  memberCookie = await sessionCookie(MEMBER.email, MEMBER.password);
+  bankId = (await createObject("company", { name: "Banque X", type: "prospect" }, { id: memberId })).id;
+  acmeId = (await createObject("company", { name: "Acme", type: "prospect" }, { id: memberId })).id;
+});
+
+beforeEach(cleanup);
+
+afterAll(async () => {
+  await cleanup();
+  await db.delete(company);
+  await closeDb();
+});
+
+/** D35, contrat 35 : le contact d'une opportunité est un contact de son entreprise. */
+describe("contact d'une opportunité (CRM-104, D35)", () => {
+  it("désigne Julie Martin, contact de Banque X, comme contact d'une opportunité de Banque X", async () => {
+    const julie = await contactAt(bankId, "Julie", "Martin");
+    const id = await opportunityAt(bankId);
+
+    expect((await patch(id, { contactPersonId: julie })).status).toBe(200);
+    expect((await read(id)).contactPersonId).toBe(julie);
+  });
+});
