@@ -68,4 +68,12 @@ describe("opportunité dans la palette (CRM-106, D48, contrat 37)", () => {
 
     expect((await hitsFor("banque x")).map((hit) => hit.id)).toEqual([id]);
   });
+
+  it("montre les opportunités gagnées et perdues, et laisse dehors les archivées", async () => {
+    await create("Payroll gagnée", "gagnee");
+    await create("Payroll perdue", "perdue");
+    await archive(await create("Payroll archivée"));
+
+    expect((await hitsFor("payroll")).map((hit) => hit.title).sort()).toEqual(["Payroll gagnée", "Payroll perdue"]);
+  });
 });
