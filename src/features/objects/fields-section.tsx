@@ -8,6 +8,7 @@ import { FieldControl, type FieldControlKind, type FieldControlOption } from "@/
 import { isLocked, sheetFieldsOf } from "@/features/objects/fields";
 import { displayValue, selectableValues, type SerializedRecord, type UserOption } from "@/features/objects/labels";
 import { getObject, type FieldDescriptor } from "@/features/objects/registry";
+import { SetControl } from "@/features/objects/set-control";
 
 /** `readOnly` : la fiche entière ne se modifie plus (fiche archivée, D21) ; `field.editable` reste la règle du champ. */
 type Props = { type: string; record: SerializedRecord; users: readonly UserOption[]; readOnly?: boolean };
@@ -25,6 +26,9 @@ function sections(fields: readonly FieldDescriptor[]): { name: string; fields: F
 }
 
 const asString = (value: unknown) => (value === null || value === undefined ? "" : String(value));
+
+/** Les valeurs d'un ensemble telles que la fiche les porte ; rien pour une valeur absente. */
+const asSet = (value: unknown): string[] => (Array.isArray(value) ? value.map(String) : []);
 
 /**
  * Colonne centrale de la fiche : chaque champ s'édite en place (D6). Un champ texte s'enregistre
@@ -50,12 +54,12 @@ export function FieldsSection({ type, record: initial, users, readOnly = false }
 
   /**
    * Enregistre un champ ; rend vrai si la valeur est acceptée. Un nombre part en nombre JSON (règle du
-   * descripteur), une saisie vide en champ vidé. Aucun échec n'est avalé : réponse non 2xx ou panne
+   * descripteur), un ensemble en tableau, une saisie vide en champ vidé. Aucun échec n'est avalé : réponse non 2xx ou panne
    * réseau, le message (celui du serveur s'il existe) s'affiche sous le champ et la valeur enregistrée revient.
    */
-  async function save(field: FieldDescriptor, value: string): Promise<boolean> {
-    if (asString(record[field.key]) === value) return true;
-    const payload = field.type === "number" && value !== "" ? Number(value) : value;
+  async function save(field: FieldDescriptor, value: string | string[]): Promise<boolean> {
+    if (asString(record[field.key]) === asString(value)) return true;
+    const payload = field.type === "number" && typeof value === "string" && value !== "" ? Number(value) : value;
     const fail = (message: string) => {
       setErrors((current) => ({ ...current, [field.key]: message }));
       return false;
@@ -71,7 +75,7 @@ export function FieldsSection({ type, record: initial, users, readOnly = false }
     setErrors((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== field.key)));
     if (body) setRecord(body);
     router.refresh();
-    if (field.entryWarning) void lookUpWarnings(field, value);
+    if (field.entryWarning && typeof value === "string") void lookUpWarnings(field, value);
     return true;
   }
 
@@ -97,8 +101,13 @@ export function FieldsSection({ type, record: initial, users, readOnly = false }
           <div className="grid gap-3">
             {section.fields.map((field) => (
               <div key={field.key} className="grid gap-2">
-                {/* Un champ que la fiche fige (D21) se lit comme sur une fiche archivée ; ses voisins restent modifiables. */}
-                <EditableField type={type} field={field} value={asString(record[field.key])} error={errors[field.key]} users={users} readOnly={readOnly || isLocked(field, record)} onSave={(value) => save(field, value)} />
+                {/* Un ensemble saisissable se coche dans sa liste (D63) ; lu seulement, il s'écrit en texte comme les autres champs. */}
+                {field.type === "multilist" && field.editable !== false && !readOnly && !isLocked(field, record) ? (
+                  <SetControl id={`champ-${type}-${field.key}`} label={field.label} value={asSet(record[field.key])} values={field.values ?? []} retired={field.retiredValues} error={errors[field.key]} onSave={(value) => save(field, value)} />
+                ) : (
+                  /* Un champ que la fiche fige (D21) se lit comme sur une fiche archivée ; ses voisins restent modifiables. */
+                  <EditableField type={type} field={field} value={asString(record[field.key])} error={errors[field.key]} users={users} readOnly={readOnly || isLocked(field, record)} onSave={(value) => save(field, value)} />
+                )}
                 <DuplicateWarning type={type} duplicates={warnings[field.key] ?? []} note={null} />
               </div>
             ))}
