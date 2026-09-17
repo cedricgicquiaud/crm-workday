@@ -64,6 +64,9 @@ const RESULT_RANKS: Readonly<Record<string, number>> = { retenu: 3, entretien: 2
 /** Rang d'un résultat, `-1` pour une valeur inconnue. */
 export const resultRank = (result: string): number => RESULT_RANKS[result] ?? -1;
 
+/** Refus d'un contact qui n'est pas un contact de l'entreprise de l'opportunité (D35). */
+export const CONTACT_OUTSIDE_COMPANY_RULE = "« Contact » doit être un contact de l'entreprise de l'opportunité.";
+
 /** TJM de vente cible (D31) : plus de 0, 5 000 € par jour au plus. */
 export const TARGET_DAILY_RATE_MAX = 5_000;
 

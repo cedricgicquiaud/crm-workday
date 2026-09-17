@@ -4,6 +4,7 @@
  * de doublon, et ce que la fiche montre sous « Champs » (les sections de l'objet, D20). Le service
  * générique, la fiche et l'API de l'historique lisent ce registre.
  */
+import type { SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import type { ReactNode } from "react";
 import type { Banner } from "@/features/objects/banners";
@@ -51,6 +52,22 @@ export type SetTable = {
   fkColumn: string;
   /** colonne de la table fille qui porte une valeur de l'ensemble */
   valueColumn: string;
+};
+
+/**
+ * Condition déclarée sur un champ `relation` (D35, D60) : la fiche liée ne se choisit que parmi celles
+ * qui la remplissent pour la valeur d'un autre champ de la fiche — le contact d'une opportunité parmi
+ * les contacts de son entreprise. La même condition borne les options du sélecteur et refuse l'écriture.
+ */
+export type RelationScope = {
+  /** champ `relation` restreint */
+  field: string;
+  /** champ de la fiche dont la valeur règle la condition */
+  dependsOn: string;
+  /** condition sur la table de l'objet lié, pour la valeur de `dependsOn` */
+  where: (value: string) => SQL;
+  /** refus (400 sous le champ) d'une fiche liée qui ne remplit pas la condition */
+  refusal: string;
 };
 
 /** Ce qu'une section reçoit pour se rendre : la fiche, ce que son chargeur a lu, et si la fiche ne s'écrit plus (fiche archivée, D21). */
@@ -121,6 +138,8 @@ export type ServerObjectDefinition = {
   dependents?: readonly DependentTable[];
   /** champs à plusieurs valeurs rangés dans une table fille ; absents, un ensemble est une colonne de la table */
   sets?: readonly SetTable[];
+  /** conditions sur les fiches liées que ses champs `relation` peuvent désigner ; absentes, toute fiche active se choisit */
+  relationScopes?: readonly RelationScope[];
   /** sections propres à l'objet, rendues par la fiche sous « Champs » (D20) ; absentes, la fiche n'en montre aucune */
   sections?: readonly ObjectSection[];
   /** gestes d'en-tête propres à l'objet, visibles selon la fiche (D21) ; absents, la fiche n'offre que le menu commun */

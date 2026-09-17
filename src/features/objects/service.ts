@@ -136,7 +136,27 @@ async function resolveRelations(type: string, values: FieldValues, current: Obje
   }
   if (Object.keys(errors).length > 0) throw invalid(errors);
   if (Object.keys(archived).length > 0) throw new HttpError(409, "fiche_liee_archivee", Object.values(archived)[0], { fields: archived });
+  await assertInScope(type, resolved, current);
   return resolved;
+}
+
+/**
+ * Une fiche liée choisie remplit la condition que l'objet déclare sur son champ (D35), évaluée avec la
+ * valeur enregistrée après l'écriture : une écriture qui change aussi le champ dont elle dépend est
+ * jugée sur la nouvelle valeur. Un lien que l'écriture ne change pas n'est pas rejugé.
+ */
+async function assertInScope(type: string, values: FieldValues, current: ObjectRecord | null): Promise<void> {
+  const errors: Record<string, string> = {};
+  for (const scope of getServerObject(type).relationScopes ?? []) {
+    const chosen = values[scope.field];
+    const basis = scope.dependsOn in values ? values[scope.dependsOn] : current?.[scope.dependsOn];
+    if (typeof chosen !== "string" || (chosen === current?.[scope.field] && !(scope.dependsOn in values))) continue;
+    const { table } = getServerObject(relationOf(type, fieldsOf(type).find((field) => field.key === scope.field)!).to);
+    const columns = getTableColumns(table);
+    const [found] = typeof basis === "string" ? await db.select({ id: columns.id }).from(table).where(and(eq(columns.id, chosen), scope.where(basis))).limit(1) : [];
+    if (!found) errors[scope.field] = scope.refusal;
+  }
+  if (Object.keys(errors).length > 0) throw invalid(errors);
 }
 
 /**
