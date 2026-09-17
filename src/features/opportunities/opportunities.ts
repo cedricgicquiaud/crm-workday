@@ -3,12 +3,14 @@
  * service générique des objets (validation par les descripteurs, colonnes de base, ensembles rangés
  * dans leur table fille, historique) ; ce module ajoute ce qui est propre à l'opportunité.
  */
+import { eq } from "drizzle-orm";
+import { opportunity } from "@/db/schema";
 import { loadCustomFields } from "@/features/custom-fields/definitions";
 import { allCustomFieldsOf } from "@/features/custom-fields/fields-source";
 import { writableFieldsOf } from "@/features/objects/fields";
 import { createObject, getObjectRecord, updateObject, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
-import { db } from "@/lib/db";
+import { db, type Executor } from "@/lib/db";
 
 const TYPE = "opportunity";
 
@@ -37,12 +39,29 @@ async function refuseUnexpectedKeys(fields: Record<string, unknown>): Promise<vo
   throw new HttpError(400, "cle_imprevue", Object.values(errors)[0], { fields: errors });
 }
 
-/** Création (D34) : la fiche et ses modules s'écrivent ensemble, ou rien ne s'écrit. */
-export async function createOpportunity(input: unknown, actor: Actor): Promise<ObjectRecord> {
+/**
+ * Ce qu'un geste d'un autre objet (la conversion d'un lead, 4.2c) pose en créant une opportunité : sa
+ * transaction, l'étape et le lead d'origine — deux clés qu'aucune saisie ne fournit (D55) —, et la
+ * dispense des champs personnalisés obligatoires, qu'il ne peut pas connaître (D50).
+ */
+export type OpportunityGesture = { exec: Executor; stage?: string; leadId?: string; customRequired?: boolean };
+
+/**
+ * Création (D34) : la fiche et ses modules s'écrivent ensemble, ou rien ne s'écrit. Par un geste, tout
+ * s'écrit dans la transaction du geste ; la fiche rendue n'y est pas encore complétée, l'appelant la
+ * relira une fois la transaction terminée.
+ */
+export async function createOpportunity(input: unknown, actor: Actor, gesture?: OpportunityGesture): Promise<ObjectRecord> {
   const fields = asObject(input);
   await refuseUnexpectedKeys(fields);
-  const created = await db.transaction((tx) => createObject(TYPE, fields, actor, tx));
-  return getObjectRecord(TYPE, created.id);
+  if (!gesture) {
+    const created = await db.transaction((tx) => createObject(TYPE, fields, actor, tx));
+    return getObjectRecord(TYPE, created.id);
+  }
+  const { exec, stage, leadId, customRequired } = gesture;
+  const created = await createObject(TYPE, fields, actor, exec, { customRequired });
+  const [updated] = await exec.update(opportunity).set({ stage, leadId }).where(eq(opportunity.id, created.id)).returning();
+  return { ...created, ...updated };
 }
 
 export const getOpportunity = (id: string): Promise<ObjectRecord> => getObjectRecord(TYPE, id);
