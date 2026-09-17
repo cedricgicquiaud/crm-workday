@@ -16,5 +16,7 @@ registerObject({
   apiBase: "/api/opportunites",
   titleField: "title",
   fields: OPPORTUNITY_FIELDS,
+  /** Montant estimé, clôture prévue, responsable ; les colonnes de la vue « Opportunités en cours » arrivent avec elle (D38). */
+  listColumns: ["estimatedAmount", "expectedClose", "ownerId"],
   relations: [],
 });
