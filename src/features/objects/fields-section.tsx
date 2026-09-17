@@ -54,8 +54,9 @@ export function FieldsSection({ type, record: initial, users, readOnly = false }
 
   /**
    * Enregistre un champ ; rend vrai si la valeur est acceptée. Un nombre part en nombre JSON (règle du
-   * descripteur), un ensemble en tableau, une saisie vide en champ vidé. Aucun échec n'est avalé : réponse non 2xx ou panne
-   * réseau, le message (celui du serveur s'il existe) s'affiche sous le champ et la valeur enregistrée revient.
+   * descripteur), un ensemble en tableau, une saisie vide en champ vidé. Aucun échec n'est avalé :
+   * réponse non 2xx ou panne réseau, le message (celui du serveur s'il existe) s'affiche sous le champ
+   * et la valeur enregistrée revient.
    */
   async function save(field: FieldDescriptor, value: string | string[]): Promise<boolean> {
     if (asString(record[field.key]) === asString(value)) return true;
