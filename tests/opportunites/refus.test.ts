@@ -99,4 +99,11 @@ describe("bornes d'une opportunité à la création (CRM-103, D31, contrat 39)",
     expect(refusal.status).toBe(400);
     expect(Object.keys(refusal.fields)).toEqual(["modules"]);
   });
+
+  it("refuse un besoin de 2 001 caractères sous le champ, en accepte un de 2 000", async () => {
+    const refusal = await post({ ...valid(), need: "B".repeat(2001) });
+    expect(refusal.status).toBe(400);
+    expect(Object.keys(refusal.fields)).toEqual(["need"]);
+    expect((await post({ ...valid(), need: "B".repeat(2000) })).status).toBe(201);
+  });
 });
