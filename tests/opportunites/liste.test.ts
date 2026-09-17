@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { POST as archiveRecord } from "@/app/api/objets/[type]/[id]/archiver/route";
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
 import { POST as postPin } from "@/app/api/vues-epinglees/route";
+import { DELETE as deleteView, PATCH as patchView } from "@/app/api/vues/[id]/route";
 import { POST as postView } from "@/app/api/vues/route";
 import { auditLog, company, opportunity, pinnedView, savedView, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
@@ -178,5 +179,14 @@ describe("vue enregistrée et épinglée (CRM-106, D37, contrat 36)", () => {
     const pinned = await postPin(jsonRequest("POST", "/api/vues-epinglees", { viewId: id }, memberCookie));
     expect(pinned.status).toBe(201);
     expect((await listPinnedViews(memberId)).map((view) => view.name)).toEqual(["Grosses affaires"]);
+  });
+
+  it("refuse (409) de renommer et de supprimer « Opportunités en cours », qui n'est pas une ligne en base", async () => {
+    const onDefault = { params: Promise.resolve({ id: "default" }) };
+    const renamed = await patchView(jsonRequest("PATCH", "/api/vues/default", { name: "Toutes les opportunités" }, memberCookie), onDefault);
+    expect(renamed.status).toBe(409);
+    const removed = await deleteView(jsonRequest("DELETE", "/api/vues/default", undefined, memberCookie), onDefault);
+    expect(removed.status).toBe(409);
+    expect((await listViews("opportunity")).map((view) => view.name)).toEqual(["Opportunités en cours"]);
   });
 });
