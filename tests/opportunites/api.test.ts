@@ -55,4 +55,11 @@ describe("création d'une opportunité (CRM-103, D31, D34)", () => {
     const id = await create({ title: "Support Absence", companyId: bankId, modules: ["absence"], expectedClose: "2020-01-15" });
     expect((await read(id)).expectedClose).toBe("2020-01-15");
   });
+
+  it("relit un démarrage souhaité posé, et le laisse vide quand il n'est pas donné", async () => {
+    const dated = await create({ title: "Déploiement Time Tracking", companyId: bankId, modules: ["time_tracking"], expectedClose: "2026-10-30", desiredStart: "2026-11-02" });
+    const undated = await create({ title: "Audit Finance", companyId: bankId, modules: ["finance"], expectedClose: "2026-10-30" });
+    expect((await read(dated)).desiredStart).toBe("2026-11-02");
+    expect((await read(undated)).desiredStart).toBeNull();
+  });
 });
