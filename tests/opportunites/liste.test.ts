@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { POST as archiveRecord } from "@/app/api/objets/[type]/[id]/archiver/route";
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
 import { auditLog, company, opportunity, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
@@ -33,6 +34,11 @@ async function create({ title, expectedClose = "2026-10-30", stage, ...rest }: O
   const { id } = (await res.json()) as { id: string };
   if (stage) await db.update(opportunity).set({ stage }).where(eq(opportunity.id, id));
   return id;
+}
+
+async function archive(id: string): Promise<void> {
+  const res = await archiveRecord(jsonRequest("POST", `/api/objets/opportunity/${id}/archiver`, undefined, memberCookie), { params: Promise.resolve({ type: "opportunity", id }) });
+  expect(res.status).toBe(200);
 }
 
 /** Les enfants avant les parents : une opportunité retient son entreprise (clé sans cascade) ; ses modules partent avec elle. */
@@ -106,5 +112,13 @@ describe("vue par défaut « Opportunités en cours » (CRM-106, D38, contrat 36
     await create({ title: "Nouveau besoin", expectedClose: "2026-10-30" });
 
     expect(await shown("filtres=aucun")).toEqual(["Gagnée", "Perdue", "Nouveau besoin"]);
+  });
+
+  it("laisse dehors une opportunité archivée, que la bascule « archivées » ramène", async () => {
+    await archive(await create({ title: "Archivée", expectedClose: "2026-10-05" }));
+    await create({ title: "En cours", expectedClose: "2026-10-30" });
+
+    expect(await shown("")).toEqual(["En cours"]);
+    expect(await shown("archivees=1")).toEqual(["Archivée", "En cours"]);
   });
 });
