@@ -8,6 +8,7 @@ import { createUserWithPassword } from "@/features/auth/accounts";
 import { createDefinition, loadCustomFields } from "@/features/custom-fields/definitions";
 import { createLead } from "@/features/leads/leads";
 import { mergeRecords } from "@/features/merge/merge";
+import { linkedGroups } from "@/features/objects/links-column";
 import { createObject } from "@/features/objects/service";
 import { createOpportunity } from "@/features/opportunities/opportunities";
 import { closeDb, db } from "@/lib/db";
@@ -123,5 +124,19 @@ describe("création par un geste (CRM-104, D51, D55)", () => {
 
     const created = await db.transaction((tx) => createOpportunity(opportunityAt(bank), { id: memberId }, { exec: tx, stage: "qualifie", leadId: origin.id, customRequired: false }));
     expect(await read(created.id)).toMatchObject({ title: "Refonte Payroll", stage: "qualifie", leadId: origin.id });
+  });
+
+  it("relie le lead et l'opportunité : « Issu du lead » sur l'opportunité, « Opportunité » sur le lead, gardée archivée ; un lead sans opportunité n'en montre pas le groupe", async () => {
+    const bank = await newCompany("Banque X");
+    const origin = await createLead({ firstName: "Julie", lastName: "Martin", origin: "linkedin" }, { id: memberId });
+    const alone = await createLead({ firstName: "Luc", lastName: "Seul", origin: "linkedin" }, { id: memberId });
+    const created = await db.transaction((tx) => createOpportunity(opportunityAt(bank), { id: memberId }, { exec: tx, stage: "qualifie", leadId: origin.id }));
+    await archiveRecord("opportunity", created.id, { id: memberId });
+
+    const fromLead = (await linkedGroups("opportunity", created.id)).find((group) => group.label === "Issu du lead");
+    expect(fromLead?.records.map((record) => record.id)).toEqual([origin.id]);
+    const onLead = (await linkedGroups("lead", origin.id)).find((group) => group.label === "Opportunité");
+    expect(onLead?.records).toEqual([{ id: created.id, title: "Refonte Payroll", href: `/opportunites/${created.id}`, archived: "archivée" }]);
+    expect((await linkedGroups("lead", alone.id)).map((group) => group.label)).not.toContain("Opportunité");
   });
 });
