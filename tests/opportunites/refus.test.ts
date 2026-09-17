@@ -67,4 +67,20 @@ describe("bornes d'une opportunité à la création (CRM-103, D31, contrat 39)",
     expect(refusal.status).toBe(400);
     expect(Object.keys(refusal.fields)).toEqual(["title"]);
   });
+
+  it("refuse une opportunité sans entreprise sous le champ", async () => {
+    const { companyId: _omitted, ...withoutCompany } = valid();
+    const refusal = await post(withoutCompany);
+    expect(refusal.status).toBe(400);
+    expect(Object.keys(refusal.fields)).toEqual(["companyId"]);
+  });
+
+  it("refuse sous le champ une entreprise qui n'existe pas, identifiant mal formé compris, et n'en crée aucune", async () => {
+    for (const companyId of ["00000000-0000-4000-8000-000000000000", "pas-un-uuid"]) {
+      const refusal = await post({ ...valid(), companyId });
+      expect(refusal.status, companyId).toBe(400);
+      expect(Object.keys(refusal.fields), companyId).toEqual(["companyId"]);
+    }
+    expect(await count()).toBe(0);
+  });
 });
