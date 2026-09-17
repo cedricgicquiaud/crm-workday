@@ -88,6 +88,7 @@ export function estimatedAmount(record: Record<string, unknown>): number | null 
 export const OPPORTUNITY_FIELDS: readonly FieldDescriptor[] = [
   { key: "title", label: "Titre", type: "text", required: true, maxLength: 120, sortable: true, wide: true, order: 10 },
   { key: "companyId", label: "Entreprise", type: "relation", required: true, order: 20 },
+  { key: "contactPersonId", label: "Contact", type: "relation", order: 30 },
   { key: "modules", label: "Modules Workday", type: "multilist", required: true, values: MODULES, retiredValues: RETIRED_MODULES, sortable: true, order: 40 },
   { key: "targetDailyRate", label: "TJM de vente cible", type: "number", unit: "€", decimals: 2, min: 0, minExclusive: true, max: TARGET_DAILY_RATE_MAX, sortable: true, order: 60 },
   { key: "estimatedDays", label: "Durée estimée", type: "number", unit: "jours", integer: true, min: 1, max: ESTIMATED_DAYS_MAX, sortable: true, order: 70 },
