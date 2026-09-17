@@ -1,9 +1,35 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { runMigrations } from "@/db/migrate";
+import { LOSS_REASONS, PROPOSAL_RESULTS, resultRank, STAGES, stageProbability, stageRank } from "@/features/opportunities/schema";
 import { closeDb, rawSql } from "@/lib/db";
 import { appliedMigrationsCount, schemaSnapshot } from "../helpers/db";
 
 afterAll(closeDb);
+
+const labels = (values: readonly { label: string }[]) => values.map((entry) => entry.label);
+
+/** Les listes fermées de toute la feature 4.2 : posées ici une fois, lues par les livraisons suivantes sans y toucher. */
+describe("listes fermées des opportunités (CRM-103, D32, D33)", () => {
+  it("range les huit étapes dans l'ordre du pipeline, gagnée et perdue réservées à leur geste", () => {
+    expect(labels(STAGES)).toEqual(["Nouveau besoin", "Qualifié", "Profils proposés", "Entretien client", "Proposition envoyée", "Négociation", "Gagnée", "Perdue"]);
+    expect(STAGES.filter((stage) => stage.reserved).map((stage) => stage.label)).toEqual(["Gagnée", "Perdue"]);
+    expect(STAGES.map((stage) => stageRank(stage.value))).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it("déduit de chaque étape sa probabilité : 10, 20, 30, 50, 70, 80, 100 et 0 %", () => {
+    expect(STAGES.map((stage) => stageProbability(stage.value))).toEqual([10, 20, 30, 50, 70, 80, 100, 0]);
+  });
+
+  it("propose six motifs de perte", () => {
+    expect(labels(LOSS_REASONS)).toEqual(["Prix", "Profil non retenu", "Concurrent", "Projet abandonné ou reporté", "Pas de réponse", "Autre"]);
+  });
+
+  it("classe les résultats d'une proposition : Retenu avant Entretien, avant Proposé, avant Refusé", () => {
+    expect(labels(PROPOSAL_RESULTS)).toEqual(["Proposé", "Entretien", "Retenu", "Refusé"]);
+    const byRank = [...PROPOSAL_RESULTS].sort((a, b) => resultRank(b.value) - resultRank(a.value));
+    expect(labels(byRank)).toEqual(["Retenu", "Entretien", "Proposé", "Refusé"]);
+  });
+});
 
 /** D53 : migration `0012_opportunites`, la seule de la feature 4.2 — l'opportunité, ses modules et ses propositions. */
 describe("migration 0012 — opportunités (CRM-103, D53)", () => {
