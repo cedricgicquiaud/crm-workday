@@ -89,3 +89,45 @@ _Éviter_ : demande, projet, opportunité (c'est l'objet qualifié)
 **Conversion** :
 Le passage d'un lead à une personne avec un profil contact, rattachée à une entreprise. Le lead converti reste comme trace et ne se modifie plus.
 _Éviter_ : transformation, qualification (c'est un avancement)
+
+### Les affaires
+
+**Opportunité** :
+Un besoin Workday précis chez une entreprise, que le cabinet cherche à gagner en y plaçant un consultant. Elle naît de rien ou de la conversion d'un lead.
+_Éviter_ : affaire (seul), deal, projet, besoin (c'est le texte qui la décrit)
+
+**Étape** :
+Où en est une opportunité dans le pipeline : nouveau besoin, qualifié, profils proposés, entretien client, proposition envoyée, négociation, puis gagnée ou perdue. Gagnée et perdue sont des fins, posées par une action.
+_Éviter_ : statut (réservé au consultant), avancement (réservé au lead), phase
+
+**Probabilité** :
+Les chances de gagner une opportunité, en pourcentage, déduites de son étape. Ne se saisit pas.
+_Éviter_ : chance, score (réservé au lead), confiance
+
+**Clôture prévue** :
+La date à laquelle l'équipe pense savoir si l'opportunité est gagnée ou perdue.
+_Éviter_ : échéance, date de fin, deadline
+
+**TJM de vente** :
+Le prix d'une journée de consultant facturé au client, hors taxes. « TJM de vente cible » sur l'opportunité, « TJM de vente proposé » sur une proposition.
+_Éviter_ : TJM (seul, ambigu avec le coût journalier), tarif, prix
+
+**Montant estimé** :
+Le TJM de vente cible multiplié par la durée estimée en jours. Calculé, jamais saisi.
+_Éviter_ : valeur, chiffre d'affaires (réservé au facturé), budget
+
+**Proposition** :
+Un consultant présenté au client sur une opportunité, avec son résultat et son TJM de vente proposé.
+_Éviter_ : candidature, positionnement, profil proposé (sauf dans le nom de l'étape « Profils proposés », repris du PRD)
+
+**Résultat** :
+Où en est une proposition : proposé, entretien, retenu ou refusé. Un seul consultant retenu par opportunité.
+_Éviter_ : état (réservé au consultant), statut, décision
+
+**Gagnée le, perdue le** :
+La date à laquelle une opportunité a été marquée gagnée ou perdue. Vidée quand elle est rouverte.
+_Éviter_ : date de fin, date de clôture (confondue avec la clôture prévue)
+
+**Motif de perte** :
+La raison, choisie dans une liste fermée, pour laquelle une opportunité est perdue : prix, profil non retenu, concurrent, projet abandonné ou reporté, pas de réponse, autre.
+_Éviter_ : cause, raison (seul)
