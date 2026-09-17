@@ -3,6 +3,9 @@
  * service générique des objets (validation par les descripteurs, colonnes de base, ensembles rangés
  * dans leur table fille, historique) ; ce module ajoute ce qui est propre à l'opportunité.
  */
+import { loadCustomFields } from "@/features/custom-fields/definitions";
+import { allCustomFieldsOf } from "@/features/custom-fields/fields-source";
+import { writableFieldsOf } from "@/features/objects/fields";
 import { createObject, getObjectRecord, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -13,7 +16,23 @@ const COMPANY_FIELD = "companyId";
 
 export const UNKNOWN_COMPANY_RULE = "« Entreprise » ne désigne aucune entreprise.";
 
+const unexpectedKeyRule = (key: string) => `« ${key} » n'est pas un champ d'une opportunité.`;
+
 const asObject = (input: unknown): Record<string, unknown> => (input && typeof input === "object" ? (input as Record<string, unknown>) : {});
+
+/**
+ * Une clé qu'aucun champ saisissable ne prévoit répond 400 sous la clé (D55) : ignorée, elle ferait
+ * croire à un enregistrement qui n'a pas eu lieu. Un champ personnalisé archivé reste une clé connue,
+ * que le service refuse de son côté (409).
+ */
+async function refuseUnexpectedKeys(fields: Record<string, unknown>): Promise<void> {
+  await loadCustomFields();
+  const expected = new Set([...writableFieldsOf(TYPE).filter((field) => field.editable !== false), ...allCustomFieldsOf(TYPE)].map((field) => field.key));
+  const unexpected = Object.keys(fields).filter((key) => !expected.has(key));
+  if (unexpected.length === 0) return;
+  const errors = Object.fromEntries(unexpected.map((key) => [key, unexpectedKeyRule(key)]));
+  throw new HttpError(400, "cle_imprevue", Object.values(errors)[0], { fields: errors });
+}
 
 /**
  * L'entreprise désignée doit exister (D31) : un identifiant inconnu ou mal formé répond 400 sous le
@@ -34,6 +53,7 @@ async function assertCompanyExists(fields: Record<string, unknown>): Promise<voi
 /** Création (D34) : la fiche et ses modules s'écrivent ensemble, ou rien ne s'écrit. */
 export async function createOpportunity(input: unknown, actor: Actor): Promise<ObjectRecord> {
   const fields = asObject(input);
+  await refuseUnexpectedKeys(fields);
   await assertCompanyExists(fields);
   const created = await db.transaction((tx) => createObject(TYPE, fields, actor, tx));
   return getObjectRecord(TYPE, created.id);
