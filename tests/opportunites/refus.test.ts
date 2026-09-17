@@ -19,6 +19,9 @@ type Refusal = { status: number; fields: Record<string, string> };
 /** Une opportunité valide, que chaque cas abîme d'un seul champ. */
 const valid = () => ({ title: "Refonte Payroll", companyId: bankId, modules: ["hcm", "payroll"], expectedClose: "2026-10-30" });
 
+/** L'opportunité valide, privée d'un champ. */
+const without = (key: string) => Object.fromEntries(Object.entries(valid()).filter(([candidate]) => candidate !== key));
+
 async function post(input: Record<string, unknown>): Promise<Refusal> {
   const res = await postOpportunity(jsonRequest("POST", "/api/opportunites", input, memberCookie));
   const body = (await res.json()) as { fields?: Record<string, string> };
@@ -86,8 +89,7 @@ describe("bornes d'une opportunité à la création (CRM-103, D31, contrat 39)",
   });
 
   it("refuse une opportunité sans entreprise sous le champ", async () => {
-    const { companyId: _omitted, ...withoutCompany } = valid();
-    const refusal = await post(withoutCompany);
+    const refusal = await post(without("companyId"));
     expect(refusal.status).toBe(400);
     expect(Object.keys(refusal.fields)).toEqual(["companyId"]);
   });
@@ -102,8 +104,7 @@ describe("bornes d'une opportunité à la création (CRM-103, D31, contrat 39)",
   });
 
   it("refuse sous le champ une opportunité sans module, liste vide ou absente, et n'en crée aucune", async () => {
-    const { modules: _omitted, ...withoutModules } = valid();
-    for (const input of [withoutModules, { ...valid(), modules: [] }]) {
+    for (const input of [without("modules"), { ...valid(), modules: [] }]) {
       const refusal = await post(input);
       expect(refusal.status).toBe(400);
       expect(Object.keys(refusal.fields)).toEqual(["modules"]);
@@ -148,8 +149,7 @@ describe("bornes d'une opportunité à la création (CRM-103, D31, contrat 39)",
   });
 
   it("refuse sous le champ une opportunité sans clôture prévue, ou dont la clôture n'est pas une date", async () => {
-    const { expectedClose: _omitted, ...withoutClose } = valid();
-    for (const input of [withoutClose, { ...valid(), expectedClose: "2026-13-45" }]) {
+    for (const input of [without("expectedClose"), { ...valid(), expectedClose: "2026-13-45" }]) {
       const refusal = await post(input);
       expect(refusal.status).toBe(400);
       expect(Object.keys(refusal.fields)).toEqual(["expectedClose"]);
