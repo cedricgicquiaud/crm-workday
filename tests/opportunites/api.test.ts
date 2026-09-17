@@ -50,4 +50,9 @@ describe("création d'une opportunité (CRM-103, D31, D34)", () => {
     const id = await create({ title: "Refonte Payroll", companyId: bankId, modules: ["hcm", "payroll"], expectedClose: "2026-10-30" });
     expect(await read(id)).toMatchObject({ title: "Refonte Payroll", companyId: bankId, modules: ["hcm", "payroll"], expectedClose: "2026-10-30", ownerId: memberId });
   });
+
+  it("accepte une clôture prévue déjà passée, sans signal (D48)", async () => {
+    const id = await create({ title: "Support Absence", companyId: bankId, modules: ["absence"], expectedClose: "2020-01-15" });
+    expect((await read(id)).expectedClose).toBe("2020-01-15");
+  });
 });

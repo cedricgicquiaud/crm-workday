@@ -129,4 +129,14 @@ describe("bornes d'une opportunité à la création (CRM-103, D31, contrat 39)",
     expect(await count()).toBe(0);
     for (const estimatedDays of [1, 1000]) expect((await post({ ...valid(), estimatedDays })).status, String(estimatedDays)).toBe(201);
   });
+
+  it("refuse sous le champ une opportunité sans clôture prévue, ou dont la clôture n'est pas une date", async () => {
+    const { expectedClose: _omitted, ...withoutClose } = valid();
+    for (const input of [withoutClose, { ...valid(), expectedClose: "2026-13-45" }]) {
+      const refusal = await post(input);
+      expect(refusal.status).toBe(400);
+      expect(Object.keys(refusal.fields)).toEqual(["expectedClose"]);
+    }
+    expect(await count()).toBe(0);
+  });
 });
