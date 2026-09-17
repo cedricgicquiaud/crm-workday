@@ -5,6 +5,8 @@ import { POST as postMerge } from "@/app/api/objets/[type]/fusion/route";
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
 import { auditLog, company, opportunity, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { duplicatesOfRecord } from "@/features/duplicates/duplicates";
+import { collectBanners } from "@/features/objects/banners";
 import { createObject } from "@/features/objects/service";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
@@ -265,5 +267,13 @@ describe("refus de fusion d'une opportunité (CRM-106, D37, contrat 42)", () => 
     const refusal = await postMerge(jsonRequest("POST", "/api/objets/opportunity/fusion", { keptId: kept, absorbedId: absorbed }, adminCookie), { params: Promise.resolve({ type: "opportunity" }) });
     expect(refusal.status).toBe(405);
     expect(await count()).toBe(2);
+  });
+
+  it("ne signale aucun doublon probable entre deux opportunités de même titre", async () => {
+    const first = await created();
+    await created();
+
+    expect(await duplicatesOfRecord("opportunity", first)).toEqual([]);
+    expect(await collectBanners("opportunity", first)).toEqual([]);
   });
 });
