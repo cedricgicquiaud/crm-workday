@@ -42,6 +42,8 @@ export type FieldDescriptor = {
   maxLength?: number;
   /** nombre : borne basse acceptée (D5, D7) */
   min?: number;
+  /** nombre : la borne basse elle-même est refusée (un TJM de vente de 0, D31) */
+  minExclusive?: boolean;
   /** nombre : borne haute acceptée */
   max?: number;
   /** nombre : décimales acceptées au plus ; absent, le nombre en prend autant qu'il veut */

@@ -64,6 +64,7 @@ const MESSAGES = {
   notAnInteger: (label: string) => `« ${label} » doit être un nombre entier.`,
   tooManyDecimals: (label: string, decimals: number) => `« ${label} » ne prend pas plus de ${decimals} décimale${decimals > 1 ? "s" : ""}.`,
   outOfRange: (label: string, min: number, max: number) => `« ${label} » doit être compris entre ${grouped(min)} et ${grouped(max)}.`,
+  outOfRangeAbove: (label: string, min: number, max: number) => `« ${label} » doit être supérieur à ${grouped(min)} et au plus ${grouped(max)}.`,
 };
 
 /** « 10 000 » : les milliers séparés par une espace, comme les montants des fondations, sans dépendre de la locale d'exécution. */
@@ -143,6 +144,7 @@ function normalize(field: FieldDescriptor, value: FieldValue): FieldValue {
 function numberProblem(field: FieldDescriptor, value: number): string | undefined {
   if (field.integer === true && !Number.isInteger(value)) return MESSAGES.notAnInteger(field.label);
   if (field.decimals !== undefined && !Number.isInteger(value * 10 ** field.decimals)) return MESSAGES.tooManyDecimals(field.label, field.decimals);
+  if (field.min !== undefined && field.max !== undefined && field.minExclusive === true && (value <= field.min || value > field.max)) return MESSAGES.outOfRangeAbove(field.label, field.min, field.max);
   if (field.min !== undefined && field.max !== undefined && (value < field.min || value > field.max)) return MESSAGES.outOfRange(field.label, field.min, field.max);
   return undefined;
 }
