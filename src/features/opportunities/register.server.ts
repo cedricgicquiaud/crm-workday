@@ -12,6 +12,11 @@ registerServerObject({
   search: async () => [],
   duplicateKey: () => null,
   sets: [{ field: "modules", table: opportunityModule, fkColumn: "opportunityId", valueColumn: "module" }],
-  /* Le montant estimé n'est pas stocké (D53) : chaque lecture le calcule, la liste le filtre et le trie comme une colonne. */
-  attach: async (records) => records.map((record) => ({ ...record, estimatedAmount: estimatedAmount(record) })),
+  /*
+   * Le TJM arrive de la base en décimal écrit (« 650.00 ») : il se lit en nombre, pour que la saisie
+   * montre « 650 ». Le montant estimé n'est pas stocké (D53) : chaque lecture le calcule, la liste le
+   * filtre et le trie comme une colonne.
+   */
+  attach: async (records) =>
+    records.map((record) => ({ ...record, targetDailyRate: record.targetDailyRate === null ? null : Number(record.targetDailyRate), estimatedAmount: estimatedAmount(record) })),
 });
