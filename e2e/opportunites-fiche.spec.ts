@@ -1,15 +1,16 @@
 import type { Page } from "@playwright/test";
 import { expect, seedAccounts, test } from "./fixtures/auth";
 import { resetObjects } from "./fixtures/objets";
-import { pickOption, resetOpportunities } from "./fixtures/opportunites";
+import { pickOption } from "./fixtures/opportunites";
+import { resetPersons } from "./fixtures/personnes";
 
 /* Les fiches finissent par « (e2e) » : les fixtures les effacent, et rien d'autre. */
 const tag = () => Date.now().toString(36);
 const named = (prefix: string, mark: string) => `${prefix} ${mark} (e2e)`;
 
-/* Les opportunités d'abord : elles retiennent leur entreprise. */
+/* Les opportunités et les personnes d'abord (`resetPersons` efface les opportunités avant elles) : elles retiennent leur entreprise. */
 function resetAll() {
-  resetOpportunities();
+  resetPersons();
   resetObjects();
 }
 
@@ -152,6 +153,33 @@ test.describe("« Ajouter une opportunité » depuis une entreprise (CRM-104, co
     await expect(memberPage).toHaveURL(/\/opportunites\/[0-9a-f-]{36}$/);
     const id = memberPage.url().split("/").pop()!;
     expect(((await (await memberPage.request.get(`/api/opportunites/${id}`)).json()) as Record<string, unknown>).companyId).toBe(acmeId);
+  });
+});
+
+test.describe("entreprise et contact dans « Champs » (CRM-104, contrat 35)", () => {
+  test("le contact se choisit parmi les seuls contacts de Banque X ; passer l'entreprise à Acme vide le contact, et l'historique garde « Julie Martin »", async ({ memberPage }) => {
+    const mark = tag();
+    const bank = named("Banque X", mark);
+    const acme = named("Acme", mark);
+    const bankId = await post(memberPage, "/api/entreprises", { name: bank, type: "prospect" });
+    const acmeId = await post(memberPage, "/api/entreprises", { name: acme, type: "prospect" });
+    const julie = `Julie Martin${mark}`;
+    await post(memberPage, "/api/personnes", { firstName: "Julie", lastName: `Martin${mark}`, companyId: bankId });
+    await post(memberPage, "/api/personnes", { firstName: "Marc", lastName: `Acme${mark}`, companyId: acmeId });
+    const id = await post(memberPage, "/api/opportunites", { title: named("Refonte Payroll", mark), companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30" });
+
+    await memberPage.goto(`/opportunites/${id}`);
+    const fields = memberPage.getByRole("region", { name: "Champs", exact: true });
+    const contact = fields.getByRole("combobox", { name: "Contact" });
+    await contact.click();
+    await expect(memberPage.getByRole("option", { name: `Marc Acme${mark}` })).toHaveCount(0);
+    await saved(memberPage, id, () => memberPage.getByRole("option", { name: julie, exact: true }).click());
+    await expect(contact).toContainText(julie);
+
+    await saved(memberPage, id, () => pickOption(memberPage, fields.getByRole("combobox", { name: "Entreprise" }), acme));
+    await expect(fields.getByRole("combobox", { name: "Entreprise" })).toContainText(acme);
+    await expect(contact).not.toContainText(julie);
+    await expect(memberPage.getByRole("region", { name: "Fil d'activité" }).getByText(`Contact : ${julie} → vide`)).toBeVisible();
   });
 });
 
