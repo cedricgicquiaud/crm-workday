@@ -6,7 +6,7 @@
  * lecture de sa valeur passent par une autre table.
  */
 import "@/features/objects/manifest.server";
-import { and, asc, desc, eq, getTableColumns, inArray, isNull, ne, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, getTableColumns, inArray, isNull, ne, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { loadCustomFields } from "@/features/custom-fields/definitions";
 import { allCustomFieldsOf, isCustomFieldKey } from "@/features/custom-fields/fields-source";
@@ -464,6 +464,35 @@ function withScopesCleared(type: string, values: FieldValues, current: ObjectRec
     if (moved && !(scope.field in values) && current[scope.field] != null) cleared[scope.field] = null;
   }
   return cleared;
+}
+
+/** Options d'un sélecteur de fiche liée : les fiches proposées, et combien d'autres au-delà de la borne (« et N autres »). */
+export type RelationOptions = { options: { id: string; name: string }[]; more: number };
+
+/**
+ * Options du sélecteur d'un champ `relation` sur une fiche (D60) : les fiches actives de l'objet lié,
+ * restreintes par la condition que l'objet déclare sur ce champ pour la valeur de la fiche (D35), la
+ * dernière modifiée en tête, bornées ; `more` compte le reste. Sans valeur pour la condition, aucune.
+ */
+export async function listRelationOptions(type: string, key: string, record: Record<string, unknown>, { limit = RECORD_OPTIONS_LIMIT } = {}): Promise<RelationOptions> {
+  const target = getObject(relationOf(type, key).to);
+  const { table } = getServerObject(target.key);
+  const columns = getTableColumns(table);
+  const scope = (getServerObject(type).relationScopes ?? []).find((candidate) => candidate.field === key);
+  const basis = scope ? record[scope.dependsOn] : null;
+  if (scope && typeof basis !== "string") return { options: [], more: 0 };
+  const where = and(isNull(columns.archivedAt), scope ? and(eq(columns[scope.matches], basis), scope.where) : undefined);
+  const rows = await db
+    .select({ id: columns.id, title: columns[target.titleField] })
+    .from(table)
+    .where(where)
+    .orderBy(desc(columns.updatedAt), desc(columns.id))
+    .limit(limit);
+  const options = rows.map((row) => ({ id: String(row.id), name: String(row.title ?? "") }));
+  /* Le compte n'est demandé que si la borne est atteinte : en dessous, les options chargées sont toutes celles qui existent. */
+  if (options.length < limit) return { options, more: 0 };
+  const [total] = await db.select({ value: count() }).from(table).where(where);
+  return { options, more: Math.max(Number(total?.value ?? options.length) - options.length, 0) };
 }
 
 /**
