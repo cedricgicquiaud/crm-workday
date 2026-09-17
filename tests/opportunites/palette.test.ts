@@ -62,4 +62,10 @@ describe("opportunité dans la palette (CRM-106, D48, contrat 37)", () => {
 
     expect(await hitsFor("payr")).toEqual([{ type: "opportunity", id, title: "Refonte Payroll", subtitle: "Négociation · Banque X", href: `/opportunites/${id}` }]);
   });
+
+  it("la retrouve par une sous-chaîne du nom de son entreprise", async () => {
+    const id = await create("Refonte Payroll", "negociation");
+
+    expect((await hitsFor("banque x")).map((hit) => hit.id)).toEqual([id]);
+  });
 });
