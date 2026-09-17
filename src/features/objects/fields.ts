@@ -144,8 +144,10 @@ function normalize(field: FieldDescriptor, value: FieldValue): FieldValue {
 function numberProblem(field: FieldDescriptor, value: number): string | undefined {
   if (field.integer === true && !Number.isInteger(value)) return MESSAGES.notAnInteger(field.label);
   if (field.decimals !== undefined && !Number.isInteger(value * 10 ** field.decimals)) return MESSAGES.tooManyDecimals(field.label, field.decimals);
-  if (field.min !== undefined && field.max !== undefined && field.minExclusive === true && (value <= field.min || value > field.max)) return MESSAGES.outOfRangeAbove(field.label, field.min, field.max);
-  if (field.min !== undefined && field.max !== undefined && (value < field.min || value > field.max)) return MESSAGES.outOfRange(field.label, field.min, field.max);
+  if (field.min !== undefined && field.max !== undefined) {
+    const below = field.minExclusive === true ? value <= field.min : value < field.min;
+    if (below || value > field.max) return (field.minExclusive === true ? MESSAGES.outOfRangeAbove : MESSAGES.outOfRange)(field.label, field.min, field.max);
+  }
   return undefined;
 }
 
