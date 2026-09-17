@@ -175,9 +175,8 @@ test.describe("vue par défaut « Opportunités en cours » (CRM-106, D38, contr
     await expect(links).toHaveText([running]);
 
     /* Les deux puces se retirent : les affaires terminées reviennent, la plus proche en tête. */
-    await memberPage.getByRole("button", { name: "Retirer le filtre Étape n'est pas Gagnée" }).click();
-    await memberPage.getByRole("button", { name: "Retirer le filtre Étape n'est pas Perdue" }).click();
-    await expect(memberPage).toHaveURL(/filtres=aucun/);
+    await Promise.all([memberPage.waitForURL(/f=stage/), memberPage.getByRole("button", { name: "Retirer le filtre Étape n'est pas Gagnée" }).click()]);
+    await Promise.all([memberPage.waitForURL(/filtres=aucun/), memberPage.getByRole("button", { name: "Retirer le filtre Étape n'est pas Perdue" }).click()]);
     await expect(links).toHaveText([won, running]);
   });
 });
