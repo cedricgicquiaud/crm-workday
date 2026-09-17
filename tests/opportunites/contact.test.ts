@@ -6,7 +6,7 @@ import { auditLog, company, opportunity, person, user } from "@/db/schema";
 import { listFeed } from "@/features/activities/feed";
 import { archiveRecord } from "@/features/archive/archive";
 import { createUserWithPassword } from "@/features/auth/accounts";
-import { createObject } from "@/features/objects/service";
+import { createObject, getObjectRecord, listRelationOptions } from "@/features/objects/service";
 import { createPerson, updatePerson } from "@/features/persons/persons";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
@@ -26,6 +26,8 @@ async function patch(id: string, input: Record<string, unknown>): Promise<Answer
   const res = await patchOpportunity(jsonRequest("PATCH", `/api/opportunites/${id}`, input, memberCookie), byId(id));
   return { status: res.status, body: (await res.json()) as Answer["body"] };
 }
+
+const getOpportunityRecord = (id: string) => getObjectRecord("opportunity", id);
 
 const read = async (id: string) => (await getOpportunity(jsonRequest("GET", `/api/opportunites/${id}`, undefined, memberCookie), byId(id))).json() as Promise<Record<string, unknown>>;
 
@@ -113,6 +115,26 @@ describe("contact d'une opportunité (CRM-104, D35)", () => {
     await patch(id, { companyId: acmeId });
     const changes = (await listFeed("opportunity", id, [])).items.filter((item) => item.kind === "changement" && item.text !== "Fiche créée").map((item) => item.text);
     expect(changes.sort()).toEqual(["Contact : Julie Martin → vide", "Entreprise : Banque X → Acme"]);
+  });
+});
+
+/** D35, contrat 35 : le sélecteur de contact ne propose que les contacts actifs de l'entreprise, borné, et dit le reste. */
+describe("options du sélecteur de contact (CRM-104, D35, contrat 35)", () => {
+  it("propose Julie Martin et Luc Petit, contacts de Banque X, sans le contact d'Acme, la personne sans profil ni le contact archivé ; au-delà de la borne, compte les autres", async () => {
+    await contactAt(bankId, "Julie", "Martin");
+    await contactAt(bankId, "Luc", "Petit");
+    await contactAt(acmeId, "Marc", "Acme");
+    await createPerson({ firstName: "Paul", lastName: "Sansprofil" }, { id: memberId });
+    await archiveRecord("person", await contactAt(bankId, "Zoé", "Partie"), { id: memberId });
+    const opportunity_ = await getOpportunityRecord(await opportunityAt(bankId));
+
+    const all = await listRelationOptions("opportunity", "contactPersonId", opportunity_);
+    expect(all.options.map((option) => option.name).sort()).toEqual(["Julie Martin", "Luc Petit"]);
+    expect(all.more).toBe(0);
+
+    const bounded = await listRelationOptions("opportunity", "contactPersonId", opportunity_, { limit: 1 });
+    expect(bounded.options).toHaveLength(1);
+    expect(bounded.more).toBe(1);
   });
 });
 
