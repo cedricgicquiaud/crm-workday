@@ -4,6 +4,7 @@ import { GET as getOpportunity, PATCH as patchOpportunity } from "@/app/api/oppo
 import { POST as postOpportunity } from "@/app/api/opportunites/route";
 import { auditLog, company, opportunity, person, user } from "@/db/schema";
 import { listFeed } from "@/features/activities/feed";
+import { archiveRecord } from "@/features/archive/archive";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createObject } from "@/features/objects/service";
 import { createPerson } from "@/features/persons/persons";
@@ -112,5 +113,31 @@ describe("contact d'une opportunité (CRM-104, D35)", () => {
     await patch(id, { companyId: acmeId });
     const changes = (await listFeed("opportunity", id, [])).items.filter((item) => item.kind === "changement" && item.text !== "Fiche créée").map((item) => item.text);
     expect(changes.sort()).toEqual(["Contact : Julie Martin → vide", "Entreprise : Banque X → Acme"]);
+  });
+});
+
+/** D36, contrat 41 : un contact archivé ne se choisit plus ; celui qu'on a lié avant son archivage reste lié. */
+describe("contact archivé (CRM-104, D36, contrat 41)", () => {
+  it("refuse (409) un contact archivé à la création comme en modification, en le nommant", async () => {
+    const julie = await contactAt(bankId, "Julie", "Martin");
+    await archiveRecord("person", julie, { id: memberId });
+
+    const creation = await postOpportunity(jsonRequest("POST", "/api/opportunites", { title: "Refonte Payroll", companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30", contactPersonId: julie }, memberCookie));
+    expect(creation.status).toBe(409);
+    expect(((await creation.json()) as { message: string }).message).toContain("« Julie Martin »");
+
+    const id = await opportunityAt(bankId);
+    const modification = await patch(id, { contactPersonId: julie });
+    expect(modification.status).toBe(409);
+    expect(modification.body.message).toContain("« Julie Martin »");
+  });
+
+  it("garde lié un contact archivé après coup, même quand l'écriture le renvoie tel quel", async () => {
+    const julie = await contactAt(bankId, "Julie", "Martin");
+    const id = await opportunityAt(bankId, { contactPersonId: julie });
+    await archiveRecord("person", julie, { id: memberId });
+
+    expect((await patch(id, { title: "Refonte Payroll 2027", contactPersonId: julie })).status).toBe(200);
+    expect(await read(id)).toMatchObject({ title: "Refonte Payroll 2027", contactPersonId: julie });
   });
 });
