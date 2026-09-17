@@ -6,7 +6,7 @@
 import { loadCustomFields } from "@/features/custom-fields/definitions";
 import { allCustomFieldsOf } from "@/features/custom-fields/fields-source";
 import { writableFieldsOf } from "@/features/objects/fields";
-import { createObject, getObjectRecord, type Actor, type ObjectRecord } from "@/features/objects/service";
+import { createObject, getObjectRecord, updateObject, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
@@ -60,3 +60,6 @@ export async function createOpportunity(input: unknown, actor: Actor): Promise<O
 }
 
 export const getOpportunity = (id: string): Promise<ObjectRecord> => getObjectRecord(TYPE, id);
+
+/** Modification (D34) : 400 par champ, 404 inconnue, 409 archivée ; chaque champ changé entre dans l'historique. */
+export const updateOpportunity = (id: string, patch: unknown, actor: Actor): Promise<ObjectRecord> => updateObject(TYPE, id, patch, actor);
