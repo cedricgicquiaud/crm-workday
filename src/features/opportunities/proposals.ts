@@ -19,6 +19,10 @@ const invalid = (errors: Record<string, string>) => new HttpError(400, "donnees_
 
 const unexpectedKeyRule = (key: string) => `« ${key} » ne se donne pas à l'ajout d'un consultant.`;
 
+const CONSULTANT_REQUIRED = "Choisissez un consultant.";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const notConsultantRule = (name: string) => `Seul un consultant se propose sur une opportunité : « ${name} » n'a pas de profil consultant.`;
 
 const alreadyProposedRule = (name: string) => `« ${name} » figure déjà parmi les consultants proposés.`;
@@ -48,7 +52,9 @@ function readAddition(input: unknown): string {
   const fields = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
   const unexpected = Object.keys(fields).filter((key) => key !== "personId");
   if (unexpected.length > 0) throw invalid(Object.fromEntries(unexpected.map((key) => [key, unexpectedKeyRule(key)])));
-  return fields.personId as string;
+  /* Un identifiant mal formé n'atteint jamais Postgres, qui répondrait par une panne (500). */
+  if (typeof fields.personId !== "string" || !UUID.test(fields.personId)) throw invalid({ personId: CONSULTANT_REQUIRED });
+  return fields.personId;
 }
 
 /**
@@ -62,6 +68,7 @@ export async function addProposal(opportunityId: string, input: unknown, actor: 
   const record = await getObjectRecord(TYPE, opportunityId);
   await db.transaction(async (tx) => {
     const [consultant] = await tx.select({ name: person.name, archivedAt: person.archivedAt }).from(person).where(eq(person.id, personId)).limit(1).for("share");
+    if (!consultant) throw invalid({ personId: CONSULTANT_REQUIRED });
     if (consultant.archivedAt) throw new HttpError(409, "consultant_archive", archivedRule(consultant.name), { personId });
     if (!(await personsWithConsultantProfile([personId], tx)).has(personId)) throw invalid({ personId: notConsultantRule(consultant.name) });
     /* L'unicité du couple tranche, même entre deux ajouts simultanés : aucune ligne insérée, c'est un doublon. */
