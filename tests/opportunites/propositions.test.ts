@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { POST as postProposal } from "@/app/api/opportunites/[id]/propositions/route";
 import { auditLog, company, consultantModule, consultantProfile, opportunity, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { upsertConsultantProfile } from "@/features/consultants/consultant-profile";
 import { createConsultant } from "@/features/consultants/consultants";
 import { createObject } from "@/features/objects/service";
 import { listProposals } from "@/features/opportunities/proposals";
@@ -23,8 +24,11 @@ async function createOpportunity(fields: Record<string, unknown> = {}): Promise<
   return (await createObject("opportunity", { title: "Refonte Payroll", companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30", ...fields }, { id: memberId })).id;
 }
 
+/** Un consultant freelance ; `profile` se règle ensuite sur son profil, comme sur sa fiche (la date de disponibilité ne se saisit pas à la création). */
 async function consultant(firstName: string, lastName: string, profile: Record<string, unknown> = {}): Promise<string> {
-  return (await createConsultant({ firstName, lastName, status: "freelance", ...profile }, { id: memberId })).id;
+  const { id } = await createConsultant({ firstName, lastName, status: "freelance" }, { id: memberId });
+  if (Object.keys(profile).length > 0) await upsertConsultantProfile(id, profile, { id: memberId });
+  return id;
 }
 
 /** Les enfants avant les parents : les propositions partent avec l'opportunité (cascade), qui retient l'entreprise et les personnes. */
@@ -62,5 +66,24 @@ describe("ajout d'un consultant sur une opportunité (CRM-107, D44, D45)", () =>
     expect((await propose(opportunityId, { personId: julie })).status).toBe(201);
 
     expect(await listProposals(opportunityId)).toMatchObject([{ personId: julie, name: "Julie Martin", result: "propose", proposedDailyRate: 650 }]);
+  });
+
+  it("ajoute un consultant sans TJM proposé sur une opportunité sans TJM cible", async () => {
+    const opportunityId = await createOpportunity();
+    const julie = await consultant("Julie", "Martin");
+
+    expect((await propose(opportunityId, { personId: julie })).status).toBe(201);
+
+    expect(await listProposals(opportunityId)).toMatchObject([{ personId: julie, result: "propose", proposedDailyRate: null }]);
+  });
+
+  /* Contrat 51 : une mission en cours n'empêche pas de proposer le consultant pour la suivante. */
+  it("ajoute un consultant « En mission » jusqu'au 31 décembre 2099", async () => {
+    const opportunityId = await createOpportunity({ targetDailyRate: 650 });
+    const marc = await consultant("Marc", "Petit", { availableFrom: "2099-12-31" });
+
+    expect((await propose(opportunityId, { personId: marc })).status).toBe(201);
+
+    expect(await listProposals(opportunityId)).toMatchObject([{ personId: marc, result: "propose" }]);
   });
 });
