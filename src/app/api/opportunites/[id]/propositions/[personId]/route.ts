@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 type Context = { params: Promise<{ id: string; personId: string }> };
 
-/** Changement du résultat d'une proposition par tout membre (D45, D55). */
+/** Changement du résultat ou du TJM de vente proposé d'une proposition par tout membre (D45, D55). */
 export const PATCH = withApi(async (request: Request, { params }: Context) => {
   const { user: actor } = await requireSession(request);
   const { id, personId } = await params;
