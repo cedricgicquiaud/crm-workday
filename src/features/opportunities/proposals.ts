@@ -47,6 +47,8 @@ const alreadyProposedRule = (name: string) => `« ${name} » figure déjà parmi
 
 const archivedRule = (name: string) => `« ${name} » est archivée : restaurez sa fiche pour la proposer.`;
 
+const archivedChangeRule = (name: string) => `« ${name} » est archivée : restaurez sa fiche pour modifier sa proposition.`;
+
 /** Une proposition telle que la section et l'API la rendent : le consultant par son nom, son résultat, son TJM proposé. */
 export type Proposal = { personId: string; name: string; result: string; proposedDailyRate: number | null };
 
@@ -175,17 +177,20 @@ const RATE_FIELD: FieldDescriptor = { ...OPPORTUNITY_FIELDS.find((field) => fiel
 const PROPOSAL_FIELDS: readonly FieldDescriptor[] = [{ key: "result", label: "Résultat", type: "list", required: true, values: PROPOSAL_RESULTS, order: 10 }, RATE_FIELD];
 
 /** Une proposition relue sous verrou avant d'être modifiée ou retirée : ce qu'elle porte, et le nom du consultant pour l'historique. */
-type LockedProposal = { id: string; name: string; result: string; proposedDailyRate: string | null };
+type LockedProposal = { id: string; name: string; archivedAt: Date | null; result: string; proposedDailyRate: string | null };
 
-/** La proposition du consultant sur l'opportunité, verrouillée dans la transaction du geste ; 404 si le consultant n'y est pas proposé. */
+/**
+ * La proposition du consultant sur l'opportunité, verrouillée avec la fiche du consultant dans la
+ * transaction du geste : un consultant archivé entre-temps se voit ici. 404 s'il n'y est pas proposé.
+ */
 async function lockedProposal(tx: Executor, opportunityId: string, personId: string): Promise<LockedProposal> {
   const [row] = await tx
-    .select({ id: opportunityConsultant.id, name: person.name, result: opportunityConsultant.result, proposedDailyRate: opportunityConsultant.proposedDailyRate })
+    .select({ id: opportunityConsultant.id, name: person.name, archivedAt: person.archivedAt, result: opportunityConsultant.result, proposedDailyRate: opportunityConsultant.proposedDailyRate })
     .from(opportunityConsultant)
     .innerJoin(person, eq(person.id, opportunityConsultant.personId))
     .where(and(eq(opportunityConsultant.opportunityId, opportunityId), eq(opportunityConsultant.personId, personId)))
     .limit(1)
-    .for("update", { of: opportunityConsultant });
+    .for("update");
   if (!row) throw notProposed();
   return row;
 }
@@ -242,6 +247,7 @@ export async function changeProposal(opportunityId: string, personId: string, in
   await db.transaction(async (tx) => {
     await lockWritable(tx, record);
     const before = await lockedProposal(tx, record.id, personId);
+    if (before.archivedAt) throw new HttpError(409, "consultant_archive", archivedChangeRule(before.name), { personId });
     if (values.result === RETAINED) await assertNoOtherRetained(tx, record.id, personId);
     await tx
       .update(opportunityConsultant)
