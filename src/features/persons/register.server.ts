@@ -6,7 +6,7 @@
  */
 import { and, desc, eq, exists, ilike, isNull, or } from "drizzle-orm";
 import { createElement } from "react";
-import { company, consultantProfile, contactProfile, person, personEmail } from "@/db/schema";
+import { company, consultantProfile, contactProfile, opportunityConsultant, person, personEmail } from "@/db/schema";
 import { normalizeName } from "@/features/duplicates/normalize";
 import type { BillingCompanyOption } from "@/features/consultants/billing-company-picker";
 import { attachConsultantProfiles, consultantSubtitles, describeConsultantProfile, getConsultantProfile, listBillingCompanyOptions, type ConsultantProfile } from "@/features/consultants/consultant-profile";
@@ -61,6 +61,8 @@ const dependents: readonly DependentTable[] = [
   { table: contactProfile, fkColumn: "personId", label: "Profil contact", oneAtMost: true, carries: ["companyId"] },
   /* Le profil consultant emmène la société de facturation : elle ne veut rien dire sans lui (D16). */
   { table: consultantProfile, fkColumn: "personId", label: "Profil consultant", oneAtMost: true, carries: ["billingCompanyId"], describe: describeConsultantProfile },
+  /* Les propositions du consultant le suivent (D47) ; l'opportunité les déclare aussi, et c'est elle qui les lit dans la colonne des liens (D54). */
+  { table: opportunityConsultant, fkColumn: "personId", label: "Propositions" },
 ];
 
 /** Ce que la section « Profil contact » lit d'un coup : le profil de la personne et les entreprises qu'elle peut choisir. */
