@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { activity, auditLog, company, consultantModule, consultantProfile, contactProfile, customFieldValue, emailLog, objectRedirect, opportunity, person, personEmail, user } from "@/db/schema";
+import { deleteRecord, type DeleteBlocker } from "@/features/archive/delete";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createConsultant } from "@/features/consultants/consultants";
 import { listHistory } from "@/features/history/history";
@@ -62,6 +63,33 @@ beforeEach(async () => {
 afterAll(async () => {
   await cleanup();
   await closeDb();
+});
+
+/** Ce qui retient la suppression, tel que le refus 409 le rend au dialogue. */
+async function blockersOf(type: string, id: string): Promise<DeleteBlocker[]> {
+  const refusal = await deleteRecord(type, id).then(
+    () => null,
+    (error: unknown) => error,
+  );
+  expect(refusal).toMatchObject({ status: 409, code: "fiche_liee" });
+  return (refusal as { details: { blockers: DeleteBlocker[] } }).details.blockers;
+}
+
+/** D47, contrat 54 : une fiche liée à une opportunité ne se supprime pas définitivement, et le refus nomme les opportunités. */
+describe("suppression définitive d'une fiche liée à une opportunité (CRM-110, D47)", () => {
+  it("refuse (409) de supprimer une entreprise liée à une opportunité, en la nommant", async () => {
+    await createOpportunity();
+
+    expect(await blockersOf("company", bankId)).toContainEqual({ key: "opportunity-companyId", label: "Opportunités", count: 1, titles: ["Refonte Payroll"] });
+  });
+
+  it("ne nomme que trois opportunités et compte les autres", async () => {
+    for (const title of ["Refonte Payroll", "Migration HCM", "Audit Absences", "Déploiement Talent"]) await createOpportunity({ title });
+
+    const held = (await blockersOf("company", bankId)).find((blocker) => blocker.label === "Opportunités");
+    expect(held?.count).toBe(4);
+    expect(held?.titles).toHaveLength(3);
+  });
 });
 
 /** D47 : la fusion fait suivre à la fiche conservée ce qui la relie aux opportunités. */
