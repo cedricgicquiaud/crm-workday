@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { PATCH as patchProposal } from "@/app/api/opportunites/[id]/propositions/[personId]/route";
 import { POST as postProposal } from "@/app/api/opportunites/[id]/propositions/route";
 import { auditLog, company, consultantModule, consultantProfile, opportunity, person, user } from "@/db/schema";
 import { listFeed } from "@/features/activities/feed";
@@ -22,6 +23,11 @@ let bankId: string;
 const byId = (id: string) => ({ params: Promise.resolve({ id }) });
 
 const propose = (opportunityId: string, input: unknown) => postProposal(jsonRequest("POST", `/api/opportunites/${opportunityId}/propositions`, input, memberCookie), byId(opportunityId));
+
+const byProposal = (id: string, personId: string) => ({ params: Promise.resolve({ id, personId }) });
+
+const change = (opportunityId: string, personId: string, input: unknown) =>
+  patchProposal(jsonRequest("PATCH", `/api/opportunites/${opportunityId}/propositions/${personId}`, input, memberCookie), byProposal(opportunityId, personId));
 
 async function createOpportunity(fields: Record<string, unknown> = {}): Promise<string> {
   return (await createObject("opportunity", { title: "Refonte Payroll", companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30", ...fields }, { id: memberId })).id;
@@ -88,6 +94,23 @@ describe("ajout d'un consultant sur une opportunité (CRM-107, D44, D45)", () =>
     expect((await propose(opportunityId, { personId: marc })).status).toBe(201);
 
     expect(await listProposals(opportunityId)).toMatchObject([{ personId: marc, result: "propose" }]);
+  });
+});
+
+/** D45, contrat 51 : le résultat passe d'une valeur à l'autre, dans tous les sens, tant que l'opportunité est en cours. */
+describe("résultat d'une proposition (CRM-108, D45)", () => {
+  it("passe Julie Martin de Proposé à Entretien, puis Retenu, puis Refusé, puis de nouveau Proposé", async () => {
+    const opportunityId = await createOpportunity();
+    const julie = await consultant("Julie", "Martin");
+    await propose(opportunityId, { personId: julie });
+    const seen: string[] = [];
+
+    for (const result of ["entretien", "retenu", "refuse", "propose"]) {
+      expect((await change(opportunityId, julie, { result })).status).toBe(200);
+      seen.push((await listProposals(opportunityId))[0].result);
+    }
+
+    expect(seen).toEqual(["entretien", "retenu", "refuse", "propose"]);
   });
 });
 
