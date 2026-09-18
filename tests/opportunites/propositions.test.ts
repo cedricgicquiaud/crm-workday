@@ -2,6 +2,8 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { POST as postProposal } from "@/app/api/opportunites/[id]/propositions/route";
 import { auditLog, company, consultantModule, consultantProfile, opportunity, person, user } from "@/db/schema";
+import { listFeed } from "@/features/activities/feed";
+import { CHANGE } from "@/features/activities/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { upsertConsultantProfile } from "@/features/consultants/consultant-profile";
 import { createConsultant } from "@/features/consultants/consultants";
@@ -85,5 +87,32 @@ describe("ajout d'un consultant sur une opportunité (CRM-107, D44, D45)", () =>
     expect((await propose(opportunityId, { personId: marc })).status).toBe(201);
 
     expect(await listProposals(opportunityId)).toMatchObject([{ personId: marc, result: "propose" }]);
+  });
+});
+
+/** Les lignes « changement » du fil d'une fiche, dans l'ordre où la fiche les montre. */
+const changes = async (type: string, id: string) => (await listFeed(type, id, [])).items.filter((item) => item.kind === CHANGE).map((item) => item.text);
+
+/** D46, contrat 51 : l'historique de l'opportunité montre une ligne par ajout ; la fiche du consultant n'en reçoit aucune. */
+describe("historique d'un ajout (CRM-107, D46)", () => {
+  it("écrit « Consultant proposé : … » une fois par ajout sur l'opportunité", async () => {
+    const opportunityId = await createOpportunity();
+    const julie = await consultant("Julie", "Martin");
+    const marc = await consultant("Marc", "Petit");
+
+    await propose(opportunityId, { personId: julie });
+    await propose(opportunityId, { personId: marc });
+
+    expect((await changes("opportunity", opportunityId)).filter((text) => text.startsWith("Consultant proposé"))).toEqual(["Consultant proposé : Marc Petit", "Consultant proposé : Julie Martin"]);
+  });
+
+  it("n'écrit rien sur la fiche du consultant", async () => {
+    const opportunityId = await createOpportunity();
+    const julie = await consultant("Julie", "Martin");
+    const before = await changes("person", julie);
+
+    await propose(opportunityId, { personId: julie });
+
+    expect(await changes("person", julie)).toEqual(before);
   });
 });
