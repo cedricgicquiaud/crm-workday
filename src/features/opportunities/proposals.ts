@@ -233,6 +233,17 @@ function changeSentences(before: LockedProposal, values: FieldValues): string[] 
 }
 
 /**
+ * Une proposition écartée par une fusion, en toutes lettres pour l'entrée qui la consigne (D47) :
+ * « Refonte Payroll, Proposé, TJM de vente proposé 650,00 € ». Sans TJM, le titre et le résultat.
+ */
+export async function describeProposal(row: Record<string, unknown>): Promise<string> {
+  const [target] = await db.select({ title: opportunity.title }).from(opportunity).where(eq(opportunity.id, String(row.opportunityId))).limit(1);
+  const parts = [target?.title ?? String(row.opportunityId), resultLabel(String(row.result))];
+  if (row.proposedDailyRate != null) parts.push(`${RATE_FIELD.label} ${rateLabel(row.proposedDailyRate as string)}`);
+  return parts.join(", ");
+}
+
+/**
  * Change le résultat ou le TJM de vente proposé d'une proposition (D45) : Proposé, Entretien, Retenu
  * et Refusé se choisissent dans tous les sens tant que l'opportunité est en cours. La proposition et ses
  * lignes d'historique, sur l'opportunité seulement (D46), s'écrivent ensemble.
