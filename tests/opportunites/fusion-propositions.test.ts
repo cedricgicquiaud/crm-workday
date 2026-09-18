@@ -108,3 +108,20 @@ describe("fusion d'une fiche liée à une opportunité (CRM-110, D47)", () => {
     expect(await listProposals(opportunityId)).toMatchObject([{ personId: kept, result: "retenu" }]);
   });
 });
+
+/** D47, contrat 54 : deux personnes proposées sur la même opportunité n'en gardent qu'une, la plus avancée. */
+describe("fusion de deux personnes proposées sur la même opportunité (CRM-110, D47)", () => {
+  it("garde la proposition « Retenu » de l'absorbée avec son TJM de 700 €, sur une opportunité gagnée où la conservée était « Proposé » à 650 €", async () => {
+    const kept = await consultant("Julie", "Martin");
+    const absorbed = await consultant("Julie", "Martin");
+    const opportunityId = await createOpportunity({ targetDailyRate: 650 });
+    await addProposal(opportunityId, { personId: kept }, actor());
+    await addProposal(opportunityId, { personId: absorbed }, actor());
+    await changeProposal(opportunityId, absorbed, { result: "retenu", proposedDailyRate: 700 }, actor());
+    await winInDatabase(opportunityId);
+
+    await mergeRecords("person", kept, absorbed, []);
+
+    expect(await listProposals(opportunityId)).toMatchObject([{ personId: kept, result: "retenu", proposedDailyRate: 700 }]);
+  });
+});
