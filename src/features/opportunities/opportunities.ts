@@ -54,12 +54,13 @@ export type OpportunityGesture = { exec: Executor; stage?: string; leadId?: stri
 /**
  * Création (D34) : la fiche et ses modules s'écrivent ensemble, ou rien ne s'écrit. Par un geste, tout
  * s'écrit dans la transaction du geste ; la fiche rendue n'y est pas encore complétée, l'appelant la
- * relira une fois la transaction terminée.
+ * relira une fois la transaction terminée. Le geste a filtré lui-même ses clés : pas de second refus,
+ * qui relirait les définitions hors de sa transaction.
  */
 export async function createOpportunity(input: unknown, actor: Actor, gesture?: OpportunityGesture): Promise<ObjectRecord> {
   const fields = asObject(input);
-  await refuseUnexpectedKeys(fields);
   if (!gesture) {
+    await refuseUnexpectedKeys(fields);
     const created = await db.transaction((tx) => createObject(TYPE, fields, actor, tx));
     return getObjectRecord(TYPE, created.id);
   }
