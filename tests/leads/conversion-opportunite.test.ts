@@ -1,5 +1,9 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { POST as postConversion } from "@/app/api/leads/[id]/conversion/route";
+import { PATCH as patchLead } from "@/app/api/leads/[id]/route";
+import { POST as postLead } from "@/app/api/leads/route";
+import { GET as getOpportunity } from "@/app/api/opportunites/[id]/route";
 import { activity, auditLog, company, customFieldDefinition, customFieldValue, lead, opportunity, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { loadCustomFields } from "@/features/custom-fields/definitions";
@@ -8,10 +12,27 @@ import { createLead } from "@/features/leads/leads";
 import { createObject } from "@/features/objects/service";
 import { createOpportunity } from "@/features/opportunities/opportunities";
 import { closeDb, db } from "@/lib/db";
+import { jsonRequest, sessionCookie } from "../helpers/auth";
 
 const MEMBER = { email: "membre-conversion-opportunite@exemple.fr", firstName: "Inès", lastName: "Carpentier", password: "MotDePasse-Conv-Opp-1", role: "membre" as const };
 
+const OWNER = { email: "responsable-conversion-opportunite@exemple.fr", firstName: "Bruno", lastName: "Vasseur", password: "MotDePasse-Conv-Opp-2", role: "membre" as const };
+
 let memberId: string;
+let memberCookie: string;
+let ownerId: string;
+
+const byId = (id: string) => ({ params: Promise.resolve({ id }) });
+
+async function postNewLead(input: Record<string, unknown>): Promise<string> {
+  const res = await postLead(jsonRequest("POST", "/api/leads", input, memberCookie));
+  expect(res.status).toBe(201);
+  return ((await res.json()) as { id: string }).id;
+}
+
+const setStage = async (id: string, stage: string) => expect((await patchLead(jsonRequest("PATCH", `/api/leads/${id}`, { stage }, memberCookie), byId(id))).status).toBe(200);
+const convert = (id: string, body: unknown) => postConversion(jsonRequest("POST", `/api/leads/${id}/conversion`, body, memberCookie), byId(id));
+const readOpportunity = async (id: string) => (await getOpportunity(jsonRequest("GET", `/api/opportunites/${id}`, undefined, memberCookie), byId(id))).json() as Promise<Record<string, unknown>>;
 
 const newCompany = async (name: string) => (await createObject("company", { name, type: "prospect" }, { id: memberId })).id;
 
@@ -33,7 +54,10 @@ async function cleanup() {
 beforeAll(async () => {
   await cleanup();
   await db.delete(user).where(eq(user.email, MEMBER.email));
+  await db.delete(user).where(eq(user.email, OWNER.email));
   memberId = (await createUserWithPassword(MEMBER)).id;
+  ownerId = (await createUserWithPassword(OWNER)).id;
+  memberCookie = await sessionCookie(MEMBER.email, MEMBER.password);
 });
 
 beforeEach(cleanup);
@@ -65,5 +89,28 @@ describe("geste de création d'une opportunité (CRM-111, D67)", () => {
     const history = await listHistory("opportunity", created.id);
     expect(history.filter((entry) => entry.field === "stage").map((entry) => [entry.oldValue, entry.newValue])).toEqual([[null, "qualifie"]]);
     expect(history.filter((entry) => entry.action === "creee")).toHaveLength(1);
+  });
+});
+
+describe("convertir un lead qualifié en opportunité (CRM-111, D50, D51, contrat 55)", () => {
+  it("crée l'opportunité « Qualifié » chez Banque X, avec la personne en contact, le besoin, les modules, la clôture et le responsable du lead, liée au lead", async () => {
+    const id = await postNewLead({ firstName: "Julie", lastName: "Martin", companyName: "Banque X", need: "Déploiement HCM pour 3 000 salariés", origin: "linkedin", ownerId });
+    await setStage(id, "qualifie");
+
+    const res = await convert(id, { opportunity: { title: "Besoin Workday · Banque X", modules: ["hcm"], expectedClose: "2026-12-15" } });
+    expect(res.status).toBe(200);
+    const { personId, companyId, opportunityId } = (await res.json()) as { personId: string; companyId: string; opportunityId: string };
+
+    expect(await readOpportunity(opportunityId)).toMatchObject({
+      title: "Besoin Workday · Banque X",
+      stage: "qualifie",
+      companyId,
+      contactPersonId: personId,
+      need: "Déploiement HCM pour 3 000 salariés",
+      modules: ["hcm"],
+      expectedClose: "2026-12-15",
+      ownerId,
+      leadId: id,
+    });
   });
 });
