@@ -63,8 +63,9 @@ export async function createOpportunity(input: unknown, actor: Actor, gesture?: 
     return getObjectRecord(TYPE, created.id);
   }
   const { exec, stage, leadId, customRequired } = gesture;
-  const created = await createObject(TYPE, fields, actor, exec, { customRequired });
-  const [updated] = await exec.update(opportunity).set({ stage, leadId }).where(eq(opportunity.id, created.id)).returning();
+  /* L'étape passe par la validation de la création : une étape inconnue ou réservée (gagnée, perdue) est refusée sous le champ (D67). */
+  const created = await createObject(TYPE, stage === undefined ? fields : { ...fields, stage }, actor, exec, { customRequired });
+  const [updated] = await exec.update(opportunity).set({ leadId }).where(eq(opportunity.id, created.id)).returning();
   return { ...created, ...updated };
 }
 
