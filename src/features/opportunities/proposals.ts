@@ -49,8 +49,11 @@ const archivedRule = (name: string) => `« ${name} » est archivée : restaurez 
 
 const archivedChangeRule = (name: string) => `« ${name} » est archivée : restaurez sa fiche pour modifier sa proposition.`;
 
-/** Une proposition telle que la section et l'API la rendent : le consultant par son nom, son résultat, son TJM proposé. */
-export type Proposal = { personId: string; name: string; result: string; proposedDailyRate: number | null };
+/**
+ * Une proposition telle que la section et l'API la rendent : le consultant par son nom, son résultat,
+ * son TJM proposé. `archived` : le consultant a été archivé après son ajout (D45) — il reste affiché.
+ */
+export type Proposal = { personId: string; name: string; archived: boolean; result: string; proposedDailyRate: number | null };
 
 /** Propositions lues au plus pour la fiche ; le reste s'annonce (« et N autres »). */
 export const PROPOSALS_LIMIT = 50;
@@ -58,13 +61,13 @@ export const PROPOSALS_LIMIT = 50;
 /** Les propositions qui répondent à `where`, la plus ancienne d'abord. Le TJM arrive de la base en décimal écrit (« 650.00 ») : il se lit en nombre. */
 async function proposalsWhere(where: SQL | undefined, limit: number): Promise<Proposal[]> {
   const rows = await db
-    .select({ personId: opportunityConsultant.personId, name: person.name, result: opportunityConsultant.result, proposedDailyRate: opportunityConsultant.proposedDailyRate })
+    .select({ personId: opportunityConsultant.personId, name: person.name, archivedAt: person.archivedAt, result: opportunityConsultant.result, proposedDailyRate: opportunityConsultant.proposedDailyRate })
     .from(opportunityConsultant)
     .innerJoin(person, eq(person.id, opportunityConsultant.personId))
     .where(where)
     .orderBy(asc(opportunityConsultant.createdAt), asc(opportunityConsultant.id))
     .limit(limit);
-  return rows.map((row) => ({ ...row, proposedDailyRate: row.proposedDailyRate === null ? null : Number(row.proposedDailyRate) }));
+  return rows.map(({ archivedAt, ...row }) => ({ ...row, archived: archivedAt !== null, proposedDailyRate: row.proposedDailyRate === null ? null : Number(row.proposedDailyRate) }));
 }
 
 /** Propositions d'une opportunité, la plus ancienne d'abord, bornées. */
