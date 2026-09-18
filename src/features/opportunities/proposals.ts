@@ -149,7 +149,10 @@ export async function addProposal(opportunityId: string, input: unknown, actor: 
   return added;
 }
 
-const NOTHING_TO_CHANGE = "Donnez un résultat ou un TJM de vente proposé.";
+/** La proposition visée n'existe pas : consultant inconnu, ou pas proposé sur cette opportunité. */
+const notProposed = () => new HttpError(404, "proposition_introuvable", "Ce consultant n'est pas proposé sur cette opportunité.");
+
+const NOTHING_TO_CHANGE ="Donnez un résultat ou un TJM de vente proposé.";
 
 /** Ce qu'une modification de proposition règle : son résultat, pris dans la liste fermée, et son TJM de vente proposé, aux bornes du TJM cible (D45). */
 const PROPOSAL_FIELDS: readonly FieldDescriptor[] = [
@@ -166,13 +169,17 @@ export async function changeProposal(opportunityId: string, personId: string, in
   const { values, errors } = validateValues(PROPOSAL_FIELDS, fields, { partial: true });
   if (Object.keys(errors).length > 0) throw invalid(errors);
   if (Object.keys(values).length === 0) throw new HttpError(400, "donnees_invalides", NOTHING_TO_CHANGE);
+  /* Un identifiant mal formé n'atteint jamais Postgres, qui répondrait par une panne (500). */
+  if (!UUID.test(personId)) throw notProposed();
   const record = await getObjectRecord(TYPE, opportunityId);
   /* La colonne est un décimal : le TJM s'y écrit en texte (« 700 »), et un TJM absent de la saisie n'y touche pas. */
   const rate = "proposedDailyRate" in values ? { proposedDailyRate: values.proposedDailyRate === null ? null : String(values.proposedDailyRate) } : {};
-  await db
+  const updated = await db
     .update(opportunityConsultant)
     .set({ ...(values.result ? { result: String(values.result) } : {}), ...rate, updatedAt: new Date() })
-    .where(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)));
+    .where(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)))
+    .returning({ id: opportunityConsultant.id });
+  if (updated.length === 0) throw notProposed();
   const [changed] = await proposalsWhere(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)), 1);
   return changed;
 }
