@@ -421,6 +421,54 @@ if (leadAConvertir.stage !== "qualifie" && leadAConvertir.stage !== "converti" &
 }
 
 // Livraison 4.2b — propositions de consultants sur une opportunité.
+// « Talent Vaubourg » porte trois propositions : Julie Castel « Retenu » à 700 €, Marc Oliveira
+// « Entretien », Karim Benali « Proposé » au TJM cible. Aucune lecture des propositions n'existe par
+// l'API : le bloc ne pose les propositions qu'à la création de l'opportunité, et une relance qui la
+// trouve déjà la laisse telle quelle (retrait ou changement fait à la main en recette compris). Ainsi
+// aucune requête n'est refusée.
+const titrePropositions = "Talent Vaubourg";
+const opportunitesAvantPropositions = await fetch("/api/objets/opportunity?filtres=aucun&archivees=1");
+if (!opportunitesAvantPropositions.ok) {
+  throw new Error(`amorce-recette : lecture des opportunités refusée (${opportunitesAvantPropositions.status}).`);
+}
+if (!(await opportunitesAvantPropositions.json()).records.some((fiche) => fiche.title === titrePropositions)) {
+  const personnesProposees = await fetch("/api/personnes");
+  if (!personnesProposees.ok) {
+    throw new Error(`amorce-recette : lecture des personnes refusée (${personnesProposees.status}).`);
+  }
+  const consultantsParNom = new Map((await personnesProposees.json()).persons.map((personne) => [personne.name, personne.id]));
+  const propositions = [
+    { nom: "Julie Castel", corps: { result: "retenu", proposedDailyRate: 700 } },
+    { nom: "Marc Oliveira", corps: { result: "entretien" } },
+    { nom: "Karim Benali", corps: null },
+  ];
+  const absent = propositions.find(({ nom }) => !consultantsParNom.has(nom));
+  if (absent) {
+    throw new Error(`amorce-recette : consultant ${absent.nom} absent pour l'opportunité ${titrePropositions}.`);
+  }
+  const companyId = clientsParNom.get("Assurances Vaubourg");
+  const creation = await fetch("/api/opportunites", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ title: titrePropositions, companyId, modules: ["talent", "recruiting"], expectedClose: "2026-12-18", targetDailyRate: 680, estimatedDays: 45, need: "Déploiement de Workday Talent et Recruiting pour 1 200 collaborateurs." }),
+  });
+  if (!creation.ok) {
+    throw new Error(`amorce-recette : création de l'opportunité ${titrePropositions} refusée (${creation.status}).`);
+  }
+  const opportuniteId = (await creation.json()).id;
+  for (const { nom, corps } of propositions) {
+    const personId = consultantsParNom.get(nom);
+    const ajout = await fetch(`/api/opportunites/${opportuniteId}/propositions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ personId }) });
+    if (!ajout.ok) {
+      throw new Error(`amorce-recette : proposition de ${nom} refusée (${ajout.status}).`);
+    }
+    if (!corps) continue;
+    const modification = await fetch(`/api/opportunites/${opportuniteId}/propositions/${personId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(corps) });
+    if (!modification.ok) {
+      throw new Error(`amorce-recette : proposition de ${nom} refusée à la modification (${modification.status}).`);
+    }
+  }
+}
 
 // Livraison 4.2c — conversion d'un lead en opportunité.
 
