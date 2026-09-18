@@ -6,6 +6,9 @@ import { HandshakeIcon } from "lucide-react";
 import { registerObject } from "@/features/objects/registry";
 import { LOST_STAGE, OPPORTUNITY_FIELDS, WON_STAGE } from "./schema";
 
+/** Action d'historique d'un ajout de consultant (D46) : le nom du consultant est dans `newValue`. */
+export const PROPOSAL_ADDED_ACTION = "proposition_ajoutee";
+
 registerObject({
   key: "opportunity",
   order: 50,
@@ -24,6 +27,8 @@ registerObject({
   defaultView: { name: "Opportunités en cours", query: `f=stage:n_est_pas:${WON_STAGE}&f=stage:n_est_pas:${LOST_STAGE}&tri=expectedClose:asc` },
   /** D37 : deux opportunités de même titre sont deux affaires — l'API de fusion répond 405 et le menu ne propose pas « Fusionner… ». */
   mergeable: false,
+  /* D46 : les gestes sur les propositions s'écrivent sur l'historique de l'opportunité seulement. */
+  historyActions: { [PROPOSAL_ADDED_ACTION]: (entry) => `Consultant proposé : ${entry.newValue ?? ""}` },
   relations: [
     { to: "company", fkColumn: "companyId", label: "Entreprise", inverseLabel: "Opportunités", prefill: "companyId" },
     { to: "person", fkColumn: "contactPersonId", label: "Contact", inverseLabel: "Opportunités" },
