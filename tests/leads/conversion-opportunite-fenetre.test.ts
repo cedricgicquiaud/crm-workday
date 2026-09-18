@@ -4,6 +4,7 @@ import { GET as getPreview } from "@/app/api/leads/[id]/conversion/route";
 import { POST as postLead } from "@/app/api/leads/route";
 import { auditLog, lead, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { defaultOpportunityTitle } from "@/features/leads/convert-dialog";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
@@ -55,5 +56,17 @@ describe("case « Créer une opportunité » de l'aperçu (CRM-111, CRM-113, D50
 
     expect((await previewOf(empty)).createsOpportunity).toBe(false);
     expect((await previewOf(blank)).createsOpportunity).toBe(false);
+  });
+});
+
+describe("titre pré-rempli de l'opportunité (CRM-111, CRM-112, D50, contrats 55 et 56)", () => {
+  it("s'écrit « Besoin Workday · <entreprise de la conversion> »", () => {
+    expect(defaultOpportunityTitle("Banque X")).toBe("Besoin Workday · Banque X");
+    expect(defaultOpportunityTitle("Acme")).toBe("Besoin Workday · Acme");
+  });
+
+  it("se coupe à 120 caractères pour une entreprise au nom très long", () => {
+    /* « Besoin Workday · » et son espace font 17 caractères : il reste 103 caractères du nom. */
+    expect(defaultOpportunityTitle("A".repeat(130))).toBe(`Besoin Workday · ${"A".repeat(103)}`);
   });
 });
