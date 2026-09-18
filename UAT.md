@@ -449,7 +449,19 @@ Préparation : `npm run db:migrate` (migration 0012 : les tables des opportunit�
 
 #### Les propositions
 
-Préparation : livraison 4.2b — à remplir avec elle.
+Préparation : `npm run dev`. Créer une opportunité « Refonte Payroll » chez « Banque X » avec un « TJM de vente cible » de `650`, et une seconde « Audit Finance » sans TJM cible. Créer, depuis « Nouveau consultant » sur `http://localhost:3000/consultants`, trois consultants freelances : `Julie` `Martin`, `Chloé` `Dupont`, et `Marc` `Petit`, puis sur la fiche de Marc, « Profil consultant », une date « Disponible à partir du » dans un mois (il est « En mission »). Créer aussi une personne `Paul` `Durand` sans profil consultant, et un consultant `Iris` `Blanc` que l'on archive (« Actions » → « Archiver »).
+
+- [ ] Section : sur la fiche « Refonte Payroll », sous « Champs », la section « Consultants proposés » s'affiche avec « Aucun consultant proposé. » et le bouton « Ajouter un consultant ».
+- [ ] Contrat 51 — choix proposé : « Ajouter un consultant » ouvre le sélecteur « Consultant » : il propose Chloé Dupont, Julie Martin et Marc Petit, chacun suivi de son état (« Chloé Dupont · Disponible », « Marc Petit · En mission · disponible le … »). Ni Iris Blanc (archivée) ni Paul Durand (sans profil consultant) ne sont proposés.
+- [ ] Contrat 51 — ajout de trois consultants : choisir Marc Petit (en mission) : il apparaît dans la section avec « Proposé » et « 650,00 € ». Ajouter de même Julie Martin puis Chloé Dupont : chacun apparaît « Proposé » à « 650,00 € ». Rouvrir « Ajouter un consultant » : aucun des trois n'est plus proposé.
+- [ ] Contrat 51 — historique : le fil d'activité de « Refonte Payroll » montre trois lignes « Consultant proposé : Marc Petit », « … Julie Martin », « … Chloé Dupont », avec votre nom et l'heure. La fiche de Julie Martin n'en montre aucune.
+- [ ] Contrat 51 — sans TJM cible : sur « Audit Finance », ajouter Julie Martin : elle apparaît « Proposé » avec « — » en TJM.
+- [ ] Sélecteur borné : non jouable à la main sans 201 consultants. Lancer `npm test -- tests/opportunites/propositions.test.ts` : le cas « borne les consultants proposés et compte ceux qui restent » passe (sous le sélecteur, « et N autres » s'affiche au-delà de 200).
+- [ ] Contrat 53 — personne sans profil consultant : `POST http://localhost:3000/api/opportunites/<id de Refonte Payroll>/propositions` avec `{"personId":"<id de Paul Durand>"}` répond `400` avec « Seul un consultant se propose sur une opportunité : « Paul Durand » n'a pas de profil consultant. », et la section ne change pas.
+- [ ] Contrat 53 — même consultant deux fois : le même appel avec l'identifiant de Julie Martin, déjà proposée, répond `409` avec « « Julie Martin » figure déjà parmi les consultants proposés. » ; le fil ne gagne aucune ligne.
+- [ ] Contrat 53 — consultant archivé : le même appel avec l'identifiant d'Iris Blanc répond `409` avec « « Iris Blanc » est archivée : restaurez sa fiche pour la proposer. ».
+- [ ] Entrée refusée : le même appel avec `{"personId":"<id de Chloé>","result":"retenu"}` répond `400` avec « « result » ne se donne pas à l'ajout d'un consultant. » ; avec `{}` ou `{"personId":"julie"}`, `400` avec « Choisissez un consultant. ». Sur une opportunité archivée, l'ajout répond `409` et la section n'offre plus « Ajouter un consultant ».
+- [ ] Contrat 60 — 375 px : fenêtre à 375 px sur la fiche « Refonte Payroll » : en descendant sous « Champs », la section « Consultants proposés » et son bouton « Ajouter un consultant » sont atteignables, les noms longs se coupent par « … », et la page ne défile pas horizontalement.
 
 #### La conversion d'un lead en opportunité
 
