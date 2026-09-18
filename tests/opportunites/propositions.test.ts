@@ -185,6 +185,43 @@ describe("historique d'un ajout (CRM-107, D46)", () => {
   });
 });
 
+/** D46, contrat 51 : chaque changement de résultat, de TJM proposé et chaque retrait écrit une ligne sur l'opportunité seulement, au nom du consultant. */
+describe("historique des gestes sur une proposition (CRM-108, D46)", () => {
+  /* Contrat 51 : Entretien puis Retenu, TJM passé à 700, un autre retiré — une ligne par geste. */
+  it("écrit une ligne par changement de résultat, de TJM proposé et par retrait", async () => {
+    const opportunityId = await createOpportunity({ targetDailyRate: 650 });
+    const julie = await consultant("Julie", "Martin");
+    const marc = await consultant("Marc", "Petit");
+    await propose(opportunityId, { personId: julie });
+    await propose(opportunityId, { personId: marc });
+
+    await change(opportunityId, julie, { result: "entretien" });
+    await change(opportunityId, julie, { result: "retenu" });
+    await change(opportunityId, julie, { proposedDailyRate: 700 });
+    await withdraw(opportunityId, marc);
+
+    expect((await changes("opportunity", opportunityId)).slice(0, 4)).toEqual([
+      "Consultant retiré : Marc Petit",
+      "Julie Martin : TJM de vente proposé 650,00 € → 700,00 €",
+      "Julie Martin : Entretien → Retenu",
+      "Julie Martin : Proposé → Entretien",
+    ]);
+  });
+
+  it("n'écrit rien sur la fiche du consultant quand son résultat, son TJM proposé changent et qu'il est retiré", async () => {
+    const opportunityId = await createOpportunity({ targetDailyRate: 650 });
+    const julie = await consultant("Julie", "Martin");
+    await propose(opportunityId, { personId: julie });
+    const before = await changes("person", julie);
+
+    await change(opportunityId, julie, { result: "entretien" });
+    await change(opportunityId, julie, { proposedDailyRate: 700 });
+    await withdraw(opportunityId, julie);
+
+    expect(await changes("person", julie)).toEqual(before);
+  });
+});
+
 /** D44, contrat 51 : « Ajouter un consultant » ne propose que les consultants actifs qui ne sont pas encore sur l'opportunité. */
 describe("consultants proposés par « Ajouter un consultant » (CRM-107, D44)", () => {
   it("propose Chloé et Julie, pas Marc déjà proposé, ni Iris archivée, ni Paul sans profil consultant", async () => {
