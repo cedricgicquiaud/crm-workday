@@ -103,4 +103,16 @@ describe("entrée de l'ajout (CRM-107, D55)", () => {
     expect(await res.json()).toMatchObject({ fields: { result: "« result » ne se donne pas à l'ajout d'un consultant." } });
     expect(await listProposals(opportunityId)).toEqual([]);
   });
+
+  it.each([
+    ["absent", {}],
+    ["mal formé", { personId: "julie" }],
+    ["d'un autre type", { personId: 42 }],
+    ["inconnu", { personId: "00000000-0000-4000-8000-000000000000" }],
+  ])("répond 400 sous « personId » pour un consultant %s", async (_case, input) => {
+    const res = await propose(opportunityId, input);
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ fields: { personId: "Choisissez un consultant." } });
+  });
 });
