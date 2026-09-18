@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { auditLog, company, consultantModule, consultantProfile, opportunity, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createConsultant } from "@/features/consultants/consultants";
-import { linkedGroups } from "@/features/objects/links-column";
+import { LINKED_RECORDS_LIMIT, linkedGroups } from "@/features/objects/links-column";
 import { createObject, updateObject } from "@/features/objects/service";
 import { addProposal, changeProposal } from "@/features/opportunities/proposals";
 import { createPerson } from "@/features/persons/persons";
@@ -86,5 +86,17 @@ describe("colonne des liens du consultant proposé (CRM-109, D47, D54)", () => {
 
     expect((await group("person", julie, "Opportunités proposées"))?.records.map((record) => record.subtitle)).toEqual(["Entretien"]);
     expect((await group("company", bankId, "Opportunités"))?.records.map((record) => record.subtitle)).toEqual(["Entretien client"]);
+  });
+
+  it("n'affiche que les vingt dernières opportunités proposées et compte les autres", async () => {
+    const julie = await consultant("Julie", "Martin");
+    const total = LINKED_RECORDS_LIMIT + 3;
+    for (let rang = 1; rang <= total; rang += 1) {
+      await addProposal(await createOpportunity({ title: `Opportunité ${rang}` }), { personId: julie }, { id: memberId });
+    }
+
+    const proposed = await group("person", julie, "Opportunités proposées");
+    expect(proposed?.records).toHaveLength(LINKED_RECORDS_LIMIT);
+    expect(proposed?.more).toBe(3);
   });
 });
