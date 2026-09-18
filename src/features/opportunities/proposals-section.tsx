@@ -51,19 +51,21 @@ function ProposalRow({ opportunityId, proposal, readOnly }: { opportunityId: str
   const [errors, setErrors] = useState<Record<string, string>>({});
   const url = `/api/opportunites/${encodeURIComponent(opportunityId)}/propositions/${encodeURIComponent(proposal.personId)}`;
 
-  /** Enregistre un changement ; rend vrai si le serveur l'a accepté. */
-  async function save(change: Change): Promise<boolean> {
-    const key = Object.keys(change)[0];
+  /**
+   * Envoie une écriture sur la proposition ; rend vrai si le serveur l'a acceptée. Un refus s'affiche
+   * sous `key` (le champ, ou la ligne pour un retrait), le message du champ d'abord, `failed` à défaut.
+   */
+  async function send(init: RequestInit, key: string, failed: string): Promise<boolean> {
     let res: Response;
     try {
-      res = await fetch(url, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(change) });
+      res = await fetch(url, init);
     } catch {
-      setErrors({ [key]: CHANGE_FAILED });
+      setErrors({ [key]: failed });
       return false;
     }
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as Failure | null;
-      setErrors({ [key]: body?.fields?.[key] ?? body?.message ?? CHANGE_FAILED });
+      setErrors({ [key]: body?.fields?.[key] ?? body?.message ?? failed });
       return false;
     }
     setErrors({});
@@ -71,23 +73,10 @@ function ProposalRow({ opportunityId, proposal, readOnly }: { opportunityId: str
     return true;
   }
 
-  /** Retire la proposition ; la ligne ne part qu'après la réponse 2xx, un refus s'affiche sous elle. */
-  async function withdraw() {
-    let res: Response;
-    try {
-      res = await fetch(url, { method: "DELETE" });
-    } catch {
-      setErrors({ withdraw: WITHDRAW_FAILED });
-      return;
-    }
-    if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as Failure | null;
-      setErrors({ withdraw: body?.message ?? WITHDRAW_FAILED });
-      return;
-    }
-    setErrors({});
-    router.refresh();
-  }
+  const save = (change: Change) => send({ method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(change) }, Object.keys(change)[0], CHANGE_FAILED);
+
+  /* La ligne ne part qu'après la réponse 2xx ; un refus s'affiche sous elle. */
+  const withdraw = () => send({ method: "DELETE" }, "withdraw", WITHDRAW_FAILED);
 
   const rate = proposal.proposedDailyRate;
   return (
