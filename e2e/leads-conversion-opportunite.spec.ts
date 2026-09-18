@@ -126,3 +126,39 @@ test.describe("convertir en gardant une entreprise existante (CRM-112, contrat 5
     await expect(memberPage.getByRole("region", { name: "Entreprise", exact: true }).getByRole("link", { name: acmeName })).toBeVisible();
   });
 });
+
+test.describe("convertir sans opportunité (CRM-113, contrat 57)", () => {
+  test("un lead sans besoin ouvre la fenêtre case décochée, sans titre, modules ni clôture ; confirmée, la conversion est celle de 4.1, sans opportunité", async ({ memberPage }) => {
+    const mark = tag();
+    const company = named("Banque Sans Besoin", mark);
+    const id = await createLead(memberPage, { firstName: "Paul", lastName: "Leroy", companyName: company, origin: "linkedin" });
+
+    const dialog = await openConversion(memberPage, id);
+    await expect(opportunityBox(dialog)).not.toBeChecked();
+    await expect(titleInput(dialog)).toHaveCount(0);
+    await expect(dialog.getByRole("group", { name: "Modules Workday" })).toHaveCount(0);
+    await expect(closeInput(dialog)).toHaveCount(0);
+    await confirm(memberPage, id, dialog);
+    await expect(dialog).toHaveCount(0);
+
+    const banner = memberPage.getByRole("status").filter({ hasText: "Converti le" });
+    await expect(banner.getByRole("link")).toHaveText(["Paul Leroy", company]);
+    await expect(memberPage.getByRole("region", { name: "Opportunité", exact: true })).toHaveCount(0);
+  });
+
+  test("un lead avec besoin dont on décoche la case après avoir saisi un titre se convertit sans opportunité", async ({ memberPage }) => {
+    const mark = tag();
+    const company = named("Banque Décochée", mark);
+    const id = await createLead(memberPage, { firstName: "Nina", lastName: "Morel", companyName: company, need: "Paie", origin: "linkedin" });
+
+    const dialog = await openConversion(memberPage, id);
+    await titleInput(dialog).fill(`Titre saisi ${mark} (e2e)`);
+    await opportunityBox(dialog).click();
+    await expect(titleInput(dialog)).toHaveCount(0);
+    await confirm(memberPage, id, dialog);
+    await expect(dialog).toHaveCount(0);
+
+    await expect(memberPage.getByRole("status").filter({ hasText: "Converti le" }).getByRole("link")).toHaveText(["Nina Morel", company]);
+    await expect(memberPage.getByRole("region", { name: "Opportunité", exact: true })).toHaveCount(0);
+  });
+});
