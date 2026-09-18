@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FieldControl } from "@/features/objects/field-control";
 import { EMPTY, formatNumber } from "@/features/objects/labels";
@@ -79,12 +80,19 @@ function ProposalRow({ opportunityId, proposal, readOnly }: { opportunityId: str
   const withdraw = () => send({ method: "DELETE" }, "withdraw", WITHDRAW_FAILED);
 
   const rate = proposal.proposedDailyRate;
+  /* Un consultant archivé après son ajout ne se modifie plus (D45) : son résultat et son TJM se lisent, sa proposition se retire. */
+  const locked = readOnly || proposal.archived;
   return (
     <li className="grid min-w-0 gap-2 text-sm">
       <div className="flex min-w-0 items-center gap-2">
         <Link href={`/personnes/${proposal.personId}`} title={proposal.name} className="min-w-0 flex-1 truncate font-medium hover:underline focus-visible:rounded-sm">
           {proposal.name}
         </Link>
+        {proposal.archived && (
+          <Badge variant="outline" className="shrink-0 border-border">
+            archivé
+          </Badge>
+        )}
         {!readOnly && (
           <Button type="button" variant="ghost" size="sm" className="shrink-0" aria-label={`Retirer ${proposal.name}`} onClick={() => void withdraw()}>
             Retirer
@@ -100,7 +108,7 @@ function ProposalRow({ opportunityId, proposal, readOnly }: { opportunityId: str
           value={proposal.result}
           options={RESULT_OPTIONS}
           display={resultLabel(proposal.result)}
-          readOnly={readOnly}
+          readOnly={locked}
           error={errors.result}
           onSave={(result) => save({ result })}
         />
@@ -111,7 +119,7 @@ function ProposalRow({ opportunityId, proposal, readOnly }: { opportunityId: str
           kind="number"
           value={rate === null ? "" : String(rate)}
           display={rate === null ? EMPTY : formatNumber(RATE_FIELD, rate)}
-          readOnly={readOnly}
+          readOnly={locked}
           error={errors.proposedDailyRate}
           onSave={(raw) => save({ proposedDailyRate: rateInput(raw) })}
         />
