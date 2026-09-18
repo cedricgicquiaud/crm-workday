@@ -129,6 +129,23 @@ test.describe("faire avancer une proposition sur la fiche (CRM-108, D45, D46, co
     await expect(row.getByRole("alert")).toHaveText(`« Julie ${named("Martin", mark)} » est déjà retenu sur cette opportunité : changez d'abord son résultat.`);
     await expect(row.getByRole("combobox", { name: "Résultat" })).toContainText("Proposé");
   });
+
+  test("Julie, retenue, se retire depuis la section : sa ligne part et l'historique le dit", async ({ memberPage }) => {
+    const mark = tag();
+    const id = await createOpportunity(memberPage, mark);
+    const julie = `Julie ${named("Martin", mark)}`;
+    const julieId = await createConsultant(memberPage, "Julie", named("Martin", mark));
+    await propose(memberPage, id, julieId);
+    expect((await memberPage.request.patch(`/api/opportunites/${id}/propositions/${julieId}`, { data: { result: "retenu" } })).status()).toBe(200);
+    await memberPage.goto(`/opportunites/${id}`);
+
+    const section = memberPage.getByRole("region", { name: "Consultants proposés" });
+    const response = await answered(memberPage, id, "DELETE", () => section.getByRole("button", { name: `Retirer ${julie}` }).click());
+    expect(response.status()).toBe(200);
+
+    await expect(section.getByRole("listitem").filter({ hasText: julie })).toHaveCount(0);
+    await expect(memberPage.getByText(`Consultant retiré : ${julie}`)).toBeVisible();
+  });
 });
 
 test.describe("section « Consultants proposés » à 375 px (CRM-107, D49, contrat 60)", () => {
