@@ -166,11 +166,19 @@ export async function LinksColumn({ type, id, className, readOnly = false }: { t
             ) : (
               <ul className="grid gap-0.5">
                 {group.records.map((record) => (
-                  <li key={record.id} className="min-w-0 truncate text-sm" title={record.archived ? `${record.title} (${record.archived})` : record.title}>
-                    <Link href={record.href} className="hover:underline focus-visible:rounded-sm">
-                      {record.title}
-                    </Link>
-                    {record.archived && <span className="text-xs text-muted-foreground">{` (${record.archived})`}</span>}
+                  <li key={record.id} className="grid min-w-0 text-sm">
+                    <span className="truncate" title={record.archived ? `${record.title} (${record.archived})` : record.title}>
+                      <Link href={record.href} className="hover:underline focus-visible:rounded-sm">
+                        {record.title}
+                      </Link>
+                      {record.archived && <span className="text-xs text-muted-foreground">{` (${record.archived})`}</span>}
+                    </span>
+                    {/* L'étape d'une opportunité, le résultat d'une proposition (D61) : sous le titre, pour qu'un titre long ne le cache pas. */}
+                    {record.subtitle && (
+                      <span className="truncate text-xs text-muted-foreground" title={record.subtitle}>
+                        {record.subtitle}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
