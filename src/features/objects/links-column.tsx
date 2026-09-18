@@ -75,7 +75,9 @@ async function recordsThrough(objectKey: string, dependent: DependentTable, link
     .orderBy(desc(columns.updatedAt), desc(columns.id))
     .limit(LINKED_RECORDS_LIMIT);
   const records = rows.map((row) => linkedRecord(objectKey, row, subtitle ? subtitleOf(subtitle, row.subtitle) : undefined));
-  return { records, more: 0 };
+  if (records.length < LINKED_RECORDS_LIMIT) return { records, more: 0 };
+  const [total] = await db.select({ value: count() }).from(dependent.table).innerJoin(table, eq(columns.id, through[dependent.fkColumn])).where(linked);
+  return { records, more: Math.max(Number(total?.value ?? records.length) - records.length, 0) };
 }
 
 /** La fiche désignée par la clé étrangère d'une relation (une au plus), ou rien si la colonne est vide. */
@@ -125,8 +127,8 @@ export async function linkedGroups(type: string, id: string): Promise<LinkedGrou
         (getServerObject(object.key).dependents ?? []).flatMap((dependent) => (dependent.links?.to === type ? [{ object, dependent, links: dependent.links }] : [])),
       )
       .map(async ({ object, dependent, links }) => {
-        const { records } = await recordsThrough(object.key, dependent, links, id);
-        return { key: `${object.key}-${links.fkColumn}`, label: links.label, records };
+        const { records, more } = await recordsThrough(object.key, dependent, links, id);
+        return { key: `${object.key}-${links.fkColumn}`, label: links.label, records, ...(more > 0 ? { more } : {}) };
       }),
   );
   /* Un groupe lu par une table dépendante ne dit rien à qui n'y figure pas (une personne jamais proposée) : vide, il ne s'affiche pas. */
