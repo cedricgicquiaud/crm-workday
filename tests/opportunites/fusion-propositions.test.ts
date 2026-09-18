@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { activity, auditLog, company, consultantModule, consultantProfile, contactProfile, customFieldValue, emailLog, objectRedirect, opportunity, person, personEmail, user } from "@/db/schema";
+import { archiveRecord } from "@/features/archive/archive";
 import { deleteRecord, type DeleteBlocker } from "@/features/archive/delete";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createConsultant } from "@/features/consultants/consultants";
@@ -102,6 +103,18 @@ describe("suppression définitive d'une fiche liée à une opportunité (CRM-110
     const julie = await consultant("Julie", "Martin");
     await addProposal(await createOpportunity(), { personId: julie }, actor());
 
+    expect(await blockersOf("person", julie)).toContainEqual({ key: "opportunity_consultant", label: "Opportunités proposées", count: 1, titles: ["Refonte Payroll"] });
+  });
+
+  it("refuse encore (409) de supprimer l'entreprise, le contact et le consultant proposé quand l'opportunité est archivée : archiver ne délie pas", async () => {
+    const contact = await newPerson("Paul", "Lefort");
+    const julie = await consultant("Julie", "Martin");
+    const opportunityId = await createOpportunity({ contactPersonId: contact });
+    await addProposal(opportunityId, { personId: julie }, actor());
+    await archiveRecord("opportunity", opportunityId, actor());
+
+    expect(await blockersOf("company", bankId)).toContainEqual({ key: "opportunity-companyId", label: "Opportunités", count: 1, titles: ["Refonte Payroll"] });
+    expect(await blockersOf("person", contact)).toContainEqual({ key: "opportunity-contactPersonId", label: "Opportunités", count: 1, titles: ["Refonte Payroll"] });
     expect(await blockersOf("person", julie)).toContainEqual({ key: "opportunity_consultant", label: "Opportunités proposées", count: 1, titles: ["Refonte Payroll"] });
   });
 });
