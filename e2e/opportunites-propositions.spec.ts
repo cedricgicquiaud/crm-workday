@@ -169,6 +169,34 @@ test.describe("faire avancer une proposition sur la fiche (CRM-108, D45, D46, co
   });
 });
 
+test.describe("retrouver l'opportunité depuis la colonne des liens (CRM-109, D47, D61, contrat 52)", () => {
+  test("la fiche de Julie, retenue, montre l'opportunité avec « Retenu » sous « Opportunités proposées », et le lien mène à l'opportunité", async ({ memberPage }) => {
+    const mark = tag();
+    const id = await createOpportunity(memberPage, mark);
+    const julieId = await createConsultant(memberPage, "Julie", named("Martin", mark));
+    await propose(memberPage, id, julieId);
+    expect((await memberPage.request.patch(`/api/opportunites/${id}/propositions/${julieId}`, { data: { result: "retenu" } })).status()).toBe(200);
+    await memberPage.goto(`/personnes/${julieId}`);
+
+    const proposed = memberPage.getByRole("region", { name: "Liens" }).getByRole("region", { name: "Opportunités proposées" });
+    const item = proposed.getByRole("listitem").filter({ hasText: named("Refonte Payroll", mark) });
+    await expect(item.getByText("Retenu", { exact: true })).toBeVisible();
+    await Promise.all([memberPage.waitForURL(`**/opportunites/${id}`), item.getByRole("link", { name: named("Refonte Payroll", mark) }).click()]);
+    await expect(memberPage.getByRole("heading", { level: 1, name: named("Refonte Payroll", mark) })).toBeVisible();
+  });
+
+  test("la fiche de l'entreprise montre l'opportunité avec son étape « Négociation » sous « Opportunités »", async ({ memberPage }) => {
+    const mark = tag();
+    const id = await createOpportunity(memberPage, mark, { stage: "negociation" });
+    const { companyId } = (await (await memberPage.request.get(`/api/opportunites/${id}`)).json()) as { companyId: string };
+    await memberPage.goto(`/entreprises/${companyId}`);
+
+    const opportunities = memberPage.getByRole("region", { name: "Liens" }).getByRole("region", { name: "Opportunités", exact: true });
+    const item = opportunities.getByRole("listitem").filter({ hasText: named("Refonte Payroll", mark) });
+    await expect(item.getByText("Négociation", { exact: true })).toBeVisible();
+  });
+});
+
 test.describe("section « Consultants proposés » à 375 px (CRM-107, D49, contrat 60)", () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
