@@ -4,10 +4,10 @@
  * hors des mécanismes communs (suppression, fusion), qui la lisent par sa déclaration.
  */
 import { asc, eq } from "drizzle-orm";
-import { opportunityConsultant, person } from "@/db/schema";
+import { opportunity, opportunityConsultant, person } from "@/db/schema";
 import { personsWithConsultantProfile } from "@/features/consultants/consultant-profile";
 import { recordHistory } from "@/features/history/history";
-import { getObjectRecord, type Actor } from "@/features/objects/service";
+import { assertWritable, getObjectRecord, type Actor } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { PROPOSAL_ADDED_ACTION } from "./register";
@@ -60,13 +60,15 @@ function readAddition(input: unknown): string {
 /**
  * Ajoute un consultant à une opportunité (D44) : « Proposé », au TJM de vente cible de l'opportunité
  * (D45). La proposition et sa ligne d'historique, sur l'opportunité seulement (D46), s'écrivent ensemble.
- * La personne se relit dans la transaction, verrouillée en partage : archivée entre la lecture et
- * l'écriture, elle serait proposée quand même.
+ * L'opportunité et la personne se relisent dans la transaction, verrouillées en partage : archivée
+ * entre la lecture et l'écriture, l'une ou l'autre serait écrite quand même.
  */
 export async function addProposal(opportunityId: string, input: unknown, actor: Actor): Promise<Proposal> {
   const personId = readAddition(input);
   const record = await getObjectRecord(TYPE, opportunityId);
   await db.transaction(async (tx) => {
+    const [locked] = await tx.select({ archivedAt: opportunity.archivedAt, targetDailyRate: opportunity.targetDailyRate }).from(opportunity).where(eq(opportunity.id, record.id)).limit(1).for("share");
+    assertWritable(TYPE, { ...record, ...locked });
     const [consultant] = await tx.select({ name: person.name, archivedAt: person.archivedAt }).from(person).where(eq(person.id, personId)).limit(1).for("share");
     if (!consultant) throw invalid({ personId: CONSULTANT_REQUIRED });
     if (consultant.archivedAt) throw new HttpError(409, "consultant_archive", archivedRule(consultant.name), { personId });
@@ -74,7 +76,7 @@ export async function addProposal(opportunityId: string, input: unknown, actor: 
     /* L'unicité du couple tranche, même entre deux ajouts simultanés : aucune ligne insérée, c'est un doublon. */
     const inserted = await tx
       .insert(opportunityConsultant)
-      .values({ opportunityId: record.id, personId, proposedDailyRate: record.targetDailyRate == null ? null : String(record.targetDailyRate) })
+      .values({ opportunityId: record.id, personId, proposedDailyRate: locked.targetDailyRate })
       .onConflictDoNothing()
       .returning({ id: opportunityConsultant.id });
     if (inserted.length === 0) throw new HttpError(409, "deja_proposee", alreadyProposedRule(consultant.name), { personId });
