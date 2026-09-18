@@ -116,3 +116,16 @@ describe("entrée de l'ajout (CRM-107, D55)", () => {
     expect(await res.json()).toMatchObject({ fields: { personId: "Choisissez un consultant." } });
   });
 });
+
+/** D21, D55 : l'opportunité visée existe, n'est pas archivée, et le membre est connecté. */
+describe("opportunité visée par l'ajout (CRM-107, D55)", () => {
+  it("répond 409 sur une opportunité archivée, et ne propose rien", async () => {
+    const julie = await consultant("Julie", "Martin");
+    await archiveRecord("opportunity", opportunityId, { id: memberId });
+
+    const res = await propose(opportunityId, { personId: julie });
+
+    expect(res.status).toBe(409);
+    expect(await listProposals(opportunityId)).toEqual([]);
+  });
+});
