@@ -123,6 +123,27 @@ describe("entrée de l'ajout (CRM-107, D55)", () => {
   });
 });
 
+/** D45, contrat 53 : un seul consultant « Retenu » par opportunité. */
+describe("refus d'un second « Retenu » (CRM-108, D45)", () => {
+  it("répond 409 en nommant Julie Martin, retenue, quand Marc Petit passe à « Retenu », et le laisse « Entretien »", async () => {
+    const julie = await consultant("Julie", "Martin");
+    const marc = await consultant("Marc", "Petit");
+    await propose(opportunityId, { personId: julie });
+    await propose(opportunityId, { personId: marc });
+    await change(opportunityId, julie, { result: "retenu" });
+    await change(opportunityId, marc, { result: "entretien" });
+
+    const res = await change(opportunityId, marc, { result: "retenu" });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ message: "« Julie Martin » est déjà retenu sur cette opportunité : changez d'abord son résultat." });
+    expect((await listProposals(opportunityId)).map(({ name, result }) => [name, result])).toEqual([
+      ["Julie Martin", "retenu"],
+      ["Marc Petit", "entretien"],
+    ]);
+  });
+});
+
 /** D45, contrat 53 : le TJM de vente proposé a les bornes du TJM cible — plus de 0, 5 000 au plus, deux décimales au plus. */
 describe("refus d'un TJM proposé hors bornes (CRM-108, D45)", () => {
   it.each([
