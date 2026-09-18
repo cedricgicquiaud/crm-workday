@@ -3,7 +3,7 @@
  * son résultat et son TJM de vente proposé. Ce module est la seule écriture de `opportunity_consultant`
  * hors des mécanismes communs (suppression, fusion), qui la lisent par sa déclaration.
  */
-import { and, asc, eq, exists, isNull, not } from "drizzle-orm";
+import { and, asc, count, eq, exists, isNull, not } from "drizzle-orm";
 import { consultantProfile, opportunity, opportunityConsultant, person } from "@/db/schema";
 import { personsWithConsultantProfile } from "@/features/consultants/consultant-profile";
 import { recordHistory } from "@/features/history/history";
@@ -57,14 +57,18 @@ export async function listProposalCandidates(opportunityId: string, { limit = RE
       .from(opportunityConsultant)
       .where(and(eq(opportunityConsultant.opportunityId, opportunityId), eq(opportunityConsultant.personId, person.id))),
   );
+  const where = and(isNull(person.archivedAt), not(alreadyProposed));
   const options = await db
     .select({ id: person.id, name: person.name })
     .from(person)
     .innerJoin(consultantProfile, eq(consultantProfile.personId, person.id))
-    .where(and(isNull(person.archivedAt), not(alreadyProposed)))
+    .where(where)
     .orderBy(asc(person.name), asc(person.id))
     .limit(limit);
-  return { options, more: 0 };
+  /* Le compte n'est demandé que si la borne est atteinte : en dessous, les consultants chargés sont tous ceux qui existent. */
+  if (options.length < limit) return { options, more: 0 };
+  const [total] = await db.select({ value: count() }).from(person).innerJoin(consultantProfile, eq(consultantProfile.personId, person.id)).where(where);
+  return { options, more: Math.max(Number(total?.value ?? options.length) - options.length, 0) };
 }
 
 /**
