@@ -1,17 +1,23 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { auditLog, company, person, user } from "@/db/schema";
+import { auditLog, company, consultantModule, consultantProfile, opportunity, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { createConsultant } from "@/features/consultants/consultants";
 import { LINKED_RECORDS_LIMIT, linkedGroups } from "@/features/objects/links-column";
 import { createObject } from "@/features/objects/service";
+import { addProposal } from "@/features/opportunities/proposals";
 import { createPerson, updatePerson } from "@/features/persons/persons";
 import { closeDb, db } from "@/lib/db";
 
 const ACTOR = { email: "acteur-liens@exemple.fr", firstName: "Nora", lastName: "Blanc", password: "MotDePasse-Liens-1", role: "membre" as const };
 let actorId: string;
 
+/** Les enfants avant les parents : l'opportunité (et ses propositions, en cascade) retient ses personnes et son entreprise. */
 async function cleanup() {
   await db.delete(auditLog);
+  await db.delete(opportunity);
+  await db.delete(consultantModule);
+  await db.delete(consultantProfile);
   await db.delete(person);
   await db.delete(company);
 }
@@ -90,5 +96,23 @@ describe("colonne des liens — liste bornée (CRM-42, D4)", () => {
     const [peu] = await linkedGroups("company", petite.id);
     expect(peu.records).toHaveLength(1);
     expect(peu.more).toBeUndefined();
+  });
+});
+
+/** D47, D65 : seuls le contact et les consultants proposés voient l'opportunité ; une autre personne n'en voit aucune. */
+describe("colonne des liens — opportunités d'une personne (CRM-109, D47)", () => {
+  it("une personne qui n'est ni contact ni proposée ne montre aucune opportunité, à côté d'une opportunité qui a son contact et son consultant proposé", async () => {
+    const banque = await createObject("company", { name: "Banque Voisine", type: "client" }, { id: actorId });
+    const contact = await createPerson({ firstName: "Léa", lastName: "Contact", companyId: banque.id }, { id: actorId });
+    const proposed = (await createConsultant({ firstName: "Julie", lastName: "Martin", status: "freelance" }, { id: actorId })).id;
+    const opportunityId = (await createObject("opportunity", { title: "Refonte Payroll", companyId: banque.id, contactPersonId: contact.id, modules: ["payroll"], expectedClose: "2026-10-30" }, { id: actorId })).id;
+    await addProposal(opportunityId, { personId: proposed }, { id: actorId });
+    const bystander = await createPerson({ firstName: "Sans", lastName: "Lien" }, { id: actorId });
+
+    expect(await linkedGroups("person", bystander.id)).toEqual([
+      { key: "person-company-companyId", label: "Entreprise", records: [] },
+      { key: "person-company-billingCompanyId", label: "Société de facturation", records: [] },
+      { key: "opportunity-contactPersonId", label: "Opportunités", records: [] },
+    ]);
   });
 });
