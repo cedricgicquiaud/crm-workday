@@ -3,7 +3,7 @@
  * son résultat et son TJM de vente proposé. Ce module est la seule écriture de `opportunity_consultant`
  * hors des mécanismes communs (suppression, fusion), qui la lisent par sa déclaration.
  */
-import { and, asc, count, eq, exists, isNull, not, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, exists, isNull, ne, not, type SQL } from "drizzle-orm";
 import { consultantProfile, opportunity, opportunityConsultant, person } from "@/db/schema";
 import { parisDay } from "@/features/activities/overdue";
 import { personsWithConsultantProfile } from "@/features/consultants/consultant-profile";
@@ -152,7 +152,11 @@ export async function addProposal(opportunityId: string, input: unknown, actor: 
 /** La proposition visée n'existe pas : consultant inconnu, ou pas proposé sur cette opportunité. */
 const notProposed = () => new HttpError(404, "proposition_introuvable", "Ce consultant n'est pas proposé sur cette opportunité.");
 
-const NOTHING_TO_CHANGE = "Donnez un résultat ou un TJM de vente proposé.";
+const RETAINED = "retenu";
+
+const alreadyRetainedRule = (name: string) => `« ${name} » est déjà retenu sur cette opportunité : changez d'abord son résultat.`;
+
+const NOTHING_TO_CHANGE ="Donnez un résultat ou un TJM de vente proposé.";
 
 /** Ce qu'une modification de proposition règle : son résultat, pris dans la liste fermée, et son TJM de vente proposé, aux bornes du TJM cible (D45). */
 const PROPOSAL_FIELDS: readonly FieldDescriptor[] = [
@@ -177,6 +181,16 @@ export async function changeProposal(opportunityId: string, personId: string, in
   await db.transaction(async (tx) => {
     const [locked] = await tx.select({ archivedAt: opportunity.archivedAt }).from(opportunity).where(eq(opportunity.id, record.id)).limit(1).for("update");
     assertWritable(TYPE, { ...record, ...locked });
+    /* Le verrou de l'opportunité range les gestes sur ses propositions l'un après l'autre : deux « Retenu » simultanés ne passent pas tous les deux. */
+    if (values.result === RETAINED) {
+      const [retained] = await tx
+        .select({ name: person.name })
+        .from(opportunityConsultant)
+        .innerJoin(person, eq(person.id, opportunityConsultant.personId))
+        .where(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.result, RETAINED), ne(opportunityConsultant.personId, personId)))
+        .limit(1);
+      if (retained) throw new HttpError(409, "deja_retenu", alreadyRetainedRule(retained.name));
+    }
     const updated = await tx
       .update(opportunityConsultant)
       .set({ ...(values.result ? { result: String(values.result) } : {}), ...rate, updatedAt: new Date() })
