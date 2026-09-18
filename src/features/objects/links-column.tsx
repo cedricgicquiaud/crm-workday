@@ -4,7 +4,7 @@ import Link from "next/link";
 import "@/features/objects/manifest.server";
 import { QuickCreateDialog } from "@/features/objects/quick-create-dialog";
 import { getObject, listObjects, type Relation } from "@/features/objects/registry";
-import { getServerObject, type LinkSubtitle } from "@/features/objects/registry.server";
+import { getServerObject, type DependentLinks, type DependentTable, type LinkSubtitle } from "@/features/objects/registry.server";
 import { listUserOptions } from "@/features/objects/service";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -55,6 +55,29 @@ async function recordsPointingTo(objectKey: string, fkColumn: string, id: string
   return { records, more: Math.max(Number(total?.value ?? records.length) - records.length, 0) };
 }
 
+/**
+ * Fiches actives d'un objet reliées à `id` par une ligne de sa table dépendante déclarée `links`
+ * (les opportunités où une personne est proposée), la dernière modifiée en tête, bornées ; le
+ * sous-titre vient de la ligne (le résultat de la proposition).
+ */
+async function recordsThrough(objectKey: string, dependent: DependentTable & { links: DependentLinks }, id: string): Promise<{ records: LinkedRecord[]; more: number }> {
+  const definition = getObject(objectKey);
+  const { table } = getServerObject(objectKey);
+  const columns = getTableColumns(table);
+  const through = getTableColumns(dependent.table);
+  const { subtitle } = dependent.links;
+  const linked = and(eq(through[dependent.links.fkColumn], id), isNull(columns.archivedAt));
+  const rows = await db
+    .select({ id: columns.id, title: columns[definition.titleField], archivedAt: columns.archivedAt, ...(subtitle ? { subtitle: through[subtitle.column] } : {}) })
+    .from(dependent.table)
+    .innerJoin(table, eq(columns.id, through[dependent.fkColumn]))
+    .where(linked)
+    .orderBy(desc(columns.updatedAt), desc(columns.id))
+    .limit(LINKED_RECORDS_LIMIT);
+  const records = rows.map((row) => linkedRecord(objectKey, row, subtitle ? subtitleOf(subtitle, row.subtitle) : undefined));
+  return { records, more: 0 };
+}
+
 /** La fiche désignée par la clé étrangère d'une relation (une au plus), ou rien si la colonne est vide. */
 async function recordPointedBy(type: string, id: string, relation: Relation): Promise<LinkedRecord[]> {
   const { table } = getServerObject(type);
@@ -96,7 +119,18 @@ export async function linkedGroups(type: string, id: string): Promise<LinkedGrou
         };
       }),
   );
-  return [...own, ...inverse.filter(({ shown }) => shown).map(({ group }) => group)];
+  const through = await Promise.all(
+    listObjects()
+      .flatMap((object) =>
+        (getServerObject(object.key).dependents ?? []).flatMap((dependent) => (dependent.links?.to === type ? [{ object, dependent: dependent as DependentTable & { links: DependentLinks } }] : [])),
+      )
+      .map(async ({ object, dependent }) => {
+        const { records } = await recordsThrough(object.key, dependent, id);
+        return { key: `${object.key}-${dependent.links.fkColumn}`, label: dependent.links.label, records };
+      }),
+  );
+  /* Un groupe lu par une table dépendante ne dit rien à qui n'y figure pas (une personne jamais proposée) : vide, il ne s'affiche pas. */
+  return [...own, ...inverse.filter(({ shown }) => shown).map(({ group }) => group), ...through.filter((group) => group.records.length > 0)];
 }
 
 /** « Ajouter une entreprise », « Ajouter une personne », « Ajouter un … » pour un objet masculin : le déterminant vient de l'article déclaré. */

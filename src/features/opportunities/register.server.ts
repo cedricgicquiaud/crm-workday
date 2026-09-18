@@ -5,12 +5,12 @@
  */
 import { and, desc, eq, exists, ilike, isNull, or } from "drizzle-orm";
 import { createElement } from "react";
-import { company, contactProfile, opportunity, opportunityModule, person } from "@/db/schema";
+import { company, contactProfile, opportunity, opportunityConsultant, opportunityModule, person } from "@/db/schema";
 import { defineSection, registerServerObject, type SearchHit } from "@/features/objects/registry.server";
 import { db } from "@/lib/db";
 import { countProposals, listProposalCandidates, listProposals, PROPOSALS_LIMIT, type Proposal, type ProposalCandidate } from "./proposals";
 import { ProposalsSection } from "./proposals-section";
-import { CONTACT_OUTSIDE_COMPANY_RULE, estimatedAmount, FROM_LEAD_DELETE_RULE, STAGES, stageProbability, WON_DELETE_RULE, WON_STAGE } from "./schema";
+import { CONTACT_OUTSIDE_COMPANY_RULE, estimatedAmount, FROM_LEAD_DELETE_RULE, PROPOSAL_RESULTS, STAGES, stageProbability, WON_DELETE_RULE, WON_STAGE } from "./schema";
 
 const MAX_HITS = 20;
 
@@ -70,6 +70,18 @@ registerServerObject({
   ],
   /* L'entreprise et le contact montrent l'étape de l'opportunité sous son titre (D47, D61). */
   linkSubtitle: { column: "stage", values: STAGES, relations: ["companyId", "contactPersonId"] },
+  /*
+   * Les propositions partent avec l'opportunité (cascade en base, D53) ; chacune désigne aussi son
+   * consultant, qui voit l'opportunité dans sa colonne des liens avec le résultat (D47, D54).
+   */
+  dependents: [
+    {
+      table: opportunityConsultant,
+      fkColumn: "opportunityId",
+      label: "Consultants proposés",
+      links: { to: "person", fkColumn: "personId", label: "Opportunités proposées", subtitle: { column: "result", values: PROPOSAL_RESULTS } },
+    },
+  ],
   /* Deux motifs retiennent la suppression (D43) : la victoire, puis l'origine dans un lead. */
   sections: [proposalsSection],
   deletable: (record) => (record.stage === WON_STAGE ? WON_DELETE_RULE : record.leadId != null ? FROM_LEAD_DELETE_RULE : null),

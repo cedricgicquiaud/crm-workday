@@ -38,7 +38,18 @@ export type DependentTable = {
    * leurs. Absent, la ligne est consignée colonne par colonne, ce qui suffit à une famille simple.
    */
   describe?: (row: Record<string, unknown>, record: ObjectRecord) => Promise<string>;
+  /**
+   * La ligne désigne aussi une fiche d'un autre objet, qui la voit dans sa colonne des liens (D54) :
+   * le consultant voit les opportunités où il est proposé. Absent, la table ne se lit pas là.
+   */
+  links?: DependentLinks;
 };
+
+/**
+ * Lecture d'une table dépendante dans la colonne des liens de la fiche qu'elle désigne : l'objet de
+ * cette fiche (`to`), la colonne qui la porte, le libellé du groupe et le sous-titre de chaque fiche.
+ */
+export type DependentLinks = { to: string; fkColumn: string; label: string; subtitle?: LinkSubtitle };
 
 /**
  * Champ à plusieurs valeurs rangé dans une table fille, une ligne par valeur (les modules Workday
