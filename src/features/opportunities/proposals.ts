@@ -19,6 +19,8 @@ const invalid = (message: string) => new HttpError(400, "donnees_invalides", mes
 
 const notConsultantRule = (name: string) => `Seul un consultant se propose sur une opportunité : « ${name} » n'a pas de profil consultant.`;
 
+const alreadyProposedRule = (name: string) => `« ${name} » figure déjà parmi les consultants proposés.`;
+
 /** Une proposition telle que la section et l'API la rendent : le consultant par son nom, son résultat, son TJM proposé. */
 export type Proposal = { personId: string; name: string; result: string; proposedDailyRate: number | null };
 
@@ -43,7 +45,13 @@ export async function addProposal(opportunityId: string, input: unknown, actor: 
   const [consultant] = await db.select({ name: person.name }).from(person).where(eq(person.id, personId)).limit(1);
   if (!(await personsWithConsultantProfile([personId])).has(personId)) throw invalid(notConsultantRule(consultant.name));
   await db.transaction(async (tx) => {
-    await tx.insert(opportunityConsultant).values({ opportunityId: record.id, personId, proposedDailyRate: record.targetDailyRate == null ? null : String(record.targetDailyRate) });
+    /* L'unicité du couple tranche, même entre deux ajouts simultanés : aucune ligne insérée, c'est un doublon. */
+    const inserted = await tx
+      .insert(opportunityConsultant)
+      .values({ opportunityId: record.id, personId, proposedDailyRate: record.targetDailyRate == null ? null : String(record.targetDailyRate) })
+      .onConflictDoNothing()
+      .returning({ id: opportunityConsultant.id });
+    if (inserted.length === 0) throw new HttpError(409, "deja_proposee", alreadyProposedRule(consultant.name), { personId });
     await recordHistory([{ objectType: TYPE, objectId: record.id, action: PROPOSAL_ADDED_ACTION, field: personId, newValue: consultant.name, authorId: actor.id }], tx);
   });
   const proposals = await listProposals(record.id);
