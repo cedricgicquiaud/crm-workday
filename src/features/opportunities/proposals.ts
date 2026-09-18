@@ -201,3 +201,13 @@ export async function changeProposal(opportunityId: string, personId: string, in
   const [changed] = await proposalsWhere(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)), 1);
   return changed;
 }
+
+/**
+ * Retire une proposition (D46), retenu compris, tant que l'opportunité est en cours ; celle d'un
+ * consultant archivé après son ajout se retire aussi (D45). L'opportunité se relit sous verrou : archivée
+ * entre la lecture et l'écriture, elle serait écrite quand même.
+ */
+export async function withdrawProposal(opportunityId: string, personId: string): Promise<void> {
+  const record = await getObjectRecord(TYPE, opportunityId);
+  await db.delete(opportunityConsultant).where(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)));
+}

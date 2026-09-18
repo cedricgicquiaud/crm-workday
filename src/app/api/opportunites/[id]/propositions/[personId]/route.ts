@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { changeProposal } from "@/features/opportunities/proposals";
+import { changeProposal, withdrawProposal } from "@/features/opportunities/proposals";
 import { requireSession, withApi } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -11,4 +11,12 @@ export const PATCH = withApi(async (request: Request, { params }: Context) => {
   await requireSession(request);
   const { id, personId } = await params;
   return NextResponse.json(await changeProposal(id, personId, await request.json().catch(() => null)));
+});
+
+/** Retrait d'une proposition par tout membre, retenu compris (D46, D55). */
+export const DELETE = withApi(async (request: Request, { params }: Context) => {
+  await requireSession(request);
+  const { id, personId } = await params;
+  await withdrawProposal(id, personId);
+  return NextResponse.json({ ok: true });
 });
