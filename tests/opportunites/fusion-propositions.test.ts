@@ -124,4 +124,18 @@ describe("fusion de deux personnes proposées sur la même opportunité (CRM-110
 
     expect(await listProposals(opportunityId)).toMatchObject([{ personId: kept, result: "retenu", proposedDailyRate: 700 }]);
   });
+
+  it("garde la proposition « Entretien » de la conservée avec son TJM de 700 € quand l'absorbée était « Refusé » à 650 €", async () => {
+    const kept = await consultant("Julie", "Martin");
+    const absorbed = await consultant("Julie", "Martin");
+    const opportunityId = await createOpportunity({ targetDailyRate: 650 });
+    await addProposal(opportunityId, { personId: kept }, actor());
+    await addProposal(opportunityId, { personId: absorbed }, actor());
+    await changeProposal(opportunityId, kept, { result: "entretien", proposedDailyRate: 700 }, actor());
+    await changeProposal(opportunityId, absorbed, { result: "refuse" }, actor());
+
+    await mergeRecords("person", kept, absorbed, []);
+
+    expect(await listProposals(opportunityId)).toMatchObject([{ personId: kept, result: "entretien", proposedDailyRate: 700 }]);
+  });
 });
