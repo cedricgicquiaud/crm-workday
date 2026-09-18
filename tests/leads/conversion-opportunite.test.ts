@@ -6,12 +6,15 @@ import { POST as postLead } from "@/app/api/leads/route";
 import { GET as getOpportunity } from "@/app/api/opportunites/[id]/route";
 import { POST as postPerson } from "@/app/api/personnes/route";
 import { activity, auditLog, company, customFieldDefinition, customFieldValue, lead, opportunity, person, user } from "@/db/schema";
+import { archiveRecord, restoreRecord } from "@/features/archive/archive";
+import { deleteRecord } from "@/features/archive/delete";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createDefinition, loadCustomFields } from "@/features/custom-fields/definitions";
 import { customFieldKey } from "@/features/custom-fields/fields-source";
 import { listHistory } from "@/features/history/history";
 import { createLead } from "@/features/leads/leads";
 import { collectBanners } from "@/features/objects/banners";
+import { linkedGroups } from "@/features/objects/links-column";
 import { createObject, listObjectRecords } from "@/features/objects/service";
 import { createOpportunity } from "@/features/opportunities/opportunities";
 import { closeDb, db } from "@/lib/db";
@@ -193,5 +196,32 @@ describe("retrouver l'opportunité d'un lead converti (CRM-114, D51, contrat 55)
       { label: "Banque X", href: `/entreprises/${companyId}` },
       { label: "Besoin Workday · Banque X", href: `/opportunites/${opportunityId}` },
     ]);
+  });
+
+  it("la colonne des liens du lead montre l'opportunité, et l'opportunité montre « Issu du lead », même le lead archivé", async () => {
+    const { id, opportunityId } = await convertedWithOpportunity();
+
+    const onLead = (await linkedGroups("lead", id)).find((group) => group.label === "Opportunité");
+    expect(onLead?.records.map((record) => record.id)).toEqual([opportunityId]);
+
+    await archiveRecord("lead", id, { id: memberId });
+    const fromLead = (await linkedGroups("opportunity", opportunityId)).find((group) => group.label === "Issu du lead");
+    expect(fromLead?.records.map((record) => [record.id, record.archived])).toEqual([[id, "archivé"]]);
+  });
+
+  it("l'opportunité issue du lead s'archive, se restaure et garde son étape « Qualifié » (D43)", async () => {
+    const { opportunityId } = await convertedWithOpportunity();
+
+    await archiveRecord("opportunity", opportunityId, { id: memberId });
+    expect((await readOpportunity(opportunityId)).archivedAt).not.toBeNull();
+    await restoreRecord("opportunity", opportunityId, { id: memberId });
+    expect(await readOpportunity(opportunityId)).toMatchObject({ archivedAt: null, stage: "qualifie" });
+  });
+
+  it("refuse (409) de supprimer définitivement l'opportunité issue du lead : « Une opportunité issue d'un lead s'archive. » (D43, contrat 58)", async () => {
+    const { opportunityId } = await convertedWithOpportunity();
+
+    await expect(deleteRecord("opportunity", opportunityId)).rejects.toMatchObject({ status: 409, message: "Une opportunité issue d'un lead s'archive." });
+    expect((await readOpportunity(opportunityId)).id).toBe(opportunityId);
   });
 });
