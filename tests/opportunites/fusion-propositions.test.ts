@@ -207,4 +207,13 @@ describe("fusion de deux personnes proposées sur la même opportunité (CRM-110
 
     expect((await planMerge("person", kept, absorbed)).moved).toContainEqual({ key: "opportunity_consultant", label: "Propositions", count: 1 });
   });
+
+  it("annonce les propositions de l'absorbée une seule fois dans l'aperçu, bien qu'elles retiennent aussi sa suppression", async () => {
+    const kept = await consultant("Julie", "Martin");
+    const absorbed = await consultant("Julie", "Martin");
+    await addProposal(await createOpportunity(), { personId: absorbed }, actor());
+
+    const families = (await planMerge("person", kept, absorbed)).moved.filter((family) => family.key === "opportunity_consultant");
+    expect(families).toEqual([{ key: "opportunity_consultant", label: "Propositions", count: 1 }]);
+  });
 });
