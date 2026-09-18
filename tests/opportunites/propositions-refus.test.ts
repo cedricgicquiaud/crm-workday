@@ -4,6 +4,7 @@ import { POST as postProposal } from "@/app/api/opportunites/[id]/propositions/r
 import { auditLog, company, consultantModule, consultantProfile, opportunity, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createConsultant } from "@/features/consultants/consultants";
+import { listHistory } from "@/features/history/history";
 import { createObject } from "@/features/objects/service";
 import { listProposals } from "@/features/opportunities/proposals";
 import { closeDb, db } from "@/lib/db";
@@ -58,5 +59,20 @@ describe("refus d'une personne sans profil consultant (CRM-107, D44)", () => {
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ fields: { personId: "Seul un consultant se propose sur une opportunité : « Paul Durand » n'a pas de profil consultant." } });
     expect(await listProposals(opportunityId)).toEqual([]);
+  });
+});
+
+/** D44, contrat 53 : un consultant est proposé une fois par opportunité. */
+describe("refus d'un consultant déjà proposé (CRM-107, D44)", () => {
+  it("répond 409 au second ajout de Julie Martin, et garde une seule proposition et une seule ligne d'historique", async () => {
+    const julie = await consultant("Julie", "Martin");
+    expect((await propose(opportunityId, { personId: julie })).status).toBe(201);
+
+    const res = await propose(opportunityId, { personId: julie });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ message: "« Julie Martin » figure déjà parmi les consultants proposés." });
+    expect(await listProposals(opportunityId)).toHaveLength(1);
+    expect((await listHistory("opportunity", opportunityId)).filter((entry) => entry.action === "proposition_ajoutee")).toHaveLength(1);
   });
 });
