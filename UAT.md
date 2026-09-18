@@ -453,7 +453,40 @@ Préparation : livraison 4.2b — à remplir avec elle.
 
 #### La conversion d'un lead en opportunité
 
-Préparation : livraison 4.2c — à remplir avec elle.
+Préparation : `npm run dev`, connecté avec le compte de recette (l'amorce pose le lead « Nadia Ferrand · Cliniques Aurore », qualifié, avec un besoin, prêt à convertir, et le lead converti « Sophie Garnier · Mutuelles Oréade » avec son opportunité). Pour les cas ci-dessous, créer depuis `http://localhost:3000/leads` un lead `Julie` `Martin`, entreprise `Banque X`, besoin `Déploiement HCM pour 3 000 salariés`, responsable : un autre membre que vous, et le passer « Qualifié ». Ouvrir sa fiche et cliquer « Convertir ».
+
+- [ ] CRM-111, contrat 55 — case cochée : la fenêtre montre une section « Opportunité » avec la case « Créer une opportunité » cochée, et en dessous les champs « Titre », « Modules Workday » (une case par module) et « Clôture prévue ».
+- [ ] CRM-111, contrat 55 — titre pré-rempli : « Titre » lit « Besoin Workday · Banque X ».
+- [ ] CRM-111 — titre coupé : créer un lead dont l'entreprise a un nom de 130 caractères, avec un besoin, et ouvrir « Convertir » : « Titre » fait exactement 120 caractères et commence par « Besoin Workday · ».
+- [ ] CRM-111, contrat 55 — création : cocher « HCM », choisir une clôture prévue (par exemple le 15 décembre 2026), « Convertir ». Ouvrir l'opportunité « Besoin Workday · Banque X » : « Étape » lit « Qualifié », « Entreprise » est Banque X, « Contact » est Julie Martin, « Besoin » lit « Déploiement HCM pour 3 000 salariés », « Modules Workday » a HCM coché, « Responsable » est le responsable du lead (pas vous).
+- [ ] CRM-111 — historique de l'étape : le fil d'activité de l'opportunité montre la création et une seule ligne d'étape « Qualifié ».
+- [ ] CRM-111, contrat 55 — champ personnalisé obligatoire : en administrateur, `http://localhost:3000/parametres/champs` → nouveau champ `Canal` sur « Opportunités », obligatoire. Convertir un autre lead avec besoin, case cochée : la conversion aboutit, et « Canal » est vide sur l'opportunité créée.
+- [ ] CRM-111, contrat 58 — refus sans titre : case cochée, vider « Titre », cocher HCM, choisir une clôture, « Convertir » : « « Titre » est obligatoire. » s'affiche sous le champ, la fenêtre reste ouverte avec la saisie.
+- [ ] CRM-111, contrat 58 — refus sans module : case cochée, aucun module coché : « « Modules Workday » est obligatoire. » sous la liste des modules.
+- [ ] CRM-111, contrat 58 — refus sans clôture : case cochée, « Clôture prévue » vide : « « Clôture prévue » est obligatoire. » sous le champ.
+- [ ] CRM-111, contrat 58 — rien n'est créé : après ces trois refus, « Annuler » : le lead lit toujours « Avancement : Qualifié », aucune personne « Julie Martin » n'existe dans `http://localhost:3000/personnes`, aucune entreprise « Banque X » dans `http://localhost:3000/entreprises`, aucune opportunité « Besoin Workday · Banque X » dans `http://localhost:3000/opportunites`.
+- [ ] CRM-111, D55 — clé imprévue : `POST http://localhost:3000/api/leads/<id>/conversion` avec `{"opportunity":{"title":"Besoin Workday · Banque X","modules":["hcm"],"expectedClose":"2026-12-15","targetDailyRate":650}}` répond `400` avec « « targetDailyRate » ne se saisit pas à la conversion. », et le lead n'est pas converti.
+- [ ] CRM-111, D67 — étape du geste : lancer `npm test -- tests/leads/conversion-opportunite.test.ts` : les cas « refuse (400, sous « stage ») une étape réservée ou inconnue » et « écrit une seule ligne d'historique pour l'étape posée » passent.
+- [ ] CRM-111, contrat 61 — 375 px : fenêtre du navigateur à 375 px, ouvrir « Convertir » sur un lead avec besoin : la case est cochée, les modules sont listés, le bouton « Convertir » reste visible en bas sans défiler, seule la zone centrale défile, et rien ne déborde à droite.
+- [ ] CRM-112, contrat 56 — garder Acme : créer une entreprise `Acme`, une personne `Yves` `Garnier` (email `yves.garnier@acme.fr`, entreprise Acme), puis un lead à l'email `yves.garnier@acme.fr`, entreprise `Banque Garde`, avec un besoin. « Convertir », choisir « Garder « Acme » » : « Titre » lit « Besoin Workday · Acme ». Cocher Payroll, une clôture, « Convertir » : l'opportunité est chez Acme, et aucune entreprise « Banque Garde » n'est créée.
+- [ ] CRM-112 — le titre suit l'entreprise : dans la même fenêtre, choisir « Passer à l'entreprise du lead » : « Titre » devient « Besoin Workday · Banque Garde » ; revenir à « Garder « Acme » » : il redevient « Besoin Workday · Acme ». Sur un lead sans personne connue, choisir une entreprise proposée : le titre prend son nom.
+- [ ] CRM-112 — titre suivi coupé : une entreprise choisie au nom de 130 caractères donne un titre de 120 caractères.
+- [ ] CRM-112 — titre modifié à la main : remplacer le titre par `Refonte Payroll`, puis changer d'entreprise : le titre reste « Refonte Payroll ».
+- [ ] CRM-112 — jamais une autre entreprise : dans le cas « garder Acme », `GET http://localhost:3000/api/opportunites/<id>` montre le `companyId` d'Acme, jamais celui d'une autre fiche.
+- [ ] CRM-113, contrat 57 — lead sans besoin : créer un lead `Paul` `Leroy`, entreprise `Banque Y`, sans besoin (ou un besoin de quelques espaces), « Convertir » : la case « Créer une opportunité » est décochée, et ni « Titre », ni « Modules Workday », ni « Clôture prévue » ne s'affichent.
+- [ ] CRM-113, contrat 57 — conversion de 4.1 : confirmer : le lead passe « Converti », la personne Paul Leroy a un profil contact chez Banque Y (prospect), le bandeau « Converti le … » mène à Paul Leroy et Banque Y seulement, et la colonne des liens n'a pas de groupe « Opportunité ».
+- [ ] CRM-113 — case décochée à la main : sur un lead avec besoin, décocher la case puis « Convertir » : aucune opportunité n'est créée.
+- [ ] CRM-113 — titre saisi puis décoché : sur un lead avec besoin, taper un titre, décocher la case, « Convertir » : aucune opportunité n'est créée.
+- [ ] CRM-113 — appel sans bloc : `POST http://localhost:3000/api/leads/<id>/conversion` avec `{}` convertit le lead sans créer d'opportunité (`"opportunityId":null` dans la réponse).
+- [ ] CRM-114, contrat 55 — liens du lead : sur la fiche du lead « Julie Martin · Banque X » converti avec son opportunité, la colonne des liens montre un groupe « Opportunité » avec « Besoin Workday · Banque X ».
+- [ ] CRM-114, contrat 55 — bandeau : le bandeau « Converti le … » mène à Julie Martin, à Banque X et à « Besoin Workday · Banque X » ; un clic sur ce dernier ouvre la fiche de l'opportunité.
+- [ ] CRM-114, contrat 55 — « Issu du lead » : sur la fiche de l'opportunité, la colonne des liens montre « Issu du lead » avec « Julie Martin · Banque X ».
+- [ ] CRM-114 — lead archivé : archiver le lead (« Actions » → « Archiver ») puis rouvrir l'opportunité : « Issu du lead » montre toujours le lead, marqué « archivé ».
+- [ ] CRM-114 — historique du lead : le fil d'activité du lead montre « Converti en Julie Martin · Banque X · Besoin Workday · Banque X ».
+- [ ] CRM-114, D43 — archiver et restaurer : sur l'opportunité issue du lead, « Actions » → « Archiver » puis « Restaurer » : elle revient à l'étape « Qualifié ».
+- [ ] CRM-114, D56 — amorce : sur `http://localhost:3000/leads`, « Sophie Garnier · Mutuelles Oréade » est converti et son bandeau mène à l'opportunité « Besoin Workday · Mutuelles Oréade » (Qualifié) ; « Nadia Ferrand · Cliniques Aurore » est toujours « Qualifié » avec « Convertir ».
+- [ ] CRM-114, contrat 58 — suppression refusée (API) : en administrateur, `DELETE http://localhost:3000/api/objets/opportunity/<id de l'opportunité issue du lead>` répond `409` avec « Une opportunité issue d'un lead s'archive. ».
+- [ ] CRM-114 — suppression refusée (écran) : en administrateur, sur l'opportunité issue du lead, « Actions » → « Supprimer définitivement », puis confirmer : le dialogue affiche « Une opportunité issue d'un lead s'archive. » et l'opportunité reste. (Écart connu : le bouton de confirmation reste proposé avant le refus, comme pour un lead converti.)
 
 #### Gagnée, perdue, rouvrir
 
