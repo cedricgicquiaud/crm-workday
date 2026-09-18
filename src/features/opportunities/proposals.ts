@@ -152,9 +152,11 @@ const PROPOSAL_FIELDS: readonly FieldDescriptor[] = [
 export async function changeProposal(opportunityId: string, personId: string, input: unknown): Promise<Proposal> {
   const { values } = validateValues(PROPOSAL_FIELDS, input, { partial: true });
   const record = await getObjectRecord(TYPE, opportunityId);
+  /* La colonne est un décimal : le TJM s'y écrit en texte (« 700 »), et un TJM absent de la saisie n'y touche pas. */
+  const rate = "proposedDailyRate" in values ? { proposedDailyRate: values.proposedDailyRate === null ? null : String(values.proposedDailyRate) } : {};
   await db
     .update(opportunityConsultant)
-    .set({ ...values, proposedDailyRate: values.proposedDailyRate === undefined ? undefined : values.proposedDailyRate === null ? null : String(values.proposedDailyRate), updatedAt: new Date() })
+    .set({ ...(values.result ? { result: String(values.result) } : {}), ...rate, updatedAt: new Date() })
     .where(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)));
   const [changed] = await proposalsWhere(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)), 1);
   return changed;
