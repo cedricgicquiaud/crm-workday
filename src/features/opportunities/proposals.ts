@@ -14,8 +14,10 @@ import { PROPOSAL_ADDED_ACTION } from "./register";
 
 const TYPE = "opportunity";
 
-/** Refus d'un champ de la proposition (400), sous la clé qui l'a causé. */
-const invalid = (message: string) => new HttpError(400, "donnees_invalides", message, { fields: { personId: message } });
+/** Refus de l'entrée (400), un message sous chaque clé qui l'a causé. */
+const invalid = (errors: Record<string, string>) => new HttpError(400, "donnees_invalides", Object.values(errors)[0], { fields: errors });
+
+const unexpectedKeyRule = (key: string) => `« ${key} » ne se donne pas à l'ajout d'un consultant.`;
 
 const notConsultantRule = (name: string) => `Seul un consultant se propose sur une opportunité : « ${name} » n'a pas de profil consultant.`;
 
@@ -38,18 +40,30 @@ export async function listProposals(opportunityId: string): Promise<Proposal[]> 
 }
 
 /**
+ * L'entrée d'un ajout, validée avant la première requête (D55) : le consultant, rien d'autre. Le
+ * résultat (« Proposé ») et le TJM proposé (le TJM cible) se posent seuls ; une clé de plus répond 400
+ * plutôt que d'être ignorée, ce qui ferait croire qu'elle a été enregistrée.
+ */
+function readAddition(input: unknown): string {
+  const fields = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const unexpected = Object.keys(fields).filter((key) => key !== "personId");
+  if (unexpected.length > 0) throw invalid(Object.fromEntries(unexpected.map((key) => [key, unexpectedKeyRule(key)])));
+  return fields.personId as string;
+}
+
+/**
  * Ajoute un consultant à une opportunité (D44) : « Proposé », au TJM de vente cible de l'opportunité
  * (D45). La proposition et sa ligne d'historique, sur l'opportunité seulement (D46), s'écrivent ensemble.
  * La personne se relit dans la transaction, verrouillée en partage : archivée entre la lecture et
  * l'écriture, elle serait proposée quand même.
  */
 export async function addProposal(opportunityId: string, input: unknown, actor: Actor): Promise<Proposal> {
+  const personId = readAddition(input);
   const record = await getObjectRecord(TYPE, opportunityId);
-  const { personId } = input as { personId: string };
   await db.transaction(async (tx) => {
     const [consultant] = await tx.select({ name: person.name, archivedAt: person.archivedAt }).from(person).where(eq(person.id, personId)).limit(1).for("share");
     if (consultant.archivedAt) throw new HttpError(409, "consultant_archive", archivedRule(consultant.name), { personId });
-    if (!(await personsWithConsultantProfile([personId], tx)).has(personId)) throw invalid(notConsultantRule(consultant.name));
+    if (!(await personsWithConsultantProfile([personId], tx)).has(personId)) throw invalid({ personId: notConsultantRule(consultant.name) });
     /* L'unicité du couple tranche, même entre deux ajouts simultanés : aucune ligne insérée, c'est un doublon. */
     const inserted = await tx
       .insert(opportunityConsultant)
