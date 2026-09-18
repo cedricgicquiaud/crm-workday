@@ -4,11 +4,12 @@ import { POST as postProposal } from "@/app/api/opportunites/[id]/propositions/r
 import { auditLog, company, consultantModule, consultantProfile, opportunity, person, user } from "@/db/schema";
 import { listFeed } from "@/features/activities/feed";
 import { CHANGE } from "@/features/activities/schema";
+import { archiveRecord } from "@/features/archive/archive";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { upsertConsultantProfile } from "@/features/consultants/consultant-profile";
 import { createConsultant } from "@/features/consultants/consultants";
 import { createObject } from "@/features/objects/service";
-import { listProposals } from "@/features/opportunities/proposals";
+import { listProposalCandidates, listProposals } from "@/features/opportunities/proposals";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
@@ -114,5 +115,22 @@ describe("historique d'un ajout (CRM-107, D46)", () => {
     await propose(opportunityId, { personId: julie });
 
     expect(await changes("person", julie)).toEqual(before);
+  });
+});
+
+/** D44, contrat 51 : « Ajouter un consultant » ne propose que les consultants actifs qui ne sont pas encore sur l'opportunité. */
+describe("consultants proposés par « Ajouter un consultant » (CRM-107, D44)", () => {
+  it("propose Chloé et Julie, pas Marc déjà proposé, ni Iris archivée, ni Paul sans profil consultant", async () => {
+    const opportunityId = await createOpportunity();
+    await consultant("Julie", "Martin");
+    await consultant("Chloé", "Dupont");
+    const marc = await consultant("Marc", "Petit");
+    await propose(opportunityId, { personId: marc });
+    await archiveRecord("person", await consultant("Iris", "Blanc"), { id: memberId });
+    await createObject("person", { firstName: "Paul", lastName: "Durand" }, { id: memberId });
+
+    const { options } = await listProposalCandidates(opportunityId);
+
+    expect(options.map((option) => option.name)).toEqual(["Chloé Dupont", "Julie Martin"]);
   });
 });
