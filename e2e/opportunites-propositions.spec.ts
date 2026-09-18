@@ -63,7 +63,7 @@ test.describe("ajouter un consultant sur la fiche d'une opportunité (CRM-107, D
 
     const row = section.getByRole("listitem").filter({ hasText: `Marc ${marc}` });
     await expect(row).toContainText("Proposé");
-    await expect(row.getByRole("textbox", { name: "TJM de vente proposé" })).toHaveValue("650,00 €");
+    await expect(row.getByLabel("TJM de vente proposé")).toHaveValue("650,00 €");
     await expect(memberPage.getByText(`Consultant proposé : Marc ${marc}`)).toBeVisible();
   });
 });
@@ -95,6 +95,40 @@ test.describe("faire avancer une proposition sur la fiche (CRM-108, D45, D46, co
     await expect(row.getByRole("combobox", { name: "Résultat" })).toContainText("Entretien");
     await expect(memberPage.getByText(`${julie} : Proposé → Entretien`)).toBeVisible();
   });
+
+  test("le TJM proposé de Julie passe à 700 depuis la section, et l'historique le dit", async ({ memberPage }) => {
+    const mark = tag();
+    const id = await createOpportunity(memberPage, mark, { targetDailyRate: 650 });
+    const julie = `Julie ${named("Martin", mark)}`;
+    await propose(memberPage, id, await createConsultant(memberPage, "Julie", named("Martin", mark)));
+    await memberPage.goto(`/opportunites/${id}`);
+
+    const rate = memberPage.getByRole("region", { name: "Consultants proposés" }).getByRole("listitem").filter({ hasText: julie }).getByLabel("TJM de vente proposé");
+    await rate.fill("700");
+    const response = await answered(memberPage, id, "PATCH", () => memberPage.keyboard.press("Enter"));
+    expect(response.status()).toBe(200);
+
+    await expect(rate).toHaveValue("700,00 €");
+    await expect(memberPage.getByText(`${julie} : TJM de vente proposé 650,00 € → 700,00 €`)).toBeVisible();
+  });
+
+  test("un second « Retenu » est refusé sous le résultat de Marc, qui nomme Julie, et Marc reste « Proposé »", async ({ memberPage }) => {
+    const mark = tag();
+    const id = await createOpportunity(memberPage, mark);
+    const julieId = await createConsultant(memberPage, "Julie", named("Martin", mark));
+    await propose(memberPage, id, julieId);
+    await propose(memberPage, id, await createConsultant(memberPage, "Marc", named("Petit", mark)));
+    expect((await memberPage.request.patch(`/api/opportunites/${id}/propositions/${julieId}`, { data: { result: "retenu" } })).status()).toBe(200);
+    await memberPage.goto(`/opportunites/${id}`);
+
+    const row = memberPage.getByRole("region", { name: "Consultants proposés" }).getByRole("listitem").filter({ hasText: `Marc ${named("Petit", mark)}` });
+    await row.getByRole("combobox", { name: "Résultat" }).click();
+    const response = await answered(memberPage, id, "PATCH", () => memberPage.getByRole("option", { name: "Retenu", exact: true }).click());
+    expect(response.status()).toBe(409);
+
+    await expect(row.getByRole("alert")).toHaveText(`« Julie ${named("Martin", mark)} » est déjà retenu sur cette opportunité : changez d'abord son résultat.`);
+    await expect(row.getByRole("combobox", { name: "Résultat" })).toContainText("Proposé");
+  });
 });
 
 test.describe("section « Consultants proposés » à 375 px (CRM-107, D49, contrat 60)", () => {
@@ -111,7 +145,7 @@ test.describe("section « Consultants proposés » à 375 px (CRM-107, D49, cont
     const add = section.getByRole("button", { name: "Ajouter un consultant" });
     await add.scrollIntoViewIfNeeded();
     await expect(add).toBeInViewport();
-    await expect(section.getByRole("listitem").getByRole("textbox", { name: "TJM de vente proposé" })).toHaveValue("650,00 €");
+    await expect(section.getByRole("listitem").getByLabel("TJM de vente proposé")).toHaveValue("650,00 €");
     expect(await memberPage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   });
 });
