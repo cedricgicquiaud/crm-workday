@@ -5,7 +5,9 @@
  */
 import { and, asc, count, eq, exists, isNull, not } from "drizzle-orm";
 import { consultantProfile, opportunity, opportunityConsultant, person } from "@/db/schema";
+import { parisDay } from "@/features/activities/overdue";
 import { personsWithConsultantProfile } from "@/features/consultants/consultant-profile";
+import { consultantState, stateLabel } from "@/features/consultants/state";
 import { recordHistory } from "@/features/history/history";
 import { assertWritable, getObjectRecord, RECORD_OPTIONS_LIMIT, type Actor } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
@@ -43,12 +45,13 @@ export async function listProposals(opportunityId: string): Promise<Proposal[]> 
   return rows.map((row) => ({ ...row, proposedDailyRate: row.proposedDailyRate === null ? null : Number(row.proposedDailyRate) }));
 }
 
-/** Un consultant que « Ajouter un consultant » propose. */
-export type ProposalCandidate = { id: string; name: string };
+/** Un consultant que « Ajouter un consultant » propose, avec son état écrit (« En mission · disponible le 5 oct. 2026 »). */
+export type ProposalCandidate = { id: string; name: string; state: string };
 
 /**
  * Consultants que « Ajouter un consultant » propose (D44) : les personnes qui portent un profil
- * consultant, non archivées, pas encore proposées sur cette opportunité, par nom, bornées.
+ * consultant, non archivées, pas encore proposées sur cette opportunité, par nom, bornées. L'état se
+ * déduit au jour civil de Paris de la lecture (D6) : un consultant en mission se propose comme un autre.
  */
 export async function listProposalCandidates(opportunityId: string, { limit = RECORD_OPTIONS_LIMIT } = {}): Promise<{ options: ProposalCandidate[]; more: number }> {
   const alreadyProposed = exists(
@@ -58,13 +61,19 @@ export async function listProposalCandidates(opportunityId: string, { limit = RE
       .where(and(eq(opportunityConsultant.opportunityId, opportunityId), eq(opportunityConsultant.personId, person.id))),
   );
   const where = and(isNull(person.archivedAt), not(alreadyProposed));
-  const options = await db
-    .select({ id: person.id, name: person.name })
+  const rows = await db
+    .select({ id: person.id, name: person.name, status: consultantProfile.status, availableFrom: consultantProfile.availableFrom, unavailable: consultantProfile.unavailable })
     .from(person)
     .innerJoin(consultantProfile, eq(consultantProfile.personId, person.id))
     .where(where)
     .orderBy(asc(person.name), asc(person.id))
     .limit(limit);
+  const today = parisDay();
+  const options = rows.map(({ id, name, status, availableFrom, unavailable }) => ({
+    id,
+    name,
+    state: stateLabel({ state: consultantState({ unavailable: unavailable ? "oui" : "non", availableFrom }, today), availableFrom, status }),
+  }));
   /* Le compte n'est demandé que si la borne est atteinte : en dessous, les consultants chargés sont tous ceux qui existent. */
   if (options.length < limit) return { options, more: 0 };
   const [total] = await db.select({ value: count() }).from(person).innerJoin(consultantProfile, eq(consultantProfile.personId, person.id)).where(where);
