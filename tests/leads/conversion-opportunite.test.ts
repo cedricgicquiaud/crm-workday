@@ -6,7 +6,8 @@ import { POST as postLead } from "@/app/api/leads/route";
 import { GET as getOpportunity } from "@/app/api/opportunites/[id]/route";
 import { activity, auditLog, company, customFieldDefinition, customFieldValue, lead, opportunity, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
-import { loadCustomFields } from "@/features/custom-fields/definitions";
+import { createDefinition, loadCustomFields } from "@/features/custom-fields/definitions";
+import { customFieldKey } from "@/features/custom-fields/fields-source";
 import { listHistory } from "@/features/history/history";
 import { createLead } from "@/features/leads/leads";
 import { createObject } from "@/features/objects/service";
@@ -121,5 +122,16 @@ describe("convertir un lead qualifié en opportunité (CRM-111, D50, D51, contra
 
     const conversion = (await listHistory("lead", id)).filter((entry) => entry.action === "conversion");
     expect(conversion.map((entry) => entry.newValue)).toEqual(["Julie Martin · Banque X · Besoin Workday · Banque X"]);
+  });
+
+  it("n'exige pas un champ personnalisé obligatoire des opportunités, qui reste vide", async () => {
+    const channel = await createDefinition({ objectType: "opportunity", label: "Canal", type: "text", required: true }, { id: memberId });
+    await loadCustomFields();
+    const id = await postNewLead({ firstName: "Julie", lastName: "Martin", companyName: "Banque X", need: "Paie", origin: "linkedin" });
+
+    const res = await convert(id, { opportunity: { title: "Besoin Workday · Banque X", modules: ["payroll"], expectedClose: "2026-12-15" } });
+    expect(res.status).toBe(200);
+    const { opportunityId } = (await res.json()) as { opportunityId: string };
+    expect((await readOpportunity(opportunityId))[customFieldKey(channel.id)] ?? null).toBeNull();
   });
 });
