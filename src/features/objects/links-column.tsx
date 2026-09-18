@@ -60,13 +60,13 @@ async function recordsPointingTo(objectKey: string, fkColumn: string, id: string
  * (les opportunités où une personne est proposée), la dernière modifiée en tête, bornées ; le
  * sous-titre vient de la ligne (le résultat de la proposition).
  */
-async function recordsThrough(objectKey: string, dependent: DependentTable & { links: DependentLinks }, id: string): Promise<{ records: LinkedRecord[]; more: number }> {
+async function recordsThrough(objectKey: string, dependent: DependentTable, links: DependentLinks, id: string): Promise<{ records: LinkedRecord[]; more: number }> {
   const definition = getObject(objectKey);
   const { table } = getServerObject(objectKey);
   const columns = getTableColumns(table);
   const through = getTableColumns(dependent.table);
-  const { subtitle } = dependent.links;
-  const linked = and(eq(through[dependent.links.fkColumn], id), isNull(columns.archivedAt));
+  const { subtitle } = links;
+  const linked = and(eq(through[links.fkColumn], id), isNull(columns.archivedAt));
   const rows = await db
     .select({ id: columns.id, title: columns[definition.titleField], archivedAt: columns.archivedAt, ...(subtitle ? { subtitle: through[subtitle.column] } : {}) })
     .from(dependent.table)
@@ -122,11 +122,11 @@ export async function linkedGroups(type: string, id: string): Promise<LinkedGrou
   const through = await Promise.all(
     listObjects()
       .flatMap((object) =>
-        (getServerObject(object.key).dependents ?? []).flatMap((dependent) => (dependent.links?.to === type ? [{ object, dependent: dependent as DependentTable & { links: DependentLinks } }] : [])),
+        (getServerObject(object.key).dependents ?? []).flatMap((dependent) => (dependent.links?.to === type ? [{ object, dependent, links: dependent.links }] : [])),
       )
-      .map(async ({ object, dependent }) => {
-        const { records } = await recordsThrough(object.key, dependent, id);
-        return { key: `${object.key}-${dependent.links.fkColumn}`, label: dependent.links.label, records };
+      .map(async ({ object, dependent, links }) => {
+        const { records } = await recordsThrough(object.key, dependent, links, id);
+        return { key: `${object.key}-${links.fkColumn}`, label: links.label, records };
       }),
   );
   /* Un groupe lu par une table dépendante ne dit rien à qui n'y figure pas (une personne jamais proposée) : vide, il ne s'affiche pas. */
