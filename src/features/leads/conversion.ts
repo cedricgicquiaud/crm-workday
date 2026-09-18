@@ -75,8 +75,7 @@ function opportunityOf(block: unknown): { values: FieldValues | null; errors: Re
   const input = block as Record<string, unknown>;
   const unexpected = Object.keys(input).filter((key) => !OPPORTUNITY_KEYS.includes(key));
   if (unexpected.length > 0) return { values: null, errors: Object.fromEntries(unexpected.map((key) => [key, `« ${key} » ne se saisit pas à la conversion.`])) };
-  const { values, errors } = validateValues(OPPORTUNITY_FIELDS.filter((field) => OPPORTUNITY_KEYS.includes(field.key)), input, { partial: false });
-  return { values, errors };
+  return validateValues(OPPORTUNITY_FIELDS.filter((field) => OPPORTUNITY_KEYS.includes(field.key)), input, { partial: false });
 }
 
 /** Champs de la personne qu'une conversion vers une personne retrouvée remplit s'ils sont vides, sans jamais écraser (D16). */
