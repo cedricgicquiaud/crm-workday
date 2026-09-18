@@ -1,9 +1,11 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { auditLog, company, opportunity, person, user } from "@/db/schema";
+import { auditLog, company, consultantModule, consultantProfile, opportunity, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { createConsultant } from "@/features/consultants/consultants";
 import { linkedGroups } from "@/features/objects/links-column";
 import { createObject } from "@/features/objects/service";
+import { addProposal, changeProposal } from "@/features/opportunities/proposals";
 import { createPerson } from "@/features/persons/persons";
 import { closeDb, db } from "@/lib/db";
 
@@ -16,6 +18,9 @@ async function createOpportunity(fields: Record<string, unknown> = {}): Promise<
   return (await createObject("opportunity", { title: "Refonte Payroll", companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30", ...fields }, { id: memberId })).id;
 }
 
+/** Un consultant freelance, proposable sur une opportunité. */
+const consultant = async (firstName: string, lastName: string) => (await createConsultant({ firstName, lastName, status: "freelance" }, { id: memberId })).id;
+
 /** Le groupe de la colonne des liens qui porte ce libellé. */
 const group = async (type: string, id: string, label: string) => (await linkedGroups(type, id)).find((candidate) => candidate.label === label);
 
@@ -23,6 +28,8 @@ const group = async (type: string, id: string, label: string) => (await linkedGr
 async function cleanup() {
   await db.delete(auditLog);
   await db.delete(opportunity);
+  await db.delete(consultantModule);
+  await db.delete(consultantProfile);
   await db.delete(person);
   await db.delete(company);
 }
@@ -55,5 +62,17 @@ describe("colonne des liens de l'entreprise et du contact (CRM-109, D47, D61)", 
     const opportunityId = await createOpportunity({ contactPersonId: julie, stage: "qualifie" });
 
     expect((await group("person", julie, "Opportunités"))?.records).toEqual([{ id: opportunityId, title: "Refonte Payroll", href: `/opportunites/${opportunityId}`, subtitle: "Qualifié" }]);
+  });
+});
+
+/** D47, contrat 52 : un consultant proposé voit l'opportunité dans sa colonne des liens, avec le résultat de sa proposition. */
+describe("colonne des liens du consultant proposé (CRM-109, D47, D54)", () => {
+  it("la fiche de Julie Martin, retenue, montre l'opportunité sous « Opportunités proposées » avec « Retenu » en sous-titre et le lien vers sa fiche", async () => {
+    const opportunityId = await createOpportunity();
+    const julie = await consultant("Julie", "Martin");
+    await addProposal(opportunityId, { personId: julie }, { id: memberId });
+    await changeProposal(opportunityId, julie, { result: "retenu" }, { id: memberId });
+
+    expect((await group("person", julie, "Opportunités proposées"))?.records).toEqual([{ id: opportunityId, title: "Refonte Payroll", href: `/opportunites/${opportunityId}`, subtitle: "Retenu" }]);
   });
 });
