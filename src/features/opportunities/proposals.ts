@@ -9,12 +9,13 @@ import { parisDay } from "@/features/activities/overdue";
 import { personsWithConsultantProfile } from "@/features/consultants/consultant-profile";
 import { consultantState, stateLabel } from "@/features/consultants/state";
 import { recordHistory } from "@/features/history/history";
-import { validateValues } from "@/features/objects/fields";
+import { validateValues, type FieldValues } from "@/features/objects/fields";
+import { formatNumber } from "@/features/objects/labels";
 import type { FieldDescriptor } from "@/features/objects/registry";
 import { assertWritable, getObjectRecord, RECORD_OPTIONS_LIMIT, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db, type Executor } from "@/lib/db";
-import { PROPOSAL_ADDED_ACTION } from "./register";
+import { PROPOSAL_ADDED_ACTION, PROPOSAL_CHANGED_ACTION, PROPOSAL_WITHDRAWN_ACTION } from "./register";
 import { OPPORTUNITY_FIELDS, PROPOSAL_RESULTS } from "./schema";
 
 const TYPE = "opportunity";
@@ -165,19 +166,55 @@ const RETAINED = "retenu";
 
 const alreadyRetainedRule = (name: string) => `« ${name} » est déjà retenu sur cette opportunité : changez d'abord son résultat.`;
 
-const NOTHING_TO_CHANGE ="Donnez un résultat ou un TJM de vente proposé.";
+const NOTHING_TO_CHANGE = "Donnez un résultat ou un TJM de vente proposé.";
 
-/** Ce qu'une modification de proposition règle : son résultat, pris dans la liste fermée, et son TJM de vente proposé, aux bornes du TJM cible (D45). */
-const PROPOSAL_FIELDS: readonly FieldDescriptor[] = [
-  { key: "result", label: "Résultat", type: "list", required: true, values: PROPOSAL_RESULTS, order: 10 },
-  { ...OPPORTUNITY_FIELDS.find((field) => field.key === "targetDailyRate")!, key: "proposedDailyRate", label: "TJM de vente proposé" },
-];
+/** TJM de vente proposé (D45) : les bornes, les décimales et l'unité du TJM de vente cible. */
+const RATE_FIELD: FieldDescriptor = { ...OPPORTUNITY_FIELDS.find((field) => field.key === "targetDailyRate")!, key: "proposedDailyRate", label: "TJM de vente proposé" };
+
+/** Ce qu'une modification de proposition règle : son résultat, pris dans la liste fermée, et son TJM de vente proposé (D45). */
+const PROPOSAL_FIELDS: readonly FieldDescriptor[] = [{ key: "result", label: "Résultat", type: "list", required: true, values: PROPOSAL_RESULTS, order: 10 }, RATE_FIELD];
+
+/** Une proposition relue sous verrou avant d'être modifiée ou retirée : ce qu'elle porte, et le nom du consultant pour l'historique. */
+type LockedProposal = { id: string; name: string; result: string; proposedDailyRate: string | null };
+
+/** La proposition du consultant sur l'opportunité, verrouillée dans la transaction du geste ; 404 si le consultant n'y est pas proposé. */
+async function lockedProposal(tx: Executor, opportunityId: string, personId: string): Promise<LockedProposal> {
+  const [row] = await tx
+    .select({ id: opportunityConsultant.id, name: person.name, result: opportunityConsultant.result, proposedDailyRate: opportunityConsultant.proposedDailyRate })
+    .from(opportunityConsultant)
+    .innerJoin(person, eq(person.id, opportunityConsultant.personId))
+    .where(and(eq(opportunityConsultant.opportunityId, opportunityId), eq(opportunityConsultant.personId, personId)))
+    .limit(1)
+    .for("update", { of: opportunityConsultant });
+  if (!row) throw notProposed();
+  return row;
+}
+
+const resultLabel = (value: string) => PROPOSAL_RESULTS.find((result) => result.value === value)?.label ?? value;
+
+/** « 650,00 € », « vide » : le TJM proposé tel que l'historique l'écrit. */
+const rateLabel = (value: string | number | null) => (value === null ? "vide" : formatNumber(RATE_FIELD, Number(value)));
+
+/**
+ * Les phrases d'historique d'une modification (D46), une par valeur qui change vraiment, au nom du
+ * consultant : « Julie Martin : Proposé → Entretien », « Julie Martin : TJM de vente proposé 650,00 € → 700,00 € ».
+ */
+function changeSentences(before: LockedProposal, values: FieldValues): string[] {
+  const sentences: string[] = [];
+  if (typeof values.result === "string" && values.result !== before.result) sentences.push(`${before.name} : ${resultLabel(before.result)} → ${resultLabel(values.result)}`);
+  if ("proposedDailyRate" in values) {
+    const after = values.proposedDailyRate as number | null;
+    if ((before.proposedDailyRate === null ? null : Number(before.proposedDailyRate)) !== after) sentences.push(`${before.name} : ${RATE_FIELD.label} ${rateLabel(before.proposedDailyRate)} → ${rateLabel(after)}`);
+  }
+  return sentences;
+}
 
 /**
  * Change le résultat ou le TJM de vente proposé d'une proposition (D45) : Proposé, Entretien, Retenu
- * et Refusé se choisissent dans tous les sens tant que l'opportunité est en cours.
+ * et Refusé se choisissent dans tous les sens tant que l'opportunité est en cours. La proposition et ses
+ * lignes d'historique, sur l'opportunité seulement (D46), s'écrivent ensemble.
  */
-export async function changeProposal(opportunityId: string, personId: string, input: unknown): Promise<Proposal> {
+export async function changeProposal(opportunityId: string, personId: string, input: unknown, actor: Actor): Promise<Proposal> {
   const fields = onlyKeys(input, PROPOSAL_FIELDS.map((field) => field.key), "la modification d'une proposition");
   const { values, errors } = validateValues(PROPOSAL_FIELDS, fields, { partial: true });
   if (Object.keys(errors).length > 0) throw invalid(errors);
@@ -189,6 +226,7 @@ export async function changeProposal(opportunityId: string, personId: string, in
   const rate = "proposedDailyRate" in values ? { proposedDailyRate: values.proposedDailyRate === null ? null : String(values.proposedDailyRate) } : {};
   await db.transaction(async (tx) => {
     await lockWritable(tx, record);
+    const before = await lockedProposal(tx, record.id, personId);
     /* Le verrou de l'opportunité range les gestes sur ses propositions l'un après l'autre : deux « Retenu » simultanés ne passent pas tous les deux. */
     if (values.result === RETAINED) {
       const [retained] = await tx
@@ -199,12 +237,12 @@ export async function changeProposal(opportunityId: string, personId: string, in
         .limit(1);
       if (retained) throw new HttpError(409, "deja_retenu", alreadyRetainedRule(retained.name));
     }
-    const updated = await tx
+    await tx
       .update(opportunityConsultant)
       .set({ ...(values.result ? { result: String(values.result) } : {}), ...rate, updatedAt: new Date() })
-      .where(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)))
-      .returning({ id: opportunityConsultant.id });
-    if (updated.length === 0) throw notProposed();
+      .where(eq(opportunityConsultant.id, before.id));
+    const entries = changeSentences(before, values).map((sentence) => ({ objectType: TYPE, objectId: record.id, action: PROPOSAL_CHANGED_ACTION, field: personId, newValue: sentence, authorId: actor.id }));
+    await recordHistory(entries, tx);
   });
   const [changed] = await proposalsWhere(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)), 1);
   return changed;
@@ -213,17 +251,16 @@ export async function changeProposal(opportunityId: string, personId: string, in
 /**
  * Retire une proposition (D46), retenu compris, tant que l'opportunité est en cours ; celle d'un
  * consultant archivé après son ajout se retire aussi (D45). L'opportunité se relit sous verrou : archivée
- * entre la lecture et l'écriture, elle serait écrite quand même.
+ * entre la lecture et l'écriture, elle serait écrite quand même. Le retrait et sa ligne d'historique
+ * (« Consultant retiré : Julie Martin ») s'écrivent ensemble.
  */
-export async function withdrawProposal(opportunityId: string, personId: string): Promise<void> {
+export async function withdrawProposal(opportunityId: string, personId: string, actor: Actor): Promise<void> {
   if (!UUID.test(personId)) throw notProposed();
   const record = await getObjectRecord(TYPE, opportunityId);
   await db.transaction(async (tx) => {
     await lockWritable(tx, record);
-    const removed = await tx
-      .delete(opportunityConsultant)
-      .where(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)))
-      .returning({ id: opportunityConsultant.id });
-    if (removed.length === 0) throw notProposed();
+    const before = await lockedProposal(tx, record.id, personId);
+    await tx.delete(opportunityConsultant).where(eq(opportunityConsultant.id, before.id));
+    await recordHistory([{ objectType: TYPE, objectId: record.id, action: PROPOSAL_WITHDRAWN_ACTION, field: personId, newValue: before.name, authorId: actor.id }], tx);
   });
 }

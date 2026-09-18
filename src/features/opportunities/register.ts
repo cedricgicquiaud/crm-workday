@@ -9,6 +9,12 @@ import { LOST_STAGE, OPPORTUNITY_FIELDS, WON_STAGE } from "./schema";
 /** Action d'historique d'un ajout de consultant (D46) : le nom du consultant est dans `newValue`. */
 export const PROPOSAL_ADDED_ACTION = "proposition_ajoutee";
 
+/** Action d'historique d'un changement de résultat ou de TJM proposé (D46) : la phrase entière, au nom du consultant, est dans `newValue`. */
+export const PROPOSAL_CHANGED_ACTION = "proposition_modifiee";
+
+/** Action d'historique d'un retrait de proposition (D46) : le nom du consultant est dans `newValue`. */
+export const PROPOSAL_WITHDRAWN_ACTION = "proposition_retiree";
+
 registerObject({
   key: "opportunity",
   order: 50,
@@ -28,7 +34,11 @@ registerObject({
   /** D37 : deux opportunités de même titre sont deux affaires — l'API de fusion répond 405 et le menu ne propose pas « Fusionner… ». */
   mergeable: false,
   /* D46 : les gestes sur les propositions s'écrivent sur l'historique de l'opportunité seulement. */
-  historyActions: { [PROPOSAL_ADDED_ACTION]: (entry) => `Consultant proposé : ${entry.newValue ?? ""}` },
+  historyActions: {
+    [PROPOSAL_ADDED_ACTION]: (entry) => `Consultant proposé : ${entry.newValue ?? ""}`,
+    [PROPOSAL_CHANGED_ACTION]: (entry) => entry.newValue ?? "",
+    [PROPOSAL_WITHDRAWN_ACTION]: (entry) => `Consultant retiré : ${entry.newValue ?? ""}`,
+  },
   relations: [
     { to: "company", fkColumn: "companyId", label: "Entreprise", inverseLabel: "Opportunités", prefill: "companyId" },
     { to: "person", fkColumn: "contactPersonId", label: "Contact", inverseLabel: "Opportunités" },
