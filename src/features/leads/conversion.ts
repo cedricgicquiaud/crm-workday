@@ -195,7 +195,8 @@ export type CompanyPreview = { query: string; proposals: CompanyProposal[]; more
 
 export type CompanyProposal = { id: string; name: string; type: string; archived: boolean };
 
-export type ConversionPreview = { leadId: string; title: string; person: PersonPreview; company: CompanyPreview; jobTitle: string | null };
+/** `createsOpportunity` : la case « Créer une opportunité » est cochée à l'ouverture, parce que le lead a un besoin (D50). */
+export type ConversionPreview = { leadId: string; title: string; person: PersonPreview; company: CompanyPreview; jobTitle: string | null; createsOpportunity: boolean };
 
 /** « Téléphone : sera rempli », « LinkedIn : la fiche garde le sien » : ce que la conversion fera des champs que le lead porte (D15). */
 function differencesOf(found: Record<string, unknown>, current: ObjectRecord): string[] {
@@ -273,6 +274,7 @@ export async function previewConversion(id: string, companyQuery: string | null)
     person: await personPreview(current),
     company: await companyPreview(query),
     jobTitle: text(current.jobTitle),
+    createsOpportunity: text(current.need) !== null,
   };
 }
 
