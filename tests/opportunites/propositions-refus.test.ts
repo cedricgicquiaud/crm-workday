@@ -180,6 +180,24 @@ describe("proposition visée par une modification (CRM-108, D55)", () => {
 
     expect((await change(opportunityId, marc, { result: "entretien" })).status).toBe(404);
   });
+
+  it("répond 409 sur une opportunité archivée, et garde Julie Martin « Proposé »", async () => {
+    const julie = await consultant("Julie", "Martin");
+    await propose(opportunityId, { personId: julie });
+    await archiveRecord("opportunity", opportunityId, { id: memberId });
+
+    const res = await change(opportunityId, julie, { result: "entretien" });
+
+    expect(res.status).toBe(409);
+    expect(await listProposals(opportunityId)).toMatchObject([{ result: "propose" }]);
+  });
+
+  it("répond 401 sans session", async () => {
+    const julie = await consultant("Julie", "Martin");
+    await propose(opportunityId, { personId: julie });
+
+    expect((await change(opportunityId, julie, { result: "entretien" }, "")).status).toBe(401);
+  });
 });
 
 /** D21, D55 : l'opportunité visée existe, n'est pas archivée, et le membre est connecté. */
