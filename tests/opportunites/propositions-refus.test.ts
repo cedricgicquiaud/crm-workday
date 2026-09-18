@@ -142,6 +142,17 @@ describe("refus d'un second « Retenu » (CRM-108, D45)", () => {
       ["Marc Petit", "entretien"],
     ]);
   });
+
+  it("ne laisse passer qu'un « Retenu » sur deux gestes simultanés, l'autre répond 409", async () => {
+    const julie = await consultant("Julie", "Martin");
+    const marc = await consultant("Marc", "Petit");
+    await propose(opportunityId, { personId: julie });
+    await propose(opportunityId, { personId: marc });
+
+    const statuses = await Promise.all([change(opportunityId, julie, { result: "retenu" }), change(opportunityId, marc, { result: "retenu" })]).then((responses) => responses.map((res) => res.status));
+
+    expect({ statuses: statuses.sort(), retained: (await listProposals(opportunityId)).filter((proposal) => proposal.result === "retenu").length }).toEqual({ statuses: [200, 409], retained: 1 });
+  });
 });
 
 /** D45, contrat 53 : le TJM de vente proposé a les bornes du TJM cible — plus de 0, 5 000 au plus, deux décimales au plus. */
