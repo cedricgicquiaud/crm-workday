@@ -5,10 +5,17 @@ import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { OPPORTUNITY_FIELDS } from "@/features/opportunities/schema";
 import { DECISION_ROLES, DEFAULT_DECISION_ROLE } from "@/features/persons/schema";
 import type { ConversionPreview } from "./conversion";
 
 const FAILED = "La conversion n'a pas pu être menée.";
+
+/** Longueur maximale d'un titre d'opportunité, lue sur son descripteur. */
+const TITLE_MAX = OPPORTUNITY_FIELDS.find((field) => field.key === "title")!.maxLength!;
+
+/** Titre pré-rempli de l'opportunité (D50) : « Besoin Workday · <entreprise de la conversion> », coupé à la longueur d'un titre. */
+export const defaultOpportunityTitle = (companyName: string): string => `Besoin Workday · ${companyName.trim()}`.slice(0, TITLE_MAX).trimEnd();
 
 /** Ce que la fenêtre envoie : `companyId` quand une entreprise proposée est choisie, sinon le nom à créer. */
 type Draft = { firstName: string; lastName: string; companyName: string; companyId: string | null; keepCompany: boolean | null; jobTitle: string; decisionRole: string };
