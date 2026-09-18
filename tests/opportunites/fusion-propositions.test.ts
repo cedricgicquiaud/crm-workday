@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { activity, auditLog, company, consultantModule, consultantProfile, contactProfile, customFieldValue, emailLog, objectRedirect, opportunity, person, personEmail, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createConsultant } from "@/features/consultants/consultants";
+import { listHistory } from "@/features/history/history";
 import { mergeRecords } from "@/features/merge/merge";
 import { createObject, getObjectRecord } from "@/features/objects/service";
 import { addProposal, changeProposal, listProposals } from "@/features/opportunities/proposals";
@@ -137,5 +138,19 @@ describe("fusion de deux personnes proposées sur la même opportunité (CRM-110
     await mergeRecords("person", kept, absorbed, []);
 
     expect(await listProposals(opportunityId)).toMatchObject([{ personId: kept, result: "entretien", proposedDailyRate: 700 }]);
+  });
+
+  it("consigne dans l'entrée de fusion la proposition écartée, par le titre de l'opportunité, son résultat et son TJM", async () => {
+    const kept = await consultant("Julie", "Martin");
+    const absorbed = await consultant("Julie", "Martin");
+    const opportunityId = await createOpportunity({ targetDailyRate: 650 });
+    await addProposal(opportunityId, { personId: kept }, actor());
+    await addProposal(opportunityId, { personId: absorbed }, actor());
+    await changeProposal(opportunityId, kept, { result: "retenu" }, actor());
+
+    await mergeRecords("person", kept, absorbed, []);
+
+    const merged = (await listHistory("person", kept)).find((entry) => entry.action === "fusionnee");
+    expect(merged?.oldValue).toContain("Propositions : Refonte Payroll, Proposé, TJM de vente proposé 650,00 €");
   });
 });
