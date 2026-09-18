@@ -208,6 +208,15 @@ export async function changeProposal(opportunityId: string, personId: string, in
  * entre la lecture et l'écriture, elle serait écrite quand même.
  */
 export async function withdrawProposal(opportunityId: string, personId: string): Promise<void> {
+  if (!UUID.test(personId)) throw notProposed();
   const record = await getObjectRecord(TYPE, opportunityId);
-  await db.delete(opportunityConsultant).where(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)));
+  await db.transaction(async (tx) => {
+    const [locked] = await tx.select({ archivedAt: opportunity.archivedAt }).from(opportunity).where(eq(opportunity.id, record.id)).limit(1).for("update");
+    assertWritable(TYPE, { ...record, ...locked });
+    const removed = await tx
+      .delete(opportunityConsultant)
+      .where(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)))
+      .returning({ id: opportunityConsultant.id });
+    if (removed.length === 0) throw notProposed();
+  });
 }
