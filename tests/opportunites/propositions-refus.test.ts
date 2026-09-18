@@ -91,3 +91,16 @@ describe("refus d'un consultant archivé (CRM-107, D44)", () => {
     expect(await listProposals(opportunityId)).toEqual([]);
   });
 });
+
+/** D55 : l'entrée se valide avant la première requête ; une clé que l'ajout ne prévoit pas répond 400, jamais ignorée. */
+describe("entrée de l'ajout (CRM-107, D55)", () => {
+  it("répond 400 sous « result » : le résultat d'un ajout est toujours « Proposé »", async () => {
+    const julie = await consultant("Julie", "Martin");
+
+    const res = await propose(opportunityId, { personId: julie, result: "retenu" });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ fields: { result: "« result » ne se donne pas à l'ajout d'un consultant." } });
+    expect(await listProposals(opportunityId)).toEqual([]);
+  });
+});
