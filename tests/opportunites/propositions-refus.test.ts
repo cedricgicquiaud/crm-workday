@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { POST as postProposal } from "@/app/api/opportunites/[id]/propositions/route";
 import { auditLog, company, consultantModule, consultantProfile, opportunity, person, user } from "@/db/schema";
+import { archiveRecord } from "@/features/archive/archive";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createConsultant } from "@/features/consultants/consultants";
 import { listHistory } from "@/features/history/history";
@@ -74,5 +75,19 @@ describe("refus d'un consultant déjà proposé (CRM-107, D44)", () => {
     expect(await res.json()).toMatchObject({ message: "« Julie Martin » figure déjà parmi les consultants proposés." });
     expect(await listProposals(opportunityId)).toHaveLength(1);
     expect((await listHistory("opportunity", opportunityId)).filter((entry) => entry.action === "proposition_ajoutee")).toHaveLength(1);
+  });
+});
+
+/** D44, contrat 53 : un consultant archivé ne se propose pas. */
+describe("refus d'un consultant archivé (CRM-107, D44)", () => {
+  it("répond 409 en nommant Julie Martin archivée, et ne propose rien", async () => {
+    const julie = await consultant("Julie", "Martin");
+    await archiveRecord("person", julie, { id: memberId });
+
+    const res = await propose(opportunityId, { personId: julie });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ message: "« Julie Martin » est archivée : restaurez sa fiche pour la proposer." });
+    expect(await listProposals(opportunityId)).toEqual([]);
   });
 });
