@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { activity, auditLog, company, customFieldDefinition, customFieldValue, lead, opportunity, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { loadCustomFields } from "@/features/custom-fields/definitions";
+import { listHistory } from "@/features/history/history";
 import { createLead } from "@/features/leads/leads";
 import { createObject } from "@/features/objects/service";
 import { createOpportunity } from "@/features/opportunities/opportunities";
@@ -53,5 +54,16 @@ describe("geste de création d'une opportunité (CRM-111, D67)", () => {
       await expect(attempt, stage).rejects.toMatchObject({ status: 400, details: { fields: { stage: expect.any(String) } } });
     }
     expect(await db.select({ id: opportunity.id }).from(opportunity)).toHaveLength(0);
+  });
+
+  it("écrit une seule ligne d'historique pour l'étape posée, « Qualifié », à côté de la ligne de création", async () => {
+    const bank = await newCompany("Banque X");
+    const origin = await createLead({ firstName: "Julie", lastName: "Martin", origin: "linkedin" }, { id: memberId });
+
+    const created = await db.transaction((tx) => createOpportunity(opportunityAt(bank), { id: memberId }, { exec: tx, stage: "qualifie", leadId: origin.id }));
+
+    const history = await listHistory("opportunity", created.id);
+    expect(history.filter((entry) => entry.field === "stage").map((entry) => [entry.oldValue, entry.newValue])).toEqual([[null, "qualifie"]]);
+    expect(history.filter((entry) => entry.action === "creee")).toHaveLength(1);
   });
 });
