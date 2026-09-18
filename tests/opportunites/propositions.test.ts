@@ -9,7 +9,7 @@ import { createUserWithPassword } from "@/features/auth/accounts";
 import { upsertConsultantProfile } from "@/features/consultants/consultant-profile";
 import { createConsultant } from "@/features/consultants/consultants";
 import { createObject } from "@/features/objects/service";
-import { listProposalCandidates, listProposals } from "@/features/opportunities/proposals";
+import { countProposals, listProposalCandidates, listProposals } from "@/features/opportunities/proposals";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
@@ -88,6 +88,18 @@ describe("ajout d'un consultant sur une opportunité (CRM-107, D44, D45)", () =>
     expect((await propose(opportunityId, { personId: marc })).status).toBe(201);
 
     expect(await listProposals(opportunityId)).toMatchObject([{ personId: marc, result: "propose" }]);
+  });
+});
+
+/** La section lit une page de propositions et annonce le reste (« et N autres ») : jamais toutes les propositions d'un coup. */
+describe("lecture bornée des propositions (CRM-107)", () => {
+  it("lit les deux premières propositions ajoutées sur trois, et en compte trois", async () => {
+    const opportunityId = await createOpportunity();
+    for (const [firstName, lastName] of [["Julie", "Martin"], ["Marc", "Petit"], ["Chloé", "Dupont"]]) await propose(opportunityId, { personId: await consultant(firstName, lastName) });
+
+    const proposals = await listProposals(opportunityId, { limit: 2 });
+
+    expect({ names: proposals.map((proposal) => proposal.name), total: await countProposals(opportunityId) }).toEqual({ names: ["Julie Martin", "Marc Petit"], total: 3 });
   });
 });
 
