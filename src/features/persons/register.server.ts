@@ -64,11 +64,18 @@ const dependents: readonly DependentTable[] = [
   /* Le profil consultant emmène la société de facturation : elle ne veut rien dire sans lui (D16). */
   { table: consultantProfile, fkColumn: "personId", label: "Profil consultant", oneAtMost: true, carries: ["billingCompanyId"], describe: describeConsultantProfile },
   /*
-   * Les propositions du consultant le suivent (D47) ; l'opportunité les déclare aussi, et c'est elle qui
-   * les lit dans la colonne des liens (D54). Deux personnes proposées sur la même opportunité n'y
-   * laissent que la proposition au résultat le plus avancé.
+   * Les propositions du consultant retiennent sa suppression et le suivent dans une fusion (D47) ;
+   * l'opportunité les déclare aussi, et c'est elle qui les lit dans la colonne des liens (D54). Deux
+   * personnes proposées sur la même opportunité n'y laissent que la proposition au résultat le plus avancé.
    */
-  { table: opportunityConsultant, fkColumn: "personId", label: "Propositions", oneAtMostPer: { column: "opportunityId", rank: (row) => resultRank(String(row.result)) }, describe: describeProposal },
+  {
+    table: opportunityConsultant,
+    fkColumn: "personId",
+    label: "Propositions",
+    holds: { to: "opportunity", fkColumn: "opportunityId", label: "Opportunités proposées" },
+    oneAtMostPer: { column: "opportunityId", rank: (row) => resultRank(String(row.result)) },
+    describe: describeProposal,
+  },
 ];
 
 /** Ce que la section « Profil contact » lit d'un coup : le profil de la personne et les entreprises qu'elle peut choisir. */

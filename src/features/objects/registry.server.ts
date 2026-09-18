@@ -45,6 +45,12 @@ export type DependentTable = {
    */
   describe?: (row: Record<string, unknown>, record: ObjectRecord) => Promise<string>;
   /**
+   * La ligne retient la suppression définitive de la fiche (D47) : le refus nomme, sous `label`, les
+   * fiches de l'objet `to` qu'elle désigne par `fkColumn` — le consultant, les opportunités où il est
+   * proposé. Absent, la ligne part avec la fiche ou la bloque en base sans le dire.
+   */
+  holds?: { to: string; fkColumn: string; label: string };
+  /**
    * La ligne désigne aussi une fiche d'un autre objet, qui la voit dans sa colonne des liens (D54) :
    * le consultant voit les opportunités où il est proposé. Absent, la table ne se lit pas là.
    */
