@@ -179,7 +179,8 @@ test.describe("conversion à 375 px (CRM-96, contrat 30)", () => {
         const parts: [string, Element | null][] = [
           ["phrase", root.querySelector('[data-slot="dialog-description"]')],
           ["pied", root.querySelector('[data-slot="dialog-footer"]')],
-          ...Array.from(root.querySelectorAll("input:not([type=radio]), select")).map((control) => [control.closest("label")?.querySelector("span")?.textContent ?? "champ", control] as [string, Element]),
+          /* Les cases natives sont masquées sous leur bouton (base-ui) : la case « Créer une opportunité » (4.2c) se mesure dans sa propre suite. */
+          ...Array.from(root.querySelectorAll("input:not([type=radio]):not([type=checkbox]), select")).map((control) => [control.closest("label")?.querySelector("span")?.textContent ?? "champ", control] as [string, Element]),
         ];
         for (const [name, element] of parts) if (element && !inside(element.getBoundingClientRect())) escapes.push(name);
         return escapes;

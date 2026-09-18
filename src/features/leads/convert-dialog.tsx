@@ -3,15 +3,41 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { SetControl } from "@/features/objects/set-control";
+import { OPPORTUNITY_FIELDS } from "@/features/opportunities/schema";
 import { DECISION_ROLES, DEFAULT_DECISION_ROLE } from "@/features/persons/schema";
 import type { ConversionPreview } from "./conversion";
 
 const FAILED = "La conversion n'a pas pu être menée.";
 
-/** Ce que la fenêtre envoie : `companyId` quand une entreprise proposée est choisie, sinon le nom à créer. */
-type Draft = { firstName: string; lastName: string; companyName: string; companyId: string | null; keepCompany: boolean | null; jobTitle: string; decisionRole: string };
+/** Longueur maximale d'un titre d'opportunité, lue sur son descripteur. */
+const TITLE_MAX = OPPORTUNITY_FIELDS.find((field) => field.key === "title")!.maxLength!;
+
+/** Titre pré-rempli de l'opportunité (D50) : « Besoin Workday · <entreprise de la conversion> », coupé à la longueur d'un titre. */
+export const defaultOpportunityTitle = (companyName: string): string => `Besoin Workday · ${companyName.trim()}`.slice(0, TITLE_MAX).trimEnd();
+
+/**
+ * Ce que la fenêtre envoie : `companyId` quand une entreprise proposée est choisie, sinon le nom à créer.
+ * `title` à `null` suit l'entreprise de la conversion ; saisi, il ne la suit plus (D50).
+ */
+type Draft = {
+  firstName: string;
+  lastName: string;
+  companyName: string;
+  companyId: string | null;
+  keepCompany: boolean | null;
+  jobTitle: string;
+  decisionRole: string;
+  createsOpportunity: boolean;
+  title: string | null;
+  modules: string[];
+  expectedClose: string;
+};
+
+const MODULES_FIELD = OPPORTUNITY_FIELDS.find((field) => field.key === "modules")!;
 
 type Failure = { message: string; fields: Record<string, string> };
 
@@ -73,6 +99,10 @@ export function ConvertLeadAction({ id }: { id: string }) {
       keepCompany: null,
       jobTitle: loaded.jobTitle ?? "",
       decisionRole: DEFAULT_DECISION_ROLE,
+      createsOpportunity: loaded.createsOpportunity,
+      title: null,
+      modules: [],
+      expectedClose: "",
     });
   }
 
@@ -89,6 +119,14 @@ export function ConvertLeadAction({ id }: { id: string }) {
 
   const update = (patch: Partial<Draft>) => setDraft((current) => (current ? { ...current, ...patch } : current));
 
+  const person = preview?.person;
+  const contact = person?.kind === "found" ? person.contact : null;
+  const keeps = contact !== null && draft?.keepCompany === true;
+  /* L'entreprise de la conversion (D51) : celle que la personne garde, la proposition choisie, ou le nom à créer. */
+  const chosenProposal = draft?.companyId ? preview?.company.proposals.find((proposal) => proposal.id === draft.companyId) : undefined;
+  const conversionCompany = keeps && contact ? contact.companyName : (chosenProposal?.name ?? draft?.companyName ?? "");
+  const opportunityTitle = draft?.title ?? defaultOpportunityTitle(conversionCompany);
+
   async function confirm() {
     if (!draft || !preview) return;
     setBusy(true);
@@ -101,6 +139,8 @@ export function ConvertLeadAction({ id }: { id: string }) {
       ...(found && preview.person.kind === "found" && preview.person.contact ? { keepCompany: draft.keepCompany ?? undefined } : {}),
       jobTitle: draft.jobTitle,
       decisionRole: draft.decisionRole,
+      /* Décochée, la case n'envoie rien : un titre saisi avant de décocher ne crée pas d'opportunité (D52). */
+      ...(draft.createsOpportunity ? { opportunity: { title: opportunityTitle, modules: draft.modules, expectedClose: draft.expectedClose } } : {}),
     };
     let res: Response;
     try {
@@ -120,9 +160,6 @@ export function ConvertLeadAction({ id }: { id: string }) {
     router.refresh();
   }
 
-  const person = preview?.person;
-  const contact = person?.kind === "found" ? person.contact : null;
-  const keeps = contact !== null && draft?.keepCompany === true;
   const fieldErrors = failure?.fields ?? {};
   const generalError = failure && Object.keys(fieldErrors).length === 0 ? failure.message : null;
 
@@ -275,6 +312,41 @@ export function ConvertLeadAction({ id }: { id: string }) {
                       <FieldError id={`${ids}-role-erreur`} message={fieldErrors.decisionRole} />
                     </label>
                   </div>
+                )}
+              </section>
+            )}
+            {preview && draft && (
+              <section aria-labelledby={`${ids}-opportunite`} className="grid gap-2">
+                <h3 id={`${ids}-opportunite`} className="text-sm font-medium">
+                  Opportunité
+                </h3>
+                <div className="flex min-w-0 items-center gap-2 text-sm">
+                  <Checkbox aria-label="Créer une opportunité" checked={draft.createsOpportunity} onCheckedChange={(checked) => update({ createsOpportunity: checked === true })} />
+                  <span>Créer une opportunité</span>
+                </div>
+                <FieldError id={`${ids}-opportunite-erreur`} message={fieldErrors.opportunity} />
+                {/* Cochée, la case demande un titre, des modules et une clôture prévue ; le reste vient de la conversion (D50, D51). */}
+                {draft.createsOpportunity && (
+                  <>
+                    <label className={FIELD}>
+                      <span className="text-xs text-muted-foreground">Titre</span>
+                      <Input required value={opportunityTitle} aria-invalid={Boolean(fieldErrors.title)} onChange={(event) => update({ title: event.target.value })} />
+                      <FieldError id={`${ids}-titre-erreur`} message={fieldErrors.title} />
+                    </label>
+                    <SetControl id={`${ids}-modules`} label={MODULES_FIELD.label} value={draft.modules} values={MODULES_FIELD.values ?? []} error={fieldErrors.modules} onChange={(modules) => update({ modules })} />
+                    <label className={FIELD}>
+                      <span className="text-xs text-muted-foreground">Clôture prévue</span>
+                      <Input
+                        required
+                        type="date"
+                        value={draft.expectedClose}
+                        aria-invalid={Boolean(fieldErrors.expectedClose)}
+                        onChange={(event) => update({ expectedClose: event.target.value })}
+                        className="focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50"
+                      />
+                      <FieldError id={`${ids}-cloture-erreur`} message={fieldErrors.expectedClose} />
+                    </label>
+                  </>
                 )}
               </section>
             )}

@@ -11,6 +11,8 @@ import { normalizeCompanyName } from "@/features/duplicates/normalize";
 import { recordHistory, type HistoryInput } from "@/features/history/history";
 import { validateValues, type FieldValues } from "@/features/objects/fields";
 import { createObject, getObjectRecord, type Actor, type ObjectRecord } from "@/features/objects/service";
+import { createOpportunity } from "@/features/opportunities/opportunities";
+import { OPPORTUNITY_FIELDS } from "@/features/opportunities/schema";
 import { readContactProfile, writeContactProfile, type ContactProfile } from "@/features/persons/contact-profile";
 import { holderOf, type Holder } from "@/features/persons/emails";
 import { DECISION_ROLE_FIELD, DEFAULT_DECISION_ROLE, JOB_TITLE_FIELD, normalizeEmail, PERSON_FIELDS } from "@/features/persons/schema";
@@ -21,8 +23,11 @@ import { CONVERSION_ACTION, CONVERTED_STAGE, OPEN_STAGES } from "./schema";
 const TYPE = "lead";
 
 
-/** Ce que la conversion rend : le lead et les deux fiches qu'il désigne désormais. */
-export type ConversionResult = { leadId: string; personId: string; companyId: string };
+/** Ce que la conversion rend : le lead, les deux fiches qu'il désigne désormais, et l'opportunité créée s'il y en a une (D51). */
+export type ConversionResult = { leadId: string; personId: string; companyId: string; opportunityId: string | null };
+
+/** Étape de l'opportunité née d'une conversion (D51) : le lead converti était qualifié. */
+const OPPORTUNITY_STAGE = "qualifie";
 
 const asObject = (input: unknown): Record<string, unknown> => (input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {});
 
@@ -49,7 +54,29 @@ type Plan = {
   keepsContact: boolean;
   jobTitle: string | null;
   decisionRole: string;
+  /** titre, modules et clôture prévue de l'opportunité à créer, validés ; `null` quand la case est décochée */
+  opportunity: FieldValues | null;
 };
+
+/** Le bloc de la case « Créer une opportunité » : sous lui s'affiche le refus d'un bloc mal formé. */
+export const OPPORTUNITY_INPUT = "opportunity";
+
+/** Ce que la case saisit (D50) ; entreprise, contact, besoin, responsable et étape sont posés par la conversion (D51). */
+const OPPORTUNITY_KEYS = ["title", "modules", "expectedClose"];
+
+/**
+ * Valide le bloc `opportunity` (D55) contre les descripteurs de l'opportunité, avec la fenêtre et avant
+ * toute écriture : absent ou `null`, la conversion est celle de 4.1 ; une clé que la case ne saisit pas
+ * répond 400 sous la clé.
+ */
+function opportunityOf(block: unknown): { values: FieldValues | null; errors: Record<string, string> } {
+  if (block === undefined || block === null) return { values: null, errors: {} };
+  if (typeof block !== "object" || Array.isArray(block)) return { values: null, errors: { [OPPORTUNITY_INPUT]: "« Créer une opportunité » attend un titre, des modules et une clôture prévue." } };
+  const input = block as Record<string, unknown>;
+  const unexpected = Object.keys(input).filter((key) => !OPPORTUNITY_KEYS.includes(key));
+  if (unexpected.length > 0) return { values: null, errors: Object.fromEntries(unexpected.map((key) => [key, `« ${key} » ne se saisit pas à la conversion.`])) };
+  return validateValues(OPPORTUNITY_FIELDS.filter((field) => OPPORTUNITY_KEYS.includes(field.key)), input, { partial: false });
+}
 
 /** Champs de la personne qu'une conversion vers une personne retrouvée remplit s'ils sont vides, sans jamais écraser (D16). */
 const FILLED_PERSON_FIELDS = ["phone", "linkedin"] as const;
@@ -97,7 +124,8 @@ async function planOf(current: ObjectRecord, body: Record<string, unknown>): Pro
     { firstName: pick("firstName") ?? "", lastName: pick("lastName") ?? "", [COMPANY_INPUT]: existing ? "" : pick(COMPANY_INPUT) ?? "", jobTitle: pick("jobTitle"), decisionRole: body.decisionRole },
     { partial: false },
   );
-  if (Object.keys(errors).length > 0) throw invalid(errors);
+  const deal = opportunityOf(body[OPPORTUNITY_INPUT]);
+  if (Object.keys(errors).length + Object.keys(deal.errors).length > 0) throw invalid({ ...errors, ...deal.errors });
   const firstName = text(values.firstName);
   const lastName = text(values.lastName);
   return {
@@ -109,6 +137,7 @@ async function planOf(current: ObjectRecord, body: Record<string, unknown>): Pro
     keepsContact: keeps,
     jobTitle: text(values.jobTitle),
     decisionRole: text(values.decisionRole) ?? DEFAULT_DECISION_ROLE,
+    opportunity: deal.values,
   };
 }
 
@@ -166,7 +195,8 @@ export type CompanyPreview = { query: string; proposals: CompanyProposal[]; more
 
 export type CompanyProposal = { id: string; name: string; type: string; archived: boolean };
 
-export type ConversionPreview = { leadId: string; title: string; person: PersonPreview; company: CompanyPreview; jobTitle: string | null };
+/** `createsOpportunity` : la case « Créer une opportunité » est cochée à l'ouverture, parce que le lead a un besoin (D50). */
+export type ConversionPreview = { leadId: string; title: string; person: PersonPreview; company: CompanyPreview; jobTitle: string | null; createsOpportunity: boolean };
 
 /** « Téléphone : sera rempli », « LinkedIn : la fiche garde le sien » : ce que la conversion fera des champs que le lead porte (D15). */
 function differencesOf(found: Record<string, unknown>, current: ObjectRecord): string[] {
@@ -244,6 +274,7 @@ export async function previewConversion(id: string, companyQuery: string | null)
     person: await personPreview(current),
     company: await companyPreview(query),
     jobTitle: text(current.jobTitle),
+    createsOpportunity: text(current.need) !== null,
   };
 }
 
@@ -283,6 +314,11 @@ export async function convertLead(id: string, input: unknown, actor: Actor): Pro
 
     if (!plan.keepsContact) await writeContactProfile(personId, { values: profileValues(plan), company: { id: companyId, name: companyName, archivedAt: null } }, actor, tx);
 
+    /* D51 : chez l'entreprise retenue, la personne en contact, le besoin et le responsable du lead, à l'étape « Qualifié ». */
+    const deal = plan.opportunity
+      ? await createOpportunity({ ...plan.opportunity, companyId, contactPersonId: personId, need: text(current.need), ownerId }, actor, { exec: tx, stage: OPPORTUNITY_STAGE, leadId: current.id, customRequired: false })
+      : null;
+
     /* Ce que la fenêtre a complété ne s'écrit sur le lead que dans ses champs vides (D15) : rien n'y est écrasé. */
     const completed = Object.entries({ firstName: plan.firstName, lastName: plan.lastName, companyName, jobTitle: plan.jobTitle }).filter(
       ([key, value]) => value !== null && text(current[key]) === null,
@@ -293,10 +329,10 @@ export async function convertLead(id: string, input: unknown, actor: Actor): Pro
       .set({ ...Object.fromEntries(completed), stage: CONVERTED_STAGE, convertedAt: now, convertedPersonId: personId, convertedCompanyId: companyId, updatedAt: now })
       .where(eq(lead.id, current.id));
     const entries: HistoryInput[] = [
-      { objectType: TYPE, objectId: current.id, action: CONVERSION_ACTION, newValue: `${personName} · ${companyName}`, authorId: actor.id },
+      { objectType: TYPE, objectId: current.id, action: CONVERSION_ACTION, newValue: [personName, companyName, ...(deal ? [String(deal.title)] : [])].join(" · "), authorId: actor.id },
       ...completed.map(([field, value]) => ({ objectType: TYPE, objectId: current.id, action: "modifiee" as const, field, oldValue: null, newValue: value, authorId: actor.id })),
     ];
     await recordHistory(entries, tx);
-    return { leadId: current.id, personId, companyId };
+    return { leadId: current.id, personId, companyId, opportunityId: deal?.id ?? null };
   });
 }

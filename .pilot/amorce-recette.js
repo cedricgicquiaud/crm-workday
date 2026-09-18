@@ -423,5 +423,43 @@ if (leadAConvertir.stage !== "qualifie" && leadAConvertir.stage !== "converti" &
 // Livraison 4.2b — propositions de consultants sur une opportunité.
 
 // Livraison 4.2c — conversion d'un lead en opportunité.
+// Un lead converti avec son opportunité : la fiche du lead porte le bandeau « Converti le … » vers la
+// personne, l'entreprise et l'opportunité, sa colonne des liens montre l'opportunité, et l'opportunité
+// « Besoin Workday · Mutuelles Oréade » (Qualifié) montre « Issu du lead ». Le lead « Nadia Ferrand »
+// ci-dessus reste, lui, prêt à convertir. Même règle que les blocs précédents : on relit les leads, et on
+// ne convertit que si le lead n'est ni converti ni écarté, pour qu'une relance n'émette aucune requête refusée.
+const leadsAvantConversionOpportunite = await fetch("/api/leads");
+if (!leadsAvantConversionOpportunite.ok) {
+  throw new Error(`amorce-recette : lecture des leads refusée (${leadsAvantConversionOpportunite.status}).`);
+}
+const titreConvertiOpportunite = "Sophie Garnier · Mutuelles Oréade";
+let leadOpportunite = (await leadsAvantConversionOpportunite.json()).leads.find((fiche) => fiche.title === titreConvertiOpportunite);
+if (!leadOpportunite) {
+  const creation = await fetch("/api/leads", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ firstName: "Sophie", lastName: "Garnier", companyName: "Mutuelles Oréade", email: "sophie.garnier@mutuelles-oreade.fr", jobTitle: "Directrice des ressources humaines", origin: "linkedin", score: 3, need: "Remplacement du SIRH par Workday HCM et Absence pour 2 500 salariés." }),
+  });
+  if (!creation.ok) {
+    throw new Error(`amorce-recette : création du lead ${titreConvertiOpportunite} refusée (${creation.status}).`);
+  }
+  leadOpportunite = { id: (await creation.json()).id, stage: "nouveau" };
+}
+if (leadOpportunite.stage !== "converti" && leadOpportunite.stage !== "ecarte") {
+  if (leadOpportunite.stage !== "qualifie") {
+    const qualification = await fetch(`/api/leads/${leadOpportunite.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ stage: "qualifie" }) });
+    if (!qualification.ok) {
+      throw new Error(`amorce-recette : avancement du lead ${titreConvertiOpportunite} refusé (${qualification.status}).`);
+    }
+  }
+  const conversion = await fetch(`/api/leads/${leadOpportunite.id}/conversion`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ decisionRole: "decideur", opportunity: { title: "Besoin Workday · Mutuelles Oréade", modules: ["hcm", "absence"], expectedClose: "2027-02-26" } }),
+  });
+  if (!conversion.ok) {
+    throw new Error(`amorce-recette : conversion du lead ${titreConvertiOpportunite} refusée (${conversion.status}).`);
+  }
+}
 
 // Livraison 4.2d — opportunités gagnée, perdue et rouverte.

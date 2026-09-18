@@ -2,9 +2,9 @@
  * Part serveur de la déclaration du lead : sa table Drizzle, sa recherche, sa clé de doublon et ses
  * gestes d'en-tête (« Écarter », « Rouvrir », D7). Importé par le manifeste serveur.
  */
-import { and, desc, eq, ilike, isNull, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull, ne, or } from "drizzle-orm";
 import { createElement } from "react";
-import { company, lead, person } from "@/db/schema";
+import { company, lead, opportunity, person } from "@/db/schema";
 import type { Banner } from "@/features/objects/banners";
 import { formatDate } from "@/features/objects/labels";
 import { getObject } from "@/features/objects/registry";
@@ -37,16 +37,19 @@ async function search(query: string): Promise<SearchHit[]> {
   return rows.map((row) => ({ id: row.id, title: row.title, subtitle: `${labelOf(LEAD_STAGES, row.stage)} · ${labelOf(LEAD_ORIGINS, row.origin)}` }));
 }
 
-/** « Converti le 16 sept. 2026. », avec la personne et l'entreprise liées (D18) ; rien sur un lead archivé, que la bannière « archivée » suffit à dire. */
+/** « Converti le 16 sept. 2026. », avec la personne, l'entreprise et l'opportunité liées (D18, D51) ; rien sur un lead archivé, que la bannière « archivée » suffit à dire. */
 async function convertedBanner(record: ObjectRecord): Promise<Banner[]> {
   if (record.stage !== CONVERTED_STAGE || record.archivedAt || !record.convertedAt) return [];
   const personId = typeof record.convertedPersonId === "string" ? record.convertedPersonId : null;
   const companyId = typeof record.convertedCompanyId === "string" ? record.convertedCompanyId : null;
   const [linkedPerson] = personId ? await db.select({ name: person.name }).from(person).where(eq(person.id, personId)).limit(1) : [];
   const [linkedCompany] = companyId ? await db.select({ name: company.name }).from(company).where(eq(company.id, companyId)).limit(1) : [];
+  /* L'opportunité créée par la conversion (D51, 4.2c), archivée comprise : la trace d'origine prime. */
+  const [deal] = await db.select({ id: opportunity.id, title: opportunity.title }).from(opportunity).where(eq(opportunity.leadId, record.id)).orderBy(asc(opportunity.createdAt)).limit(1);
   const links = [
     ...(linkedPerson && personId ? [{ label: linkedPerson.name, href: getObject("person").href(personId) }] : []),
     ...(linkedCompany && companyId ? [{ label: linkedCompany.name, href: getObject("company").href(companyId) }] : []),
+    ...(deal ? [{ label: deal.title, href: getObject("opportunity").href(deal.id) }] : []),
   ];
   return [{ rank: "converti", tone: "info", message: `Converti le ${formatDate(record.convertedAt as Date)}.`, links }];
 }
