@@ -92,3 +92,37 @@ test.describe("convertir un lead qualifié en opportunité (CRM-111, CRM-114, co
     await expect(memberPage.getByText("Avancement : Nouveau")).toBeVisible();
   });
 });
+
+test.describe("convertir en gardant une entreprise existante (CRM-112, contrat 56)", () => {
+  test("le titre suit le choix d'entreprise tant qu'on ne l'a pas modifié ; « garder Acme » crée l'opportunité chez Acme", async ({ memberPage }) => {
+    const mark = tag();
+    const acmeName = named("Acme", mark);
+    const acme = await memberPage.request.post("/api/entreprises", { data: { name: acmeName, type: "client" } });
+    expect(acme.status()).toBe(201);
+    const { id: acmeId } = (await acme.json()) as { id: string };
+    const address = `yves.${mark}@acme.fr`;
+    expect((await memberPage.request.post("/api/personnes", { data: { firstName: "Yves", lastName: named("Garnier", mark), email: address, companyId: acmeId } })).status()).toBe(201);
+    const bankName = named("Banque Garde", mark);
+    const id = await createLead(memberPage, { companyName: bankName, email: address, need: "Paie", origin: "recommandation" });
+
+    const dialog = await openConversion(memberPage, id);
+    await dialog.getByRole("radio", { name: `Garder « ${acmeName} »` }).check();
+    await expect(titleInput(dialog)).toHaveValue(`Besoin Workday · ${acmeName}`);
+    await dialog.getByRole("radio", { name: "Passer à l'entreprise du lead" }).check();
+    await expect(titleInput(dialog)).toHaveValue(`Besoin Workday · ${bankName}`);
+
+    /* Modifié à la main, le titre ne suit plus l'entreprise. */
+    await titleInput(dialog).fill(`Refonte Payroll ${mark} (e2e)`);
+    await dialog.getByRole("radio", { name: `Garder « ${acmeName} »` }).check();
+    await expect(titleInput(dialog)).toHaveValue(`Refonte Payroll ${mark} (e2e)`);
+
+    await dialog.getByRole("checkbox", { name: "Payroll", exact: true }).click();
+    await closeInput(dialog).fill(parisDayFromToday(30));
+    await confirm(memberPage, id, dialog);
+    await expect(dialog).toHaveCount(0);
+
+    const banner = memberPage.getByRole("status").filter({ hasText: "Converti le" });
+    await Promise.all([memberPage.waitForURL(/\/opportunites\//), banner.getByRole("link", { name: `Refonte Payroll ${mark} (e2e)` }).click()]);
+    await expect(memberPage.getByRole("region", { name: "Entreprise", exact: true }).getByRole("link", { name: acmeName })).toBeVisible();
+  });
+});
