@@ -5,12 +5,19 @@
  */
 import { asc, eq } from "drizzle-orm";
 import { opportunityConsultant, person } from "@/db/schema";
+import { personsWithConsultantProfile } from "@/features/consultants/consultant-profile";
 import { recordHistory } from "@/features/history/history";
 import { getObjectRecord, type Actor } from "@/features/objects/service";
+import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { PROPOSAL_ADDED_ACTION } from "./register";
 
 const TYPE = "opportunity";
+
+/** Refus d'un champ de la proposition (400), sous la clé qui l'a causé. */
+const invalid = (message: string) => new HttpError(400, "donnees_invalides", message, { fields: { personId: message } });
+
+const notConsultantRule = (name: string) => `Seul un consultant se propose sur une opportunité : « ${name} » n'a pas de profil consultant.`;
 
 /** Une proposition telle que la section et l'API la rendent : le consultant par son nom, son résultat, son TJM proposé. */
 export type Proposal = { personId: string; name: string; result: string; proposedDailyRate: number | null };
@@ -34,6 +41,7 @@ export async function addProposal(opportunityId: string, input: unknown, actor: 
   const record = await getObjectRecord(TYPE, opportunityId);
   const { personId } = input as { personId: string };
   const [consultant] = await db.select({ name: person.name }).from(person).where(eq(person.id, personId)).limit(1);
+  if (!(await personsWithConsultantProfile([personId])).has(personId)) throw invalid(notConsultantRule(consultant.name));
   await db.transaction(async (tx) => {
     await tx.insert(opportunityConsultant).values({ opportunityId: record.id, personId, proposedDailyRate: record.targetDailyRate == null ? null : String(record.targetDailyRate) });
     await recordHistory([{ objectType: TYPE, objectId: record.id, action: PROPOSAL_ADDED_ACTION, field: personId, newValue: consultant.name, authorId: actor.id }], tx);
