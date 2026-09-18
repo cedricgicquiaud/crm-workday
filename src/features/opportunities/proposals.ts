@@ -150,7 +150,8 @@ const PROPOSAL_FIELDS: readonly FieldDescriptor[] = [
  * et Refusé se choisissent dans tous les sens tant que l'opportunité est en cours.
  */
 export async function changeProposal(opportunityId: string, personId: string, input: unknown): Promise<Proposal> {
-  const { values } = validateValues(PROPOSAL_FIELDS, input, { partial: true });
+  const { values, errors } = validateValues(PROPOSAL_FIELDS, input, { partial: true });
+  if (Object.keys(errors).length > 0) throw invalid(errors);
   const record = await getObjectRecord(TYPE, opportunityId);
   /* La colonne est un décimal : le TJM s'y écrit en texte (« 700 »), et un TJM absent de la saisie n'y touche pas. */
   const rate = "proposedDailyRate" in values ? { proposedDailyRate: values.proposedDailyRate === null ? null : String(values.proposedDailyRate) } : {};
