@@ -21,6 +21,8 @@ const notConsultantRule = (name: string) => `Seul un consultant se propose sur u
 
 const alreadyProposedRule = (name: string) => `« ${name} » figure déjà parmi les consultants proposés.`;
 
+const archivedRule = (name: string) => `« ${name} » est archivée : restaurez sa fiche pour la proposer.`;
+
 /** Une proposition telle que la section et l'API la rendent : le consultant par son nom, son résultat, son TJM proposé. */
 export type Proposal = { personId: string; name: string; result: string; proposedDailyRate: number | null };
 
@@ -38,13 +40,16 @@ export async function listProposals(opportunityId: string): Promise<Proposal[]> 
 /**
  * Ajoute un consultant à une opportunité (D44) : « Proposé », au TJM de vente cible de l'opportunité
  * (D45). La proposition et sa ligne d'historique, sur l'opportunité seulement (D46), s'écrivent ensemble.
+ * La personne se relit dans la transaction, verrouillée en partage : archivée entre la lecture et
+ * l'écriture, elle serait proposée quand même.
  */
 export async function addProposal(opportunityId: string, input: unknown, actor: Actor): Promise<Proposal> {
   const record = await getObjectRecord(TYPE, opportunityId);
   const { personId } = input as { personId: string };
-  const [consultant] = await db.select({ name: person.name }).from(person).where(eq(person.id, personId)).limit(1);
-  if (!(await personsWithConsultantProfile([personId])).has(personId)) throw invalid(notConsultantRule(consultant.name));
   await db.transaction(async (tx) => {
+    const [consultant] = await tx.select({ name: person.name, archivedAt: person.archivedAt }).from(person).where(eq(person.id, personId)).limit(1).for("share");
+    if (consultant.archivedAt) throw new HttpError(409, "consultant_archive", archivedRule(consultant.name), { personId });
+    if (!(await personsWithConsultantProfile([personId], tx)).has(personId)) throw invalid(notConsultantRule(consultant.name));
     /* L'unicité du couple tranche, même entre deux ajouts simultanés : aucune ligne insérée, c'est un doublon. */
     const inserted = await tx
       .insert(opportunityConsultant)
