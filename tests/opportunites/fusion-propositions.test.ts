@@ -97,6 +97,13 @@ describe("suppression définitive d'une fiche liée à une opportunité (CRM-110
 
     expect(await blockersOf("person", julie)).toContainEqual({ key: "opportunity-contactPersonId", label: "Opportunités", count: 1, titles: ["Refonte Payroll"] });
   });
+
+  it("refuse (409) de supprimer un consultant proposé sur une opportunité, en la nommant", async () => {
+    const julie = await consultant("Julie", "Martin");
+    await addProposal(await createOpportunity(), { personId: julie }, actor());
+
+    expect(await blockersOf("person", julie)).toContainEqual({ key: "opportunity_consultant", label: "Opportunités proposées", count: 1, titles: ["Refonte Payroll"] });
+  });
 });
 
 /** D47 : la fusion fait suivre à la fiche conservée ce qui la relie aux opportunités. */
