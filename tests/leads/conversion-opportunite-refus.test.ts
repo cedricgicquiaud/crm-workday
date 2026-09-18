@@ -6,7 +6,7 @@ import { POST as postLead } from "@/app/api/leads/route";
 import { activity, auditLog, company, lead, opportunity, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { listObjectRecords } from "@/features/objects/service";
-import { closeDb, db } from "@/lib/db";
+import { closeDb, db, rawSql } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
 
 const MEMBER = { email: "membre-conversion-opportunite-refus@exemple.fr", firstName: "Oscar", lastName: "Lemaire", password: "MotDePasse-Conv-Opp-Refus-1", role: "membre" as const };
@@ -106,5 +106,24 @@ describe("refus d'un bloc « opportunity » hors de ce que la fenêtre saisit (C
     expect(res.status).toBe(400);
     expect(Object.keys(await fieldsOf(res))).toEqual(["opportunity"]);
     expect(await readLead(id)).toMatchObject({ stage: "nouveau" });
+  });
+});
+
+describe("une conversion dont l'opportunité échoue en base ne laisse rien (CRM-111, D51, D55)", () => {
+  it("n'écrit ni la personne, ni l'entreprise, ni l'avancement quand l'opportunité est refusée par la base après elles", async () => {
+    await rawSql().unsafe(`ALTER TABLE opportunity ADD CONSTRAINT conversion_opportunite_refus_test CHECK (title <> 'Refusée par la base')`);
+    try {
+      const id = await createLead({ firstName: "Julie", lastName: "Martin", companyName: "Banque Échec", need: "Paie", origin: "linkedin" });
+      const before = await written();
+
+      /* L'échec de la base remonte en exception jusqu'au gestionnaire de Next, qui répond 500. */
+      const outcome = await convert(id, { opportunity: { ...complete, title: "Refusée par la base" } }).then((res) => res.status, () => 500);
+      expect(outcome).toBe(500);
+
+      expect(await written()).toEqual(before);
+      expect(await readLead(id)).toMatchObject({ stage: "nouveau", convertedPersonId: null });
+    } finally {
+      await rawSql().unsafe(`ALTER TABLE opportunity DROP CONSTRAINT IF EXISTS conversion_opportunite_refus_test`);
+    }
   });
 });
