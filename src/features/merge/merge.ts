@@ -153,7 +153,24 @@ async function droppedDependents(type: string, keptId: string, absorbedId: strin
         return row ? { dependent, row } : null;
       }),
   );
-  return found.filter((entry): entry is DroppedDependent => entry !== null);
+  const perValue = await Promise.all(dependentsOf(type).map((dependent) => droppedPerValue(dependent, keptId, absorbedId)));
+  return [...found.filter((entry): entry is DroppedDependent => entry !== null), ...perValue.flat()];
+}
+
+/**
+ * Les lignes « une au plus par valeur » que les deux fiches portent pour la même valeur : de chaque
+ * paire part la moins bien classée, de la conservée comme de l'absorbée (D47). Celle qui reste à
+ * l'absorbée suit ensuite la fiche avec les autres.
+ */
+async function droppedPerValue(dependent: DependentTable, keptId: string, absorbedId: string): Promise<DroppedDependent[]> {
+  const rule = dependent.oneAtMostPer;
+  if (!rule) return [];
+  const [held, incoming] = await Promise.all([rowsOf(dependent, keptId), rowsOf(dependent, absorbedId)]);
+  return incoming.flatMap((row) => {
+    const twin = held.find((candidate) => candidate[rule.column] === row[rule.column]);
+    if (!twin) return [];
+    return [{ dependent, row: rule.rank(row) > rule.rank(twin) ? twin : row }];
+  });
 }
 
 /** Colonnes techniques d'une ligne dépendante : elles ne disent rien à un lecteur de l'historique. */
@@ -242,10 +259,11 @@ export async function mergeRecords(type: string, keptId: string, absorbedId: str
       await tx.update(pointing).set({ [column]: kept.id }).where(eq(getTableColumns(pointing)[column], absorbed.id));
     }
     /* Une ligne « une au plus » que la conservée porte déjà part avec l'absorbée : son contenu est
-       consigné dans l'entrée de fusion, la conservée garde la sienne (D20). */
+       consigné dans l'entrée de fusion, la conservée garde la sienne (D20). Une ligne « une au plus par
+       valeur » écartée part aussi, qu'elle soit à l'une ou à l'autre (D47). */
     for (const { dependent, row } of dropped) await tx.delete(dependent.table).where(eq(getTableColumns(dependent.table).id, row.id as string));
-    /* Les autres suivent la fiche. Aucune collision possible sur une colonne unique : une adresse
-       email est déjà unique dans tout le CRM, deux fiches n'en portent jamais la même. */
+    /* Les autres suivent la fiche. Plus aucune collision sur une colonne unique : les doublons viennent
+       de partir, et une adresse email est déjà unique dans tout le CRM. */
     for (const dependent of dependentsOf(type)) await tx.update(dependent.table).set({ [dependent.fkColumn]: kept.id }).where(heldBy(dependent, absorbed.id));
     await tx.update(activity).set({ objectId: kept.id }).where(and(eq(activity.objectType, type), eq(activity.objectId, absorbed.id)));
     await tx.update(activity).set({ parentId: kept.id }).where(and(eq(activity.parentType, type), eq(activity.parentId, absorbed.id)));

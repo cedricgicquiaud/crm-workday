@@ -30,6 +30,12 @@ export type DependentTable = {
   label: string;
   /** une ligne au plus par fiche : la conservée garde la sienne, celle de l'absorbée est consignée dans l'historique puis supprimée (D20) */
   oneAtMost?: boolean;
+  /**
+   * Une ligne au plus par fiche et par valeur de `column` (une proposition par opportunité) : quand la
+   * conservée et l'absorbée en portent une chacune, seule reste celle de plus haut `rank`, la conservée
+   * l'emportant à égalité ; l'autre est consignée dans l'entrée de fusion puis supprimée (D47).
+   */
+  oneAtMostPer?: { column: string; rank: (row: Record<string, unknown>) => number };
   /** colonnes de la fiche que cette ligne tient à jour (l'entreprise de rattachement, un champ dérivé) : elles la suivent quand elle change de fiche, sans quoi la fiche conservée porterait un rattachement à moitié */
   carries?: readonly string[];
   /**

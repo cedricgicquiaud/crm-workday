@@ -13,6 +13,7 @@ import { attachConsultantProfiles, consultantSubtitles, describeConsultantProfil
 import { ConsultantProfileSection } from "@/features/consultants/consultant-profile-section";
 import { defineSection, registerServerObject, type DependentTable, type SearchHit } from "@/features/objects/registry.server";
 import { listRecordOptions } from "@/features/objects/service";
+import { resultRank } from "@/features/opportunities/schema";
 import { db } from "@/lib/db";
 import type { CompanyOption } from "./company-picker";
 import { getContactProfile, type ContactProfile } from "./contact-profile";
@@ -61,8 +62,12 @@ const dependents: readonly DependentTable[] = [
   { table: contactProfile, fkColumn: "personId", label: "Profil contact", oneAtMost: true, carries: ["companyId"] },
   /* Le profil consultant emmène la société de facturation : elle ne veut rien dire sans lui (D16). */
   { table: consultantProfile, fkColumn: "personId", label: "Profil consultant", oneAtMost: true, carries: ["billingCompanyId"], describe: describeConsultantProfile },
-  /* Les propositions du consultant le suivent (D47) ; l'opportunité les déclare aussi, et c'est elle qui les lit dans la colonne des liens (D54). */
-  { table: opportunityConsultant, fkColumn: "personId", label: "Propositions" },
+  /*
+   * Les propositions du consultant le suivent (D47) ; l'opportunité les déclare aussi, et c'est elle qui
+   * les lit dans la colonne des liens (D54). Deux personnes proposées sur la même opportunité n'y
+   * laissent que la proposition au résultat le plus avancé.
+   */
+  { table: opportunityConsultant, fkColumn: "personId", label: "Propositions", oneAtMostPer: { column: "opportunityId", rank: (row) => resultRank(String(row.result)) } },
 ];
 
 /** Ce que la section « Profil contact » lit d'un coup : le profil de la personne et les entreprises qu'elle peut choisir. */
