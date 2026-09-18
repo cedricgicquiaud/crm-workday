@@ -30,6 +30,8 @@ const RESULT_OPTIONS = PROPOSAL_RESULTS.map(({ value, label }) => ({ value, labe
 
 const CHANGE_FAILED = "La proposition n'a pas pu être modifiée.";
 
+const WITHDRAW_FAILED = "La proposition n'a pas pu être retirée.";
+
 /** Ce qu'une modification envoie : le résultat choisi, ou le TJM saisi (vide : aucun TJM ; illisible : envoyé tel quel, le serveur le refuse sous le champ). */
 type Change = { result: string } | { proposedDailyRate: number | string | null };
 
@@ -69,12 +71,37 @@ function ProposalRow({ opportunityId, proposal, readOnly }: { opportunityId: str
     return true;
   }
 
+  /** Retire la proposition ; la ligne ne part qu'après la réponse 2xx, un refus s'affiche sous elle. */
+  async function withdraw() {
+    let res: Response;
+    try {
+      res = await fetch(url, { method: "DELETE" });
+    } catch {
+      setErrors({ withdraw: WITHDRAW_FAILED });
+      return;
+    }
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as Failure | null;
+      setErrors({ withdraw: body?.message ?? WITHDRAW_FAILED });
+      return;
+    }
+    setErrors({});
+    router.refresh();
+  }
+
   const rate = proposal.proposedDailyRate;
   return (
     <li className="grid min-w-0 gap-2 text-sm">
-      <Link href={`/personnes/${proposal.personId}`} title={proposal.name} className="min-w-0 truncate font-medium hover:underline focus-visible:rounded-sm">
-        {proposal.name}
-      </Link>
+      <div className="flex min-w-0 items-center gap-2">
+        <Link href={`/personnes/${proposal.personId}`} title={proposal.name} className="min-w-0 flex-1 truncate font-medium hover:underline focus-visible:rounded-sm">
+          {proposal.name}
+        </Link>
+        {!readOnly && (
+          <Button type="button" variant="ghost" size="sm" className="shrink-0" aria-label={`Retirer ${proposal.name}`} onClick={() => void withdraw()}>
+            Retirer
+          </Button>
+        )}
+      </div>
       <div className="grid min-w-0 grid-cols-2 gap-2">
         <FieldControl
           id={`proposition-${proposal.personId}-result`}
@@ -100,6 +127,11 @@ function ProposalRow({ opportunityId, proposal, readOnly }: { opportunityId: str
           onSave={(raw) => save({ proposedDailyRate: rateInput(raw) })}
         />
       </div>
+      {errors.withdraw && (
+        <p role="alert" className="text-xs text-danger">
+          {errors.withdraw}
+        </p>
+      )}
     </li>
   );
 }
