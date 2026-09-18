@@ -2,8 +2,11 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { activity, auditLog, company, consultantModule, consultantProfile, contactProfile, customFieldValue, emailLog, objectRedirect, opportunity, person, personEmail, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
+import { createConsultant } from "@/features/consultants/consultants";
 import { mergeRecords } from "@/features/merge/merge";
 import { createObject, getObjectRecord } from "@/features/objects/service";
+import { addProposal, listProposals } from "@/features/opportunities/proposals";
+import { createPerson } from "@/features/persons/persons";
 import { closeDb, db } from "@/lib/db";
 
 const MEMBER = { email: "membre-fusion-propositions@exemple.fr", firstName: "Inès", lastName: "Roux", password: "MotDePasse-Fusion-Prop-1", role: "membre" as const };
@@ -18,6 +21,12 @@ async function createOpportunity(fields: Record<string, unknown> = {}): Promise<
 }
 
 const newCompany = async (name: string) => (await createObject("company", { name, type: "prospect" }, actor())).id;
+
+/** Un contact de Banque X : l'opportunité ne désigne comme contact qu'une personne de son entreprise (D35). */
+const newPerson = async (firstName: string, lastName: string) => (await createPerson({ firstName, lastName, companyId: bankId }, actor())).id;
+
+/** Un consultant freelance, proposable sur une opportunité. */
+const consultant = async (firstName: string, lastName: string) => (await createConsultant({ firstName, lastName, status: "freelance" }, actor())).id;
 
 /** Les enfants avant les parents : les propositions partent avec l'opportunité (cascade), qui retient l'entreprise et les personnes. */
 async function cleanup() {
@@ -59,5 +68,26 @@ describe("fusion d'une fiche liée à une opportunité (CRM-110, D47)", () => {
     await mergeRecords("company", kept, bankId, []);
 
     expect((await getObjectRecord("opportunity", opportunityId)).companyId).toBe(kept);
+  });
+
+  it("fait suivre à la personne conservée l'opportunité dont l'absorbée était le contact", async () => {
+    const kept = await newPerson("Julie", "Martin");
+    const absorbed = await newPerson("Julie", "Martin");
+    const opportunityId = await createOpportunity({ contactPersonId: absorbed });
+
+    await mergeRecords("person", kept, absorbed, []);
+
+    expect((await getObjectRecord("opportunity", opportunityId)).contactPersonId).toBe(kept);
+  });
+
+  it("fait suivre à la personne conservée les propositions de l'absorbée", async () => {
+    const kept = await consultant("Julie", "Martin");
+    const absorbed = await consultant("Julie", "Martin");
+    const opportunityId = await createOpportunity({ targetDailyRate: 650 });
+    await addProposal(opportunityId, { personId: absorbed }, actor());
+
+    await mergeRecords("person", kept, absorbed, []);
+
+    expect(await listProposals(opportunityId)).toMatchObject([{ personId: kept, result: "propose", proposedDailyRate: 650 }]);
   });
 });
