@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { POST as postConversion } from "@/app/api/leads/[id]/conversion/route";
-import { PATCH as patchLead } from "@/app/api/leads/[id]/route";
+import { GET as getLead, PATCH as patchLead } from "@/app/api/leads/[id]/route";
 import { POST as postLead } from "@/app/api/leads/route";
 import { GET as getOpportunity } from "@/app/api/opportunites/[id]/route";
 import { POST as postPerson } from "@/app/api/personnes/route";
@@ -11,7 +11,7 @@ import { createDefinition, loadCustomFields } from "@/features/custom-fields/def
 import { customFieldKey } from "@/features/custom-fields/fields-source";
 import { listHistory } from "@/features/history/history";
 import { createLead } from "@/features/leads/leads";
-import { createObject } from "@/features/objects/service";
+import { createObject, listObjectRecords } from "@/features/objects/service";
 import { createOpportunity } from "@/features/opportunities/opportunities";
 import { closeDb, db } from "@/lib/db";
 import { jsonRequest, sessionCookie } from "../helpers/auth";
@@ -34,6 +34,7 @@ async function postNewLead(input: Record<string, unknown>): Promise<string> {
 
 const setStage = async (id: string, stage: string) => expect((await patchLead(jsonRequest("PATCH", `/api/leads/${id}`, { stage }, memberCookie), byId(id))).status).toBe(200);
 const convert = (id: string, body: unknown) => postConversion(jsonRequest("POST", `/api/leads/${id}/conversion`, body, memberCookie), byId(id));
+const readLeadOf = async (id: string) => (await getLead(jsonRequest("GET", `/api/leads/${id}`, undefined, memberCookie), byId(id))).json() as Promise<Record<string, unknown>>;
 const readOpportunity = async (id: string) => (await getOpportunity(jsonRequest("GET", `/api/opportunites/${id}`, undefined, memberCookie), byId(id))).json() as Promise<Record<string, unknown>>;
 
 const newCompany = async (name: string) => (await createObject("company", { name, type: "prospect" }, { id: memberId })).id;
@@ -149,5 +150,27 @@ describe("convertir en gardant une entreprise existante (CRM-112, D51, contrat 5
     const { opportunityId } = (await res.json()) as { opportunityId: string };
 
     expect(await readOpportunity(opportunityId)).toMatchObject({ companyId: acme, title: "Besoin Workday · Acme" });
+  });
+});
+
+describe("convertir sans opportunité (CRM-113, D52, D55, contrat 57)", () => {
+  it("un lead avec besoin converti sans bloc « opportunity » (case décochée) devient « converti » avec sa personne et son entreprise, sans opportunité", async () => {
+    const id = await postNewLead({ firstName: "Julie", lastName: "Martin", companyName: "Banque X", need: "Paie", origin: "linkedin" });
+
+    const res = await convert(id, {});
+    expect(res.status).toBe(200);
+    const { personId, companyId, opportunityId } = (await res.json()) as { personId: string; companyId: string; opportunityId: string | null };
+
+    expect(opportunityId).toBeNull();
+    expect(await listObjectRecords("opportunity", { includeArchived: true })).toEqual([]);
+    expect(await readLeadOf(id)).toMatchObject({ stage: "converti", convertedPersonId: personId, convertedCompanyId: companyId });
+    expect((await listHistory("lead", id)).find((entry) => entry.action === "conversion")?.newValue).toBe("Julie Martin · Banque X");
+  });
+
+  it("un bloc « opportunity » nul ne crée pas d'opportunité", async () => {
+    const id = await postNewLead({ firstName: "Paul", lastName: "Leroy", companyName: "Banque Y", origin: "linkedin" });
+
+    expect((await convert(id, { opportunity: null })).status).toBe(200);
+    expect(await listObjectRecords("opportunity", { includeArchived: true })).toEqual([]);
   });
 });
