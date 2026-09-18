@@ -4,7 +4,7 @@ import { activity, auditLog, company, consultantModule, consultantProfile, conta
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createConsultant } from "@/features/consultants/consultants";
 import { listHistory } from "@/features/history/history";
-import { mergeRecords } from "@/features/merge/merge";
+import { mergeRecords, planMerge } from "@/features/merge/merge";
 import { createObject, getObjectRecord } from "@/features/objects/service";
 import { addProposal, changeProposal, listProposals } from "@/features/opportunities/proposals";
 import { WON_STAGE } from "@/features/opportunities/schema";
@@ -152,5 +152,17 @@ describe("fusion de deux personnes proposées sur la même opportunité (CRM-110
 
     const merged = (await listHistory("person", kept)).find((entry) => entry.action === "fusionnee");
     expect(merged?.oldValue).toContain("Propositions : Refonte Payroll, Proposé, TJM de vente proposé 650,00 €");
+  });
+
+  it("annonce dans l'aperçu une seule proposition déplacée quand l'absorbée en a deux, dont une écartée", async () => {
+    const kept = await consultant("Julie", "Martin");
+    const absorbed = await consultant("Julie", "Martin");
+    const shared = await createOpportunity();
+    await addProposal(shared, { personId: kept }, actor());
+    await changeProposal(shared, kept, { result: "retenu" }, actor());
+    await addProposal(shared, { personId: absorbed }, actor());
+    await addProposal(await createOpportunity({ title: "Migration HCM" }), { personId: absorbed }, actor());
+
+    expect((await planMerge("person", kept, absorbed)).moved).toContainEqual({ key: "opportunity_consultant", label: "Propositions", count: 1 });
   });
 });
