@@ -47,7 +47,8 @@ async function confirm(page: Page, id: string, dialog: Locator) {
 }
 
 const opportunityBox = (dialog: Locator) => dialog.getByRole("checkbox", { name: "Créer une opportunité" });
-const titleInput = (dialog: Locator) => dialog.getByRole("textbox", { name: "Titre", exact: true });
+/* Le refus sous le champ fait partie de son libellé : le nom accessible commence par « Titre ». */
+const titleInput = (dialog: Locator) => dialog.getByRole("textbox", { name: /^Titre/ });
 const closeInput = (dialog: Locator) => dialog.getByLabel("Clôture prévue");
 
 test.describe("convertir un lead qualifié en opportunité (CRM-111, CRM-114, contrat 55)", () => {
@@ -75,5 +76,19 @@ test.describe("convertir un lead qualifié en opportunité (CRM-111, CRM-114, co
     await expect(memberPage.getByRole("heading", { level: 1, name: title })).toBeVisible();
     await expect(memberPage.getByRole("region", { name: "Issu du lead" }).getByRole("link", { name: `Julie Martin · ${company}` })).toBeVisible();
     await expect(memberPage.getByRole("region", { name: "Champs", exact: true }).getByText("Qualifié", { exact: true })).toBeVisible();
+  });
+
+  test("case cochée sans titre, sans module et sans clôture prévue : chaque refus s'affiche sous son champ, la saisie reste, et le lead n'est pas converti (contrat 58)", async ({ memberPage }) => {
+    const mark = tag();
+    const id = await createLead(memberPage, { firstName: "Julie", lastName: "Martin", companyName: named("Banque Refus", mark), need: "Paie", origin: "linkedin" });
+
+    const dialog = await openConversion(memberPage, id);
+    await titleInput(dialog).fill("");
+    await confirm(memberPage, id, dialog);
+
+    await expect(dialog.getByRole("alert")).toHaveText(["« Titre » est obligatoire.", "« Modules Workday » est obligatoire.", "« Clôture prévue » est obligatoire."]);
+    await expect(titleInput(dialog)).toHaveValue("");
+    await dialog.getByRole("button", { name: "Annuler" }).click();
+    await expect(memberPage.getByText("Avancement : Nouveau")).toBeVisible();
   });
 });
