@@ -303,7 +303,7 @@ export async function convertLead(id: string, input: unknown, actor: Actor): Pro
       .set({ ...Object.fromEntries(completed), stage: CONVERTED_STAGE, convertedAt: now, convertedPersonId: personId, convertedCompanyId: companyId, updatedAt: now })
       .where(eq(lead.id, current.id));
     const entries: HistoryInput[] = [
-      { objectType: TYPE, objectId: current.id, action: CONVERSION_ACTION, newValue: `${personName} · ${companyName}`, authorId: actor.id },
+      { objectType: TYPE, objectId: current.id, action: CONVERSION_ACTION, newValue: [personName, companyName, ...(deal ? [String(deal.title)] : [])].join(" · "), authorId: actor.id },
       ...completed.map(([field, value]) => ({ objectType: TYPE, objectId: current.id, action: "modifiee" as const, field, oldValue: null, newValue: value, authorId: actor.id })),
     ];
     await recordHistory(entries, tx);
