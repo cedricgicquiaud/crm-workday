@@ -85,7 +85,10 @@ async function dependentCounts(type: string, keptId: string, absorbedId: string)
   return Promise.all(
     dependentsOf(type).map(async (dependent) => {
       const takenAlready = dependent.oneAtMost === true && (await countWhere(dependent.table, heldBy(dependent, keptId))) > 0;
-      return { key: getTableName(dependent.table), label: dependent.label, count: takenAlready ? 0 : await countWhere(dependent.table, heldBy(dependent, absorbedId)) };
+      if (takenAlready) return { key: getTableName(dependent.table), label: dependent.label, count: 0 };
+      /* Une ligne de l'absorbée écartée par une règle « une au plus par valeur » part au lieu de suivre. */
+      const discarded = (await droppedPerValue(dependent, keptId, absorbedId)).filter(({ row }) => row[dependent.fkColumn] === absorbedId).length;
+      return { key: getTableName(dependent.table), label: dependent.label, count: (await countWhere(dependent.table, heldBy(dependent, absorbedId))) - discarded };
     }),
   );
 }
