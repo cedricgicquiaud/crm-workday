@@ -8,28 +8,30 @@ import { createElement } from "react";
 import { company, contactProfile, opportunity, opportunityModule, person } from "@/db/schema";
 import { defineSection, registerServerObject, type SearchHit } from "@/features/objects/registry.server";
 import { db } from "@/lib/db";
-import { listProposalCandidates, listProposals, type Proposal, type ProposalCandidate } from "./proposals";
+import { countProposals, listProposalCandidates, listProposals, PROPOSALS_LIMIT, type Proposal, type ProposalCandidate } from "./proposals";
 import { ProposalsSection } from "./proposals-section";
 import { CONTACT_OUTSIDE_COMPANY_RULE, estimatedAmount, FROM_LEAD_DELETE_RULE, STAGES, stageProbability, WON_DELETE_RULE, WON_STAGE } from "./schema";
 
 const MAX_HITS = 20;
 
 /** Ce que la section « Consultants proposés » lit d'un coup : les propositions et les consultants que l'ajout propose. */
-type ProposalsData = { proposals: Proposal[]; candidates: { options: ProposalCandidate[]; more: number } };
+type ProposalsData = { proposals: Proposal[]; moreProposals: number; candidates: { options: ProposalCandidate[]; more: number } };
 
 /**
- * Section « Consultants proposés » (D44), la première sous « Champs ». Son chargeur lit les propositions
- * et les consultants à proposer : la section les reçoit, elle ne les relit pas pour son compte.
+ * Section « Consultants proposés » (D44), la première sous « Champs ». Son chargeur lit les propositions,
+ * bornées, et les consultants à proposer : la section les reçoit, elle ne les relit pas pour son compte.
  */
 const proposalsSection = defineSection<ProposalsData>({
   key: "consultants-proposes",
   order: 10,
   load: async (id) => {
     const [proposals, candidates] = await Promise.all([listProposals(id), listProposalCandidates(id)]);
-    return { proposals, candidates };
+    /* Le compte n'est demandé que si la borne est atteinte : en dessous, les propositions chargées sont toutes celles qui existent. */
+    const moreProposals = proposals.length < PROPOSALS_LIMIT ? 0 : (await countProposals(id)) - proposals.length;
+    return { proposals, moreProposals, candidates };
   },
   render: ({ id, data, readOnly }) =>
-    createElement(ProposalsSection, { opportunityId: id, proposals: data.proposals, candidates: data.candidates.options, more: data.candidates.more, readOnly }),
+    createElement(ProposalsSection, { opportunityId: id, proposals: data.proposals, moreProposals: data.moreProposals, candidates: data.candidates.options, moreCandidates: data.candidates.more, readOnly }),
 });
 
 /**

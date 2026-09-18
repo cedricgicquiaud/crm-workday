@@ -3,7 +3,7 @@
  * son résultat et son TJM de vente proposé. Ce module est la seule écriture de `opportunity_consultant`
  * hors des mécanismes communs (suppression, fusion), qui la lisent par sa déclaration.
  */
-import { and, asc, count, eq, exists, isNull, not } from "drizzle-orm";
+import { and, asc, count, eq, exists, isNull, not, type SQL } from "drizzle-orm";
 import { consultantProfile, opportunity, opportunityConsultant, person } from "@/db/schema";
 import { parisDay } from "@/features/activities/overdue";
 import { personsWithConsultantProfile } from "@/features/consultants/consultant-profile";
@@ -34,15 +34,28 @@ const archivedRule = (name: string) => `« ${name} » est archivée : restaurez 
 /** Une proposition telle que la section et l'API la rendent : le consultant par son nom, son résultat, son TJM proposé. */
 export type Proposal = { personId: string; name: string; result: string; proposedDailyRate: number | null };
 
-/** Propositions d'une opportunité, la plus ancienne d'abord. Le TJM arrive de la base en décimal écrit (« 650.00 ») : il se lit en nombre. */
-export async function listProposals(opportunityId: string): Promise<Proposal[]> {
+/** Propositions lues au plus pour la fiche ; le reste s'annonce (« et N autres »). */
+export const PROPOSALS_LIMIT = 50;
+
+/** Les propositions qui répondent à `where`, la plus ancienne d'abord. Le TJM arrive de la base en décimal écrit (« 650.00 ») : il se lit en nombre. */
+async function proposalsWhere(where: SQL | undefined, limit: number): Promise<Proposal[]> {
   const rows = await db
     .select({ personId: opportunityConsultant.personId, name: person.name, result: opportunityConsultant.result, proposedDailyRate: opportunityConsultant.proposedDailyRate })
     .from(opportunityConsultant)
     .innerJoin(person, eq(person.id, opportunityConsultant.personId))
-    .where(eq(opportunityConsultant.opportunityId, opportunityId))
-    .orderBy(asc(opportunityConsultant.createdAt), asc(opportunityConsultant.id));
+    .where(where)
+    .orderBy(asc(opportunityConsultant.createdAt), asc(opportunityConsultant.id))
+    .limit(limit);
   return rows.map((row) => ({ ...row, proposedDailyRate: row.proposedDailyRate === null ? null : Number(row.proposedDailyRate) }));
+}
+
+/** Propositions d'une opportunité, la plus ancienne d'abord, bornées. */
+export const listProposals = (opportunityId: string, { limit = PROPOSALS_LIMIT } = {}): Promise<Proposal[]> => proposalsWhere(eq(opportunityConsultant.opportunityId, opportunityId), limit);
+
+/** Nombre de propositions d'une opportunité : ce que la lecture bornée n'a pas chargé se déduit de ce compte. */
+export async function countProposals(opportunityId: string): Promise<number> {
+  const [row] = await db.select({ value: count() }).from(opportunityConsultant).where(eq(opportunityConsultant.opportunityId, opportunityId));
+  return Number(row?.value ?? 0);
 }
 
 /** Un consultant que « Ajouter un consultant » propose, avec son état écrit (« En mission · disponible le 5 oct. 2026 »). */
@@ -119,6 +132,6 @@ export async function addProposal(opportunityId: string, input: unknown, actor: 
     if (inserted.length === 0) throw new HttpError(409, "deja_proposee", alreadyProposedRule(consultant.name), { personId });
     await recordHistory([{ objectType: TYPE, objectId: record.id, action: PROPOSAL_ADDED_ACTION, field: personId, newValue: consultant.name, authorId: actor.id }], tx);
   });
-  const proposals = await listProposals(record.id);
-  return proposals.find((proposal) => proposal.personId === personId)!;
+  const [added] = await proposalsWhere(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)), 1);
+  return added;
 }

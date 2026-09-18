@@ -10,8 +10,11 @@ import { EMPTY, formatNumber } from "@/features/objects/labels";
 import type { Proposal, ProposalCandidate } from "./proposals";
 import { OPPORTUNITY_FIELDS, PROPOSAL_RESULTS } from "./schema";
 
-/** `readOnly` : l'opportunité ne s'écrit plus (fiche archivée, D21) ; les propositions se lisent, aucune ne s'ajoute. */
-type Props = { opportunityId: string; proposals: readonly Proposal[]; candidates: readonly ProposalCandidate[]; more: number; readOnly?: boolean };
+/**
+ * `moreProposals`, `moreCandidates` : ce que les lectures bornées n'ont pas chargé, annoncé sous la liste et sous le sélecteur.
+ * `readOnly` : l'opportunité ne s'écrit plus (fiche archivée, D21) ; les propositions se lisent, aucune ne s'ajoute.
+ */
+type Props = { opportunityId: string; proposals: readonly Proposal[]; moreProposals: number; candidates: readonly ProposalCandidate[]; moreCandidates: number; readOnly?: boolean };
 
 type Failure = { message?: string; fields?: Record<string, string> };
 
@@ -22,13 +25,19 @@ const RATE_FIELD = OPPORTUNITY_FIELDS.find((field) => field.key === "targetDaily
 
 const resultLabel = (value: string) => PROPOSAL_RESULTS.find((result) => result.value === value)?.label ?? value;
 
+/** « et 12 autres » sous une lecture bornée ; rien quand elle a tout chargé. */
+function More({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return <p className="text-xs text-muted-foreground">{`et ${count} autre${count > 1 ? "s" : ""}`}</p>;
+}
+
 /**
  * Section « Consultants proposés » de la fiche d'une opportunité (D44), sous « Champs » : les
  * consultants présentés au client, avec leur résultat et leur TJM de vente proposé. « Ajouter un
  * consultant » ouvre le choix parmi les consultants actifs pas encore proposés, chacun avec son état ;
  * l'ajout ne s'affiche qu'après la réponse 2xx, un refus s'affiche sous le sélecteur.
  */
-export function ProposalsSection({ opportunityId, proposals, candidates, more, readOnly = false }: Props) {
+export function ProposalsSection({ opportunityId, proposals, moreProposals, candidates, moreCandidates, readOnly = false }: Props) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -73,6 +82,7 @@ export function ProposalsSection({ opportunityId, proposals, candidates, more, r
           ))}
         </ul>
       )}
+      <More count={moreProposals} />
       {/* Fiche archivée : le bouton disparaît plutôt que de s'éteindre — l'ajout finirait en 409. */}
       {!readOnly && !adding && (
         <div>
@@ -94,7 +104,7 @@ export function ProposalsSection({ opportunityId, proposals, candidates, more, r
             error={error}
             onSave={add}
           />
-          {more > 0 && <p className="text-xs text-muted-foreground">{`et ${more} autre${more > 1 ? "s" : ""}`}</p>}
+          <More count={moreCandidates} />
         </div>
       )}
     </section>
