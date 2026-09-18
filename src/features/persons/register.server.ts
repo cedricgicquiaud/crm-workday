@@ -53,8 +53,8 @@ function duplicateKey(record: Record<string, unknown>): string | null {
 }
 
 /**
- * Ce qui dépend d'une personne sans être un objet : ses autres adresses (plusieurs par personne) et
- * son profil contact (un au plus, D3). La fusion s'en sert pour rattacher ces lignes à la fiche
+ * Ce qui dépend d'une personne sans être un objet : ses autres adresses (plusieurs par personne), ses
+ * profils (un au plus, D3) et ses propositions. La fusion s'en sert pour rattacher ces lignes à la fiche
  * conservée. L'entreprise de rattachement et le champ dérivé « Profils » suivent le profil : ils ne
  * veulent rien dire sans lui.
  */
