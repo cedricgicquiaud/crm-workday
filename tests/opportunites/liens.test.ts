@@ -4,6 +4,7 @@ import { auditLog, company, opportunity, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { linkedGroups } from "@/features/objects/links-column";
 import { createObject } from "@/features/objects/service";
+import { createPerson } from "@/features/persons/persons";
 import { closeDb, db } from "@/lib/db";
 
 const MEMBER = { email: "membre-liens-opportunites@exemple.fr", firstName: "Inès", lastName: "Roux", password: "MotDePasse-Liens-Opp-1", role: "membre" as const };
@@ -47,5 +48,12 @@ describe("colonne des liens de l'entreprise et du contact (CRM-109, D47, D61)", 
     const opportunityId = await createOpportunity({ stage: "negociation" });
 
     expect((await group("company", bankId, "Opportunités"))?.records).toEqual([{ id: opportunityId, title: "Refonte Payroll", href: `/opportunites/${opportunityId}`, subtitle: "Négociation" }]);
+  });
+
+  it("la fiche du contact montre l'opportunité sous « Opportunités », son étape en sous-titre, avec le lien vers sa fiche", async () => {
+    const julie = (await createPerson({ firstName: "Julie", lastName: "Martin", companyId: bankId }, { id: memberId })).id;
+    const opportunityId = await createOpportunity({ contactPersonId: julie, stage: "qualifie" });
+
+    expect((await group("person", julie, "Opportunités"))?.records).toEqual([{ id: opportunityId, title: "Refonte Payroll", href: `/opportunites/${opportunityId}`, subtitle: "Qualifié" }]);
   });
 });
