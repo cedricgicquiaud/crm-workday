@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import type { TransactionSql } from "postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { activity, auditLog, company, consultantModule, consultantProfile, contactProfile, customFieldValue, emailLog, objectRedirect, opportunity, person, personEmail, user } from "@/db/schema";
 import { archiveRecord } from "@/features/archive/archive";
@@ -11,7 +12,7 @@ import { createObject, getObjectRecord } from "@/features/objects/service";
 import { addProposal, changeProposal, listProposals } from "@/features/opportunities/proposals";
 import { WON_STAGE } from "@/features/opportunities/schema";
 import { createPerson } from "@/features/persons/persons";
-import { closeDb, db } from "@/lib/db";
+import { closeDb, db, rawSql } from "@/lib/db";
 
 const MEMBER = { email: "membre-fusion-propositions@exemple.fr", firstName: "Inès", lastName: "Roux", password: "MotDePasse-Fusion-Prop-1", role: "membre" as const };
 
@@ -228,5 +229,71 @@ describe("fusion de deux personnes proposées sur la même opportunité (CRM-110
 
     const families = (await planMerge("person", kept, absorbed)).moved.filter((family) => family.key === "opportunity_consultant");
     expect(families).toEqual([{ key: "opportunity_consultant", label: "Propositions", count: 1 }]);
+  });
+});
+
+/**
+ * Attend que la fusion bute sur un verrou de ligne, plutôt qu'un délai fixe : la course se joue alors
+ * dans le même ordre sur une machine lente comme sur une rapide.
+ */
+async function waitForBlockedMerge(): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const blocked = await rawSql()`SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_type = 'Lock'`;
+    if (blocked.length > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error("La fusion n'a buté sur aucun verrou.");
+}
+
+/**
+ * Rejoue un geste sur les propositions pendant une fusion : le geste pose ses verrous (`lock`), la
+ * fusion part et bute dessus, le geste écrit et s'engage, la fusion n'aboutit qu'après lui.
+ */
+async function mergeDuring(absorbed: string, kept: string, lock: (sql: TransactionSql) => Promise<unknown>, write: (sql: TransactionSql) => Promise<unknown>): Promise<void> {
+  let pending!: Promise<unknown>;
+  await rawSql().begin(async (sql) => {
+    await lock(sql);
+    pending = mergeRecords("person", kept, absorbed, []);
+    await waitForBlockedMerge();
+    await write(sql);
+  });
+  await pending;
+}
+
+/** D47 : les propositions écartées par une fusion se choisissent sur ce qu'elles portent au moment d'écrire, pas avant. */
+describe("fusion pendant un geste sur les propositions de l'absorbée (CRM-110, D47)", () => {
+  it("garde « Retenu » quand l'absorbée passe de « Proposé » à « Retenu » pendant la fusion", async () => {
+    const kept = await consultant("Julie", "Martin");
+    const absorbed = await consultant("Julie", "Martin");
+    const opportunityId = await createOpportunity();
+    await addProposal(opportunityId, { personId: kept }, actor());
+    await addProposal(opportunityId, { personId: absorbed }, actor());
+
+    await mergeDuring(
+      absorbed,
+      kept,
+      /* Les verrous de `changeProposal` : la proposition et la fiche du consultant. */
+      (sql) => sql`SELECT oc.id FROM opportunity_consultant oc JOIN person p ON p.id = oc.person_id WHERE oc.opportunity_id = ${opportunityId} AND oc.person_id = ${absorbed} FOR UPDATE`,
+      (sql) => sql`UPDATE opportunity_consultant SET result = 'retenu' WHERE opportunity_id = ${opportunityId} AND person_id = ${absorbed}`,
+    );
+
+    expect(await listProposals(opportunityId)).toMatchObject([{ personId: kept, result: "retenu" }]);
+  });
+
+  it("fusionne sans panne quand l'absorbée est ajoutée pendant la fusion sur une opportunité où la conservée est déjà proposée", async () => {
+    const kept = await consultant("Julie", "Martin");
+    const absorbed = await consultant("Julie", "Martin");
+    const opportunityId = await createOpportunity();
+    await addProposal(opportunityId, { personId: kept }, actor());
+
+    await mergeDuring(
+      absorbed,
+      kept,
+      /* Le verrou de `addProposal` : la fiche du consultant, en partage. */
+      (sql) => sql`SELECT id FROM person WHERE id = ${absorbed} FOR SHARE`,
+      (sql) => sql`INSERT INTO opportunity_consultant (opportunity_id, person_id) VALUES (${opportunityId}, ${absorbed})`,
+    );
+
+    expect(await listProposals(opportunityId)).toMatchObject([{ personId: kept, result: "propose" }]);
   });
 });
