@@ -145,4 +145,17 @@ describe("consultants proposés par « Ajouter un consultant » (CRM-107, D44)",
 
     expect({ names: options.map((option) => option.name), more }).toEqual({ names: ["Chloé Dupont", "Julie Martin"], more: 1 });
   });
+
+  it("donne l'état de chaque consultant à côté de son nom", async () => {
+    const opportunityId = await createOpportunity();
+    await consultant("Julie", "Martin");
+    await consultant("Marc", "Petit", { availableFrom: "2099-12-31" });
+
+    const { options } = await listProposalCandidates(opportunityId);
+
+    expect(options.map(({ name, state }) => [name, state])).toEqual([
+      ["Julie Martin", "Disponible"],
+      ["Marc Petit", "En mission · disponible le 31 déc. 2099"],
+    ]);
+  });
 });
