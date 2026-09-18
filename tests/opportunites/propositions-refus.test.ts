@@ -154,6 +154,16 @@ describe("entrée d'une modification de proposition (CRM-108, D55)", () => {
     expect(await res.json()).toMatchObject({ fields: { personId: "« personId » ne se donne pas à la modification d'une proposition." } });
     expect(await listProposals(opportunityId)).toMatchObject([{ personId: julie, result: "propose" }]);
   });
+
+  it("répond 400 à une modification qui ne donne ni résultat ni TJM proposé", async () => {
+    const julie = await consultant("Julie", "Martin");
+    await propose(opportunityId, { personId: julie });
+
+    const res = await change(opportunityId, julie, {});
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ message: "Donnez un résultat ou un TJM de vente proposé." });
+  });
 });
 
 /** D21, D55 : l'opportunité visée existe, n'est pas archivée, et le membre est connecté. */
