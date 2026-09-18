@@ -166,6 +166,22 @@ describe("entrée d'une modification de proposition (CRM-108, D55)", () => {
   });
 });
 
+/** D55 : la proposition visée existe ; sinon 404, jamais un 200 qui n'a rien écrit. */
+describe("proposition visée par une modification (CRM-108, D55)", () => {
+  it.each([
+    ["mal formé", "julie"],
+    ["inconnu", "00000000-0000-4000-8000-000000000000"],
+  ])("répond 404 pour un consultant %s", async (_case, personId) => {
+    expect((await change(opportunityId, personId, { result: "entretien" })).status).toBe(404);
+  });
+
+  it("répond 404 pour Marc Petit, consultant qui n'est pas proposé sur l'opportunité", async () => {
+    const marc = await consultant("Marc", "Petit");
+
+    expect((await change(opportunityId, marc, { result: "entretien" })).status).toBe(404);
+  });
+});
+
 /** D21, D55 : l'opportunité visée existe, n'est pas archivée, et le membre est connecté. */
 describe("opportunité visée par l'ajout (CRM-107, D55)", () => {
   it("répond 409 sur une opportunité archivée, et ne propose rien", async () => {
