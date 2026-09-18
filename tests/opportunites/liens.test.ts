@@ -5,7 +5,7 @@ import { createUserWithPassword } from "@/features/auth/accounts";
 import { createConsultant } from "@/features/consultants/consultants";
 import { LINKED_RECORDS_LIMIT, linkedGroups } from "@/features/objects/links-column";
 import { createObject, updateObject } from "@/features/objects/service";
-import { addProposal, changeProposal } from "@/features/opportunities/proposals";
+import { addProposal, changeProposal, withdrawProposal } from "@/features/opportunities/proposals";
 import { createPerson } from "@/features/persons/persons";
 import { closeDb, db } from "@/lib/db";
 
@@ -98,5 +98,15 @@ describe("colonne des liens du consultant proposé (CRM-109, D47, D54)", () => {
     const proposed = await group("person", julie, "Opportunités proposées");
     expect(proposed?.records).toHaveLength(LINKED_RECORDS_LIMIT);
     expect(proposed?.more).toBe(3);
+  });
+
+  it("un consultant dont la proposition est retirée ne montre plus l'opportunité", async () => {
+    const opportunityId = await createOpportunity();
+    const julie = await consultant("Julie", "Martin");
+    await addProposal(opportunityId, { personId: julie }, { id: memberId });
+
+    await withdrawProposal(opportunityId, julie, { id: memberId });
+
+    expect((await group("person", julie, "Opportunités proposées"))?.records ?? []).toEqual([]);
   });
 });
