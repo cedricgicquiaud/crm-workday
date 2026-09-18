@@ -22,7 +22,19 @@ const TYPE = "opportunity";
 /** Refus de l'entrée (400), un message sous chaque clé qui l'a causé. */
 const invalid = (errors: Record<string, string>) => new HttpError(400, "donnees_invalides", Object.values(errors)[0], { fields: errors });
 
-const unexpectedKeyRule = (key: string) => `« ${key} » ne se donne pas à l'ajout d'un consultant.`;
+/** « « result » ne se donne pas à l'ajout d'un consultant. » : `gesture` nomme le geste qui ne prévoit pas la clé. */
+const unexpectedKeyRule = (key: string, gesture: string) => `« ${key} » ne se donne pas à ${gesture}.`;
+
+/**
+ * Une clé que le geste ne prévoit pas répond 400 sous elle plutôt que d'être ignorée, ce qui ferait
+ * croire qu'elle a été enregistrée. Rend l'entrée lue en objet.
+ */
+function onlyKeys(input: unknown, allowed: readonly string[], gesture: string): Record<string, unknown> {
+  const fields = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const unexpected = Object.keys(fields).filter((key) => !allowed.includes(key));
+  if (unexpected.length > 0) throw invalid(Object.fromEntries(unexpected.map((key) => [key, unexpectedKeyRule(key, gesture)])));
+  return fields;
+}
 
 const CONSULTANT_REQUIRED = "Choisissez un consultant.";
 
@@ -102,9 +114,7 @@ export async function listProposalCandidates(opportunityId: string, { limit = RE
  * plutôt que d'être ignorée, ce qui ferait croire qu'elle a été enregistrée.
  */
 function readAddition(input: unknown): string {
-  const fields = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
-  const unexpected = Object.keys(fields).filter((key) => key !== "personId");
-  if (unexpected.length > 0) throw invalid(Object.fromEntries(unexpected.map((key) => [key, unexpectedKeyRule(key)])));
+  const fields = onlyKeys(input, ["personId"], "l'ajout d'un consultant");
   /* Un identifiant mal formé n'atteint jamais Postgres, qui répondrait par une panne (500). */
   if (typeof fields.personId !== "string" || !UUID.test(fields.personId)) throw invalid({ personId: CONSULTANT_REQUIRED });
   return fields.personId;
@@ -150,7 +160,8 @@ const PROPOSAL_FIELDS: readonly FieldDescriptor[] = [
  * et Refusé se choisissent dans tous les sens tant que l'opportunité est en cours.
  */
 export async function changeProposal(opportunityId: string, personId: string, input: unknown): Promise<Proposal> {
-  const { values, errors } = validateValues(PROPOSAL_FIELDS, input, { partial: true });
+  const fields = onlyKeys(input, PROPOSAL_FIELDS.map((field) => field.key), "la modification d'une proposition");
+  const { values, errors } = validateValues(PROPOSAL_FIELDS, fields, { partial: true });
   if (Object.keys(errors).length > 0) throw invalid(errors);
   const record = await getObjectRecord(TYPE, opportunityId);
   /* La colonne est un décimal : le TJM s'y écrit en texte (« 700 »), et un TJM absent de la saisie n'y touche pas. */
