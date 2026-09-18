@@ -9,10 +9,13 @@ import { parisDay } from "@/features/activities/overdue";
 import { personsWithConsultantProfile } from "@/features/consultants/consultant-profile";
 import { consultantState, stateLabel } from "@/features/consultants/state";
 import { recordHistory } from "@/features/history/history";
+import { validateValues } from "@/features/objects/fields";
+import type { FieldDescriptor } from "@/features/objects/registry";
 import { assertWritable, getObjectRecord, RECORD_OPTIONS_LIMIT, type Actor } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { PROPOSAL_ADDED_ACTION } from "./register";
+import { OPPORTUNITY_FIELDS, PROPOSAL_RESULTS } from "./schema";
 
 const TYPE = "opportunity";
 
@@ -136,16 +139,22 @@ export async function addProposal(opportunityId: string, input: unknown, actor: 
   return added;
 }
 
+/** Ce qu'une modification de proposition règle : son résultat, pris dans la liste fermée, et son TJM de vente proposé, aux bornes du TJM cible (D45). */
+const PROPOSAL_FIELDS: readonly FieldDescriptor[] = [
+  { key: "result", label: "Résultat", type: "list", required: true, values: PROPOSAL_RESULTS },
+  { ...OPPORTUNITY_FIELDS.find((field) => field.key === "targetDailyRate")!, key: "proposedDailyRate", label: "TJM de vente proposé" },
+];
+
 /**
- * Change le résultat d'une proposition (D45) : Proposé, Entretien, Retenu et Refusé se choisissent
- * dans tous les sens tant que l'opportunité est en cours.
+ * Change le résultat ou le TJM de vente proposé d'une proposition (D45) : Proposé, Entretien, Retenu
+ * et Refusé se choisissent dans tous les sens tant que l'opportunité est en cours.
  */
 export async function changeProposal(opportunityId: string, personId: string, input: unknown): Promise<Proposal> {
-  const fields = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const { values } = validateValues(PROPOSAL_FIELDS, input, { partial: true });
   const record = await getObjectRecord(TYPE, opportunityId);
   await db
     .update(opportunityConsultant)
-    .set({ result: String(fields.result), updatedAt: new Date() })
+    .set({ ...values, proposedDailyRate: values.proposedDailyRate === undefined ? undefined : values.proposedDailyRate === null ? null : String(values.proposedDailyRate), updatedAt: new Date() })
     .where(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)));
   const [changed] = await proposalsWhere(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)), 1);
   return changed;
