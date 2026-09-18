@@ -133,4 +133,16 @@ describe("consultants proposés par « Ajouter un consultant » (CRM-107, D44)",
 
     expect(options.map((option) => option.name)).toEqual(["Chloé Dupont", "Julie Martin"]);
   });
+
+  /* La borne réelle est de 200 (D44) ; ramenée à 2, trois consultants suffisent à la dépasser. */
+  it("borne les consultants proposés et compte ceux qui restent (« et 1 autre »)", async () => {
+    const opportunityId = await createOpportunity();
+    await consultant("Julie", "Martin");
+    await consultant("Chloé", "Dupont");
+    await consultant("Marc", "Petit");
+
+    const { options, more } = await listProposalCandidates(opportunityId, { limit: 2 });
+
+    expect({ names: options.map((option) => option.name), more }).toEqual({ names: ["Chloé Dupont", "Julie Martin"], more: 1 });
+  });
 });
