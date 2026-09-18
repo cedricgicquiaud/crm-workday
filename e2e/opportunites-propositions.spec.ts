@@ -63,8 +63,37 @@ test.describe("ajouter un consultant sur la fiche d'une opportunité (CRM-107, D
 
     const row = section.getByRole("listitem").filter({ hasText: `Marc ${marc}` });
     await expect(row).toContainText("Proposé");
-    await expect(row).toContainText("650,00 €");
+    await expect(row.getByRole("textbox", { name: "TJM de vente proposé" })).toHaveValue("650,00 €");
     await expect(memberPage.getByText(`Consultant proposé : Marc ${marc}`)).toBeVisible();
+  });
+});
+
+/** Propose un consultant par l'API, comme « Ajouter un consultant » le ferait. */
+async function propose(page: Page, opportunityId: string, personId: string): Promise<void> {
+  expect((await page.request.post(`/api/opportunites/${opportunityId}/propositions`, { data: { personId } })).status()).toBe(201);
+}
+
+/** Attend la réponse du `method` sur la proposition en déclenchant `act` : deux écritures successives attendent chacune la leur. */
+async function answered(page: Page, opportunityId: string, method: string, act: () => Promise<void>) {
+  const [response] = await Promise.all([page.waitForResponse((res) => res.url().includes(`/api/opportunites/${opportunityId}/propositions/`) && res.request().method() === method), act()]);
+  return response;
+}
+
+test.describe("faire avancer une proposition sur la fiche (CRM-108, D45, D46, contrat 51)", () => {
+  test("Julie passe de « Proposé » à « Entretien » depuis la section, et l'historique le dit", async ({ memberPage }) => {
+    const mark = tag();
+    const id = await createOpportunity(memberPage, mark, { targetDailyRate: 650 });
+    const julie = `Julie ${named("Martin", mark)}`;
+    await propose(memberPage, id, await createConsultant(memberPage, "Julie", named("Martin", mark)));
+    await memberPage.goto(`/opportunites/${id}`);
+
+    const row = memberPage.getByRole("region", { name: "Consultants proposés" }).getByRole("listitem").filter({ hasText: julie });
+    await row.getByRole("combobox", { name: "Résultat" }).click();
+    const response = await answered(memberPage, id, "PATCH", () => memberPage.getByRole("option", { name: "Entretien", exact: true }).click());
+    expect(response.status()).toBe(200);
+
+    await expect(row.getByRole("combobox", { name: "Résultat" })).toContainText("Entretien");
+    await expect(memberPage.getByText(`${julie} : Proposé → Entretien`)).toBeVisible();
   });
 });
 
@@ -82,7 +111,7 @@ test.describe("section « Consultants proposés » à 375 px (CRM-107, D49, cont
     const add = section.getByRole("button", { name: "Ajouter un consultant" });
     await add.scrollIntoViewIfNeeded();
     await expect(add).toBeInViewport();
-    await expect(section.getByRole("listitem")).toContainText("650,00 €");
+    await expect(section.getByRole("listitem").getByRole("textbox", { name: "TJM de vente proposé" })).toHaveValue("650,00 €");
     expect(await memberPage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   });
 });
