@@ -113,4 +113,13 @@ describe("convertir un lead qualifié en opportunité (CRM-111, D50, D51, contra
       leadId: id,
     });
   });
+
+  it("écrit dans l'historique du lead « Converti en Julie Martin · Banque X · Besoin Workday · Banque X »", async () => {
+    const id = await postNewLead({ firstName: "Julie", lastName: "Martin", companyName: "Banque X", need: "Paie", origin: "linkedin" });
+
+    expect((await convert(id, { opportunity: { title: "Besoin Workday · Banque X", modules: ["payroll"], expectedClose: "2026-12-15" } })).status).toBe(200);
+
+    const conversion = (await listHistory("lead", id)).filter((entry) => entry.action === "conversion");
+    expect(conversion.map((entry) => entry.newValue)).toEqual(["Julie Martin · Banque X · Besoin Workday · Banque X"]);
+  });
 });
