@@ -101,7 +101,9 @@ async function dependentCounts(type: string, keptId: string, absorbedId: string)
  */
 async function attachments(type: string, keptId: string, id: string): Promise<MergeCount[]> {
   const [held, dependents, history, values] = await Promise.all([deleteBlockers(type, id), dependentCounts(type, keptId, id), countWhere(auditLog, entriesOf(type, id)), countMovingValues(type, keptId, id)]);
-  return [...held, ...dependents, { key: "historique", label: "Historique", count: history }, { key: "valeurs", label: "Valeurs de champs personnalisés", count: values }].filter((family) => family.count > 0);
+  /* Une table dépendante qui retient aussi la suppression se compte une fois, comme dépendante : elle suit la fiche, doublons écartés. */
+  const linked = held.filter((blocker) => !dependents.some((dependent) => dependent.key === blocker.key));
+  return [...linked, ...dependents, { key: "historique", label: "Historique", count: history }, { key: "valeurs", label: "Valeurs de champs personnalisés", count: values }].filter((family) => family.count > 0);
 }
 
 /** Ce que la fusion déplacera, annoncé au dialogue de confirmation avant qu'il n'écrive rien (contrat 29). */
