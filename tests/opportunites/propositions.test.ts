@@ -158,6 +158,24 @@ describe("retrait d'une proposition (CRM-108, D46)", () => {
   });
 });
 
+/** D45, contrat 51 : un consultant archivé après son ajout reste parmi les propositions, marqué archivé. */
+describe("consultant archivé après son ajout (CRM-108, D45)", () => {
+  it("garde Julie Martin, archivée, parmi les propositions et la dit archivée ; Marc Petit ne l'est pas", async () => {
+    const opportunityId = await createOpportunity();
+    const julie = await consultant("Julie", "Martin");
+    const marc = await consultant("Marc", "Petit");
+    await propose(opportunityId, { personId: julie });
+    await propose(opportunityId, { personId: marc });
+
+    await archiveRecord("person", julie, { id: memberId });
+
+    expect((await listProposals(opportunityId)).map(({ name, archived }) => [name, archived])).toEqual([
+      ["Julie Martin", true],
+      ["Marc Petit", false],
+    ]);
+  });
+});
+
 /** La section lit une page de propositions et annonce le reste (« et N autres ») : jamais toutes les propositions d'un coup. */
 describe("lecture bornée des propositions (CRM-107)", () => {
   it("lit les deux premières propositions ajoutées sur trois, et en compte trois", async () => {
