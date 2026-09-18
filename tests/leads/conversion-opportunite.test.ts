@@ -4,6 +4,7 @@ import { POST as postConversion } from "@/app/api/leads/[id]/conversion/route";
 import { PATCH as patchLead } from "@/app/api/leads/[id]/route";
 import { POST as postLead } from "@/app/api/leads/route";
 import { GET as getOpportunity } from "@/app/api/opportunites/[id]/route";
+import { POST as postPerson } from "@/app/api/personnes/route";
 import { activity, auditLog, company, customFieldDefinition, customFieldValue, lead, opportunity, person, user } from "@/db/schema";
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createDefinition, loadCustomFields } from "@/features/custom-fields/definitions";
@@ -133,5 +134,20 @@ describe("convertir un lead qualifié en opportunité (CRM-111, D50, D51, contra
     expect(res.status).toBe(200);
     const { opportunityId } = (await res.json()) as { opportunityId: string };
     expect((await readOpportunity(opportunityId))[customFieldKey(channel.id)] ?? null).toBeNull();
+  });
+});
+
+describe("convertir en gardant une entreprise existante (CRM-112, D51, contrat 56)", () => {
+  it("crée l'opportunité chez « Acme », que la personne garde, et jamais chez l'entreprise écrite sur le lead", async () => {
+    const acme = await newCompany("Acme");
+    const created = await postPerson(jsonRequest("POST", "/api/personnes", { firstName: "Yves", lastName: "Garnier", email: "yves.garnier@acme.fr", companyId: acme }, memberCookie));
+    expect(created.status).toBe(201);
+    const id = await postNewLead({ firstName: "Yves", lastName: "Garnier", companyName: "Banque Garde", email: "yves.garnier@acme.fr", need: "Paie", origin: "recommandation" });
+
+    const res = await convert(id, { companyName: "Banque Garde", keepCompany: true, opportunity: { title: "Besoin Workday · Acme", modules: ["payroll"], expectedClose: "2026-12-15" } });
+    expect(res.status).toBe(200);
+    const { opportunityId } = (await res.json()) as { opportunityId: string };
+
+    expect(await readOpportunity(opportunityId)).toMatchObject({ companyId: acme, title: "Besoin Workday · Acme" });
   });
 });
