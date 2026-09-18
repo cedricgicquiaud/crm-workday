@@ -69,7 +69,7 @@ registerServerObject({
     },
   ],
   /* L'entreprise et le contact montrent l'étape de l'opportunité sous son titre (D47, D61). */
-  linkSubtitle: { column: "stage", values: STAGES, relations: ["companyId"] },
+  linkSubtitle: { column: "stage", values: STAGES, relations: ["companyId", "contactPersonId"] },
   /* Deux motifs retiennent la suppression (D43) : la victoire, puis l'origine dans un lead. */
   sections: [proposalsSection],
   deletable: (record) => (record.stage === WON_STAGE ? WON_DELETE_RULE : record.leadId != null ? FROM_LEAD_DELETE_RULE : null),
