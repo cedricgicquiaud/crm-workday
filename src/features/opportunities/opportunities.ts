@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { opportunity } from "@/db/schema";
 import { loadCustomFields } from "@/features/custom-fields/definitions";
 import { allCustomFieldsOf } from "@/features/custom-fields/fields-source";
+import { recordHistory } from "@/features/history/history";
 import { writableFieldsOf } from "@/features/objects/fields";
 import { createObject, getObjectRecord, updateObject, type Actor, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
@@ -65,7 +66,11 @@ export async function createOpportunity(input: unknown, actor: Actor, gesture?: 
   const { exec, stage, leadId, customRequired } = gesture;
   /* L'étape passe par la validation de la création : une étape inconnue ou réservée (gagnée, perdue) est refusée sous le champ (D67). */
   const created = await createObject(TYPE, stage === undefined ? fields : { ...fields, stage }, actor, exec, { customRequired });
-  const [updated] = await exec.update(opportunity).set({ leadId }).where(eq(opportunity.id, created.id)).returning();
+  /* L'étape posée par le geste a sa ligne, comme un passage d'étape ; la création a déjà la sienne. */
+  if (stage !== undefined) await recordHistory([{ objectType: TYPE, objectId: created.id, action: "modifiee", field: "stage", oldValue: null, newValue: stage, authorId: actor.id }], exec);
+  /* Le lead d'origine ne se saisit pas : seule seconde écriture, et seulement quand le geste en pose un. */
+  if (leadId === undefined) return created;
+  const [updated] = await exec.update(opportunity).set({ leadId, updatedAt: new Date() }).where(eq(opportunity.id, created.id)).returning();
   return { ...created, ...updated };
 }
 
