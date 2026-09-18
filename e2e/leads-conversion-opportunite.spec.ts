@@ -162,3 +162,51 @@ test.describe("convertir sans opportunité (CRM-113, contrat 57)", () => {
     await expect(memberPage.getByRole("region", { name: "Opportunité", exact: true })).toHaveCount(0);
   });
 });
+
+test.describe("une opportunité issue d'un lead ne se supprime pas (CRM-114, D43, contrat 58)", () => {
+  test("le dialogue de suppression définitive affiche « Une opportunité issue d'un lead s'archive. » et l'opportunité reste", async ({ adminPage }) => {
+    const mark = tag();
+    const id = await createLead(adminPage, { firstName: "Julie", lastName: "Martin", companyName: named("Banque Trace", mark), need: "Paie", origin: "linkedin" });
+    const converted = await adminPage.request.post(`/api/leads/${id}/conversion`, { data: { opportunity: { title: `Besoin Workday · Trace ${mark} (e2e)`, modules: ["hcm"], expectedClose: parisDayFromToday(30) } } });
+    expect(converted.status()).toBe(200);
+    const { opportunityId } = (await converted.json()) as { opportunityId: string };
+
+    await adminPage.goto(`/opportunites/${opportunityId}`);
+    await adminPage.getByRole("button", { name: "Actions" }).click();
+    await adminPage.getByRole("menu").getByRole("menuitem", { name: "Supprimer définitivement" }).click();
+    const dialog = adminPage.getByRole("dialog", { name: "Supprimer définitivement ?" });
+    await Promise.all([adminPage.waitForResponse((res) => res.url().includes(`/api/objets/opportunity/${opportunityId}`) && res.request().method() === "DELETE"), dialog.getByRole("button", { name: "Supprimer définitivement" }).click()]);
+
+    await expect(dialog.getByRole("alert")).toHaveText("Une opportunité issue d'un lead s'archive.");
+    expect((await adminPage.request.get(`/api/opportunites/${opportunityId}`)).status()).toBe(200);
+  });
+});
+
+test.describe("conversion en opportunité à 375 px (CRM-111, D49, contrat 61)", () => {
+  test.use({ viewport: { width: 375, height: 667 } });
+
+  test("case cochée et modules compris, la fenêtre garde « Convertir » visible, sans défilement horizontal, ses champs dans son cadre", async ({ memberPage }) => {
+    const mark = tag();
+    const id = await createLead(memberPage, { firstName: "Jean-Baptiste", lastName: "Delacroix-Montesquieu", companyName: named("Groupe Ferrandi et Associés du Sud-Ouest", mark), need: "Déploiement HCM et Payroll", origin: "linkedin" });
+
+    const dialog = await openConversion(memberPage, id);
+    await expect(opportunityBox(dialog)).toBeChecked();
+    await expect(dialog.getByRole("group", { name: "Modules Workday" })).toBeAttached();
+    await expect(dialog.getByRole("button", { name: "Convertir", exact: true })).toBeInViewport();
+    expect(await memberPage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+
+    /* Ce qui sort du cadre du dialogue (ou le cadre qui sort de l'écran), nommé ; vide quand tout tient. */
+    const outside = () =>
+      dialog.evaluate((root) => {
+        const frame = root.getBoundingClientRect();
+        const escapes: string[] = [];
+        if (frame.left < 0 || frame.right > window.innerWidth) escapes.push("dialogue");
+        const inside = (box: DOMRect) => box.left >= frame.left - 0.5 && box.right <= frame.right + 0.5;
+        for (const control of Array.from(root.querySelectorAll("input:not([type=radio]):not([type=checkbox]), select, [role=checkbox]"))) {
+          if (!inside(control.getBoundingClientRect())) escapes.push(control.getAttribute("aria-label") ?? control.closest("label")?.querySelector("span")?.textContent ?? "champ");
+        }
+        return escapes;
+      });
+    await expect.poll(outside).toEqual([]);
+  });
+});
