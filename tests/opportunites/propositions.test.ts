@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { PATCH as patchProposal } from "@/app/api/opportunites/[id]/propositions/[personId]/route";
+import { DELETE as deleteProposal, PATCH as patchProposal } from "@/app/api/opportunites/[id]/propositions/[personId]/route";
 import { POST as postProposal } from "@/app/api/opportunites/[id]/propositions/route";
 import { auditLog, company, consultantModule, consultantProfile, opportunity, person, user } from "@/db/schema";
 import { listFeed } from "@/features/activities/feed";
@@ -28,6 +28,9 @@ const byProposal = (id: string, personId: string) => ({ params: Promise.resolve(
 
 const change = (opportunityId: string, personId: string, input: unknown) =>
   patchProposal(jsonRequest("PATCH", `/api/opportunites/${opportunityId}/propositions/${personId}`, input, memberCookie), byProposal(opportunityId, personId));
+
+const withdraw = (opportunityId: string, personId: string) =>
+  deleteProposal(jsonRequest("DELETE", `/api/opportunites/${opportunityId}/propositions/${personId}`, undefined, memberCookie), byProposal(opportunityId, personId));
 
 async function createOpportunity(fields: Record<string, unknown> = {}): Promise<string> {
   return (await createObject("opportunity", { title: "Refonte Payroll", companyId: bankId, modules: ["payroll"], expectedClose: "2026-10-30", ...fields }, { id: memberId })).id;
@@ -124,6 +127,22 @@ describe("TJM de vente proposé (CRM-108, D45)", () => {
     expect((await change(opportunityId, julie, { proposedDailyRate: 700 })).status).toBe(200);
 
     expect(await listProposals(opportunityId)).toMatchObject([{ result: "propose", proposedDailyRate: 700 }]);
+  });
+});
+
+/** D46, contrat 51 : une proposition se retire tant que l'opportunité est en cours, retenu compris. */
+describe("retrait d'une proposition (CRM-108, D46)", () => {
+  it("retire Julie Martin, retenue, et garde Marc Petit", async () => {
+    const opportunityId = await createOpportunity();
+    const julie = await consultant("Julie", "Martin");
+    const marc = await consultant("Marc", "Petit");
+    await propose(opportunityId, { personId: julie });
+    await propose(opportunityId, { personId: marc });
+    await change(opportunityId, julie, { result: "retenu" });
+
+    expect((await withdraw(opportunityId, julie)).status).toBe(200);
+
+    expect((await listProposals(opportunityId)).map((proposal) => proposal.name)).toEqual(["Marc Petit"]);
   });
 });
 
