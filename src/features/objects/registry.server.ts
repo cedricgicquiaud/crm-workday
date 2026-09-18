@@ -9,6 +9,7 @@ import type { PgTable } from "drizzle-orm/pg-core";
 import type { ReactNode } from "react";
 import type { Banner } from "@/features/objects/banners";
 import type { SerializedRecord } from "@/features/objects/labels";
+import type { ListValue } from "@/features/objects/registry";
 import type { ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import type { Executor } from "@/lib/db";
@@ -73,6 +74,12 @@ export type RelationScope = {
   /** marque d'une fiche liée qui ne remplit plus la condition, depuis le titre de la fiche désignée par `dependsOn` (« a quitté Banque X ») */
   outsideMark: (basisTitle: string) => string;
 };
+
+/**
+ * Sous-titre d'une fiche liée dans la colonne des liens (D61) : le libellé de la valeur de liste
+ * fermée qu'une colonne porte (l'étape d'une opportunité).
+ */
+export type LinkSubtitle = { column: string; values: readonly ListValue[] };
 
 /** Ce qu'une section reçoit pour se rendre : la fiche, ce que son chargeur a lu, et si la fiche ne s'écrit plus (fiche archivée, D21). */
 export type SectionProps<T> = { id: string; data: T; readOnly: boolean };
@@ -174,6 +181,12 @@ export type ServerObjectDefinition = {
    * les fiches et entrées qui la désignent la retiennent.
    */
   deletable?: (record: ObjectRecord) => string | null;
+  /**
+   * Sous-titre des fiches de cet objet dans les groupes inverses des relations nommées par leur clé
+   * étrangère (`relations`) : l'étape d'une opportunité sous l'entreprise et le contact (D61). Absent,
+   * une fiche liée ne montre que son titre.
+   */
+  linkSubtitle?: LinkSubtitle & { relations: readonly string[] };
   /** Bannières propres à l'objet, rangées parmi les communes par leur rang déclaré (D21) ; une seule s'affiche. */
   banners?: readonly DeclaredBanner[];
 };
