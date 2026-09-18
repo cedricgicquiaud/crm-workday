@@ -11,6 +11,7 @@ import { createDefinition, loadCustomFields } from "@/features/custom-fields/def
 import { customFieldKey } from "@/features/custom-fields/fields-source";
 import { listHistory } from "@/features/history/history";
 import { createLead } from "@/features/leads/leads";
+import { collectBanners } from "@/features/objects/banners";
 import { createObject, listObjectRecords } from "@/features/objects/service";
 import { createOpportunity } from "@/features/opportunities/opportunities";
 import { closeDb, db } from "@/lib/db";
@@ -172,5 +173,25 @@ describe("convertir sans opportunité (CRM-113, D52, D55, contrat 57)", () => {
 
     expect((await convert(id, { opportunity: null })).status).toBe(200);
     expect(await listObjectRecords("opportunity", { includeArchived: true })).toEqual([]);
+  });
+});
+
+describe("retrouver l'opportunité d'un lead converti (CRM-114, D51, contrat 55)", () => {
+  async function convertedWithOpportunity(): Promise<{ id: string; personId: string; companyId: string; opportunityId: string }> {
+    const id = await postNewLead({ firstName: "Julie", lastName: "Martin", companyName: "Banque X", need: "Paie", origin: "linkedin" });
+    const res = await convert(id, { opportunity: { title: "Besoin Workday · Banque X", modules: ["payroll"], expectedClose: "2026-12-15" } });
+    expect(res.status).toBe(200);
+    return { id, ...((await res.json()) as { personId: string; companyId: string; opportunityId: string }) };
+  }
+
+  it("le bandeau « Converti le … » mène à la personne, à l'entreprise et à l'opportunité", async () => {
+    const { id, personId, companyId, opportunityId } = await convertedWithOpportunity();
+
+    const [banner] = await collectBanners("lead", id);
+    expect(banner.links).toEqual([
+      { label: "Julie Martin", href: `/personnes/${personId}` },
+      { label: "Banque X", href: `/entreprises/${companyId}` },
+      { label: "Besoin Workday · Banque X", href: `/opportunites/${opportunityId}` },
+    ]);
   });
 });
