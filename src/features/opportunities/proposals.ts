@@ -3,11 +3,11 @@
  * son résultat et son TJM de vente proposé. Ce module est la seule écriture de `opportunity_consultant`
  * hors des mécanismes communs (suppression, fusion), qui la lisent par sa déclaration.
  */
-import { asc, eq } from "drizzle-orm";
-import { opportunity, opportunityConsultant, person } from "@/db/schema";
+import { and, asc, eq, exists, isNull, not } from "drizzle-orm";
+import { consultantProfile, opportunity, opportunityConsultant, person } from "@/db/schema";
 import { personsWithConsultantProfile } from "@/features/consultants/consultant-profile";
 import { recordHistory } from "@/features/history/history";
-import { assertWritable, getObjectRecord, type Actor } from "@/features/objects/service";
+import { assertWritable, getObjectRecord, RECORD_OPTIONS_LIMIT, type Actor } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { PROPOSAL_ADDED_ACTION } from "./register";
@@ -41,6 +41,30 @@ export async function listProposals(opportunityId: string): Promise<Proposal[]> 
     .where(eq(opportunityConsultant.opportunityId, opportunityId))
     .orderBy(asc(opportunityConsultant.createdAt), asc(opportunityConsultant.id));
   return rows.map((row) => ({ ...row, proposedDailyRate: row.proposedDailyRate === null ? null : Number(row.proposedDailyRate) }));
+}
+
+/** Un consultant que « Ajouter un consultant » propose. */
+export type ProposalCandidate = { id: string; name: string };
+
+/**
+ * Consultants que « Ajouter un consultant » propose (D44) : les personnes qui portent un profil
+ * consultant, non archivées, pas encore proposées sur cette opportunité, par nom, bornées.
+ */
+export async function listProposalCandidates(opportunityId: string, { limit = RECORD_OPTIONS_LIMIT } = {}): Promise<{ options: ProposalCandidate[]; more: number }> {
+  const alreadyProposed = exists(
+    db
+      .select({ id: opportunityConsultant.id })
+      .from(opportunityConsultant)
+      .where(and(eq(opportunityConsultant.opportunityId, opportunityId), eq(opportunityConsultant.personId, person.id))),
+  );
+  const options = await db
+    .select({ id: person.id, name: person.name })
+    .from(person)
+    .innerJoin(consultantProfile, eq(consultantProfile.personId, person.id))
+    .where(and(isNull(person.archivedAt), not(alreadyProposed)))
+    .orderBy(asc(person.name), asc(person.id))
+    .limit(limit);
+  return { options, more: 0 };
 }
 
 /**
