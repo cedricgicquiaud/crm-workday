@@ -2,8 +2,8 @@
  * Suppression définitive d'une fiche (D21, contrat 31), commun à tout objet : réservée à un
  * administrateur (la route pose `requireAdmin`), et seulement quand plus rien ne retient la fiche.
  * Ce qui la retient vient des déclarations, jamais d'un objet nommé ici : les relations du registre
- * (les fiches qui la désignent), ses tables dépendantes déclarées `holds` (les propositions d'un
- * consultant), son fil (activités et emails du journal). Sinon 409, avec la liste.
+ * (les fiches qui la désignent), ses tables dépendantes déclarées `holds` (les lignes qui la relient à
+ * une autre fiche), son fil (activités et emails du journal). Sinon 409, avec la liste.
  *
  * L'historique ne se supprime jamais, **sauf avec la fiche elle-même** (amendement de D12 validé le
  * 8 septembre 2026) : il n'est lisible que depuis sa fiche, et le contrat exige qu'elle n'apparaisse
