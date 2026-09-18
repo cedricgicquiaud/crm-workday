@@ -128,4 +128,18 @@ describe("opportunité visée par l'ajout (CRM-107, D55)", () => {
     expect(res.status).toBe(409);
     expect(await listProposals(opportunityId)).toEqual([]);
   });
+
+  it("répond 404 pour un identifiant d'opportunité mal formé ou inconnu", async () => {
+    const julie = await consultant("Julie", "Martin");
+
+    expect((await propose("refonte-payroll", { personId: julie })).status).toBe(404);
+    expect((await propose("00000000-0000-4000-8000-000000000000", { personId: julie })).status).toBe(404);
+  });
+
+  it("répond 401 sans session, et ne propose rien", async () => {
+    const julie = await consultant("Julie", "Martin");
+
+    expect((await propose(opportunityId, { personId: julie }, "")).status).toBe(401);
+    expect(await listProposals(opportunityId)).toEqual([]);
+  });
 });
