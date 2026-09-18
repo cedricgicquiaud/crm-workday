@@ -4,7 +4,7 @@ import { auditLog, company, consultantModule, consultantProfile, opportunity, pe
 import { createUserWithPassword } from "@/features/auth/accounts";
 import { createConsultant } from "@/features/consultants/consultants";
 import { linkedGroups } from "@/features/objects/links-column";
-import { createObject } from "@/features/objects/service";
+import { createObject, updateObject } from "@/features/objects/service";
 import { addProposal, changeProposal } from "@/features/opportunities/proposals";
 import { createPerson } from "@/features/persons/persons";
 import { closeDb, db } from "@/lib/db";
@@ -74,5 +74,17 @@ describe("colonne des liens du consultant proposé (CRM-109, D47, D54)", () => {
     await changeProposal(opportunityId, julie, { result: "retenu" }, { id: memberId });
 
     expect((await group("person", julie, "Opportunités proposées"))?.records).toEqual([{ id: opportunityId, title: "Refonte Payroll", href: `/opportunites/${opportunityId}`, subtitle: "Retenu" }]);
+  });
+
+  it("le sous-titre suit le résultat de la proposition sur la fiche du consultant, et l'étape sur celle de l'entreprise", async () => {
+    const opportunityId = await createOpportunity();
+    const julie = await consultant("Julie", "Martin");
+    await addProposal(opportunityId, { personId: julie }, { id: memberId });
+
+    await changeProposal(opportunityId, julie, { result: "entretien" }, { id: memberId });
+    await updateObject("opportunity", opportunityId, { stage: "entretien_client" }, { id: memberId });
+
+    expect((await group("person", julie, "Opportunités proposées"))?.records.map((record) => record.subtitle)).toEqual(["Entretien"]);
+    expect((await group("company", bankId, "Opportunités"))?.records.map((record) => record.subtitle)).toEqual(["Entretien client"]);
   });
 });
