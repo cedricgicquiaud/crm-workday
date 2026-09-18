@@ -5,7 +5,8 @@ import { createUserWithPassword } from "@/features/auth/accounts";
 import { createConsultant } from "@/features/consultants/consultants";
 import { mergeRecords } from "@/features/merge/merge";
 import { createObject, getObjectRecord } from "@/features/objects/service";
-import { addProposal, listProposals } from "@/features/opportunities/proposals";
+import { addProposal, changeProposal, listProposals } from "@/features/opportunities/proposals";
+import { WON_STAGE } from "@/features/opportunities/schema";
 import { createPerson } from "@/features/persons/persons";
 import { closeDb, db } from "@/lib/db";
 
@@ -24,6 +25,9 @@ const newCompany = async (name: string) => (await createObject("company", { name
 
 /** Un contact de Banque X : l'opportunité ne désigne comme contact qu'une personne de son entreprise (D35). */
 const newPerson = async (firstName: string, lastName: string) => (await createPerson({ firstName, lastName, companyId: bankId }, actor())).id;
+
+/** « Marquer gagnée » arrive en 4.2d : une opportunité figée se pose directement en base. */
+const winInDatabase = (opportunityId: string) => db.update(opportunity).set({ stage: WON_STAGE }).where(eq(opportunity.id, opportunityId));
 
 /** Un consultant freelance, proposable sur une opportunité. */
 const consultant = async (firstName: string, lastName: string) => (await createConsultant({ firstName, lastName, status: "freelance" }, actor())).id;
@@ -89,5 +93,18 @@ describe("fusion d'une fiche liée à une opportunité (CRM-110, D47)", () => {
     await mergeRecords("person", kept, absorbed, []);
 
     expect(await listProposals(opportunityId)).toMatchObject([{ personId: kept, result: "propose", proposedDailyRate: 650 }]);
+  });
+
+  it("fait suivre les propositions à la personne conservée même sur une opportunité gagnée : ce n'est pas un geste sur l'opportunité", async () => {
+    const kept = await consultant("Julie", "Martin");
+    const absorbed = await consultant("Julie", "Martin");
+    const opportunityId = await createOpportunity();
+    await addProposal(opportunityId, { personId: absorbed }, actor());
+    await changeProposal(opportunityId, absorbed, { result: "retenu" }, actor());
+    await winInDatabase(opportunityId);
+
+    await mergeRecords("person", kept, absorbed, []);
+
+    expect(await listProposals(opportunityId)).toMatchObject([{ personId: kept, result: "retenu" }]);
   });
 });
