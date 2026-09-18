@@ -190,6 +190,21 @@ async function lockedProposal(tx: Executor, opportunityId: string, personId: str
   return row;
 }
 
+/**
+ * Un seul « Retenu » par opportunité (D45) : un autre consultant déjà retenu répond 409 et le nomme. Lu
+ * sous le verrou de l'opportunité, qui range les gestes sur ses propositions l'un après l'autre : deux
+ * « Retenu » simultanés ne passent pas tous les deux.
+ */
+async function assertNoOtherRetained(tx: Executor, opportunityId: string, personId: string): Promise<void> {
+  const [retained] = await tx
+    .select({ name: person.name })
+    .from(opportunityConsultant)
+    .innerJoin(person, eq(person.id, opportunityConsultant.personId))
+    .where(and(eq(opportunityConsultant.opportunityId, opportunityId), eq(opportunityConsultant.result, RETAINED), ne(opportunityConsultant.personId, personId)))
+    .limit(1);
+  if (retained) throw new HttpError(409, "deja_retenu", alreadyRetainedRule(retained.name));
+}
+
 const resultLabel = (value: string) => PROPOSAL_RESULTS.find((result) => result.value === value)?.label ?? value;
 
 /** « 650,00 € », « vide » : le TJM proposé tel que l'historique l'écrit. */
@@ -227,16 +242,7 @@ export async function changeProposal(opportunityId: string, personId: string, in
   await db.transaction(async (tx) => {
     await lockWritable(tx, record);
     const before = await lockedProposal(tx, record.id, personId);
-    /* Le verrou de l'opportunité range les gestes sur ses propositions l'un après l'autre : deux « Retenu » simultanés ne passent pas tous les deux. */
-    if (values.result === RETAINED) {
-      const [retained] = await tx
-        .select({ name: person.name })
-        .from(opportunityConsultant)
-        .innerJoin(person, eq(person.id, opportunityConsultant.personId))
-        .where(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.result, RETAINED), ne(opportunityConsultant.personId, personId)))
-        .limit(1);
-      if (retained) throw new HttpError(409, "deja_retenu", alreadyRetainedRule(retained.name));
-    }
+    if (values.result === RETAINED) await assertNoOtherRetained(tx, record.id, personId);
     await tx
       .update(opportunityConsultant)
       .set({ ...(values.result ? { result: String(values.result) } : {}), ...rate, updatedAt: new Date() })
