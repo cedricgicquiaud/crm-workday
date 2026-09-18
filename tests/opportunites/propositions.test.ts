@@ -144,6 +144,18 @@ describe("retrait d'une proposition (CRM-108, D46)", () => {
 
     expect((await listProposals(opportunityId)).map((proposal) => proposal.name)).toEqual(["Marc Petit"]);
   });
+
+  /* D45, contrat 51 : un consultant archivé après son ajout ne se modifie plus, mais sa proposition se retire. */
+  it("retire Julie Martin, archivée après son ajout", async () => {
+    const opportunityId = await createOpportunity();
+    const julie = await consultant("Julie", "Martin");
+    await propose(opportunityId, { personId: julie });
+    await archiveRecord("person", julie, { id: memberId });
+
+    expect((await withdraw(opportunityId, julie)).status).toBe(200);
+
+    expect(await listProposals(opportunityId)).toEqual([]);
+  });
 });
 
 /** La section lit une page de propositions et annonce le reste (« et N autres ») : jamais toutes les propositions d'un coup. */
