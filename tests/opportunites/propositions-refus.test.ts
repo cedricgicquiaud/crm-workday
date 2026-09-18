@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { PATCH as patchProposal } from "@/app/api/opportunites/[id]/propositions/[personId]/route";
 import { POST as postProposal } from "@/app/api/opportunites/[id]/propositions/route";
 import { auditLog, company, consultantModule, consultantProfile, opportunity, person, user } from "@/db/schema";
 import { archiveRecord } from "@/features/archive/archive";
@@ -20,6 +21,11 @@ let opportunityId: string;
 const byId = (id: string) => ({ params: Promise.resolve({ id }) });
 
 const propose = (id: string, input: unknown, cookie: string | undefined = memberCookie) => postProposal(jsonRequest("POST", `/api/opportunites/${id}/propositions`, input, cookie), byId(id));
+
+const byProposal = (id: string, personId: string) => ({ params: Promise.resolve({ id, personId }) });
+
+const change = (id: string, personId: string, input: unknown, cookie: string | undefined = memberCookie) =>
+  patchProposal(jsonRequest("PATCH", `/api/opportunites/${id}/propositions/${personId}`, input, cookie), byProposal(id, personId));
 
 const consultant = async (firstName: string, lastName: string) => (await createConsultant({ firstName, lastName, status: "freelance" }, { id: memberId })).id;
 
@@ -114,6 +120,24 @@ describe("entrée de l'ajout (CRM-107, D55)", () => {
 
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ fields: { personId: "Choisissez un consultant." } });
+  });
+});
+
+/** D45, contrat 53 : le TJM de vente proposé a les bornes du TJM cible — plus de 0, 5 000 au plus, deux décimales au plus. */
+describe("refus d'un TJM proposé hors bornes (CRM-108, D45)", () => {
+  it.each([
+    ["0", 0, "« TJM de vente proposé » doit être supérieur à 0 et au plus 5 000."],
+    ["5 000,01", 5000.01, "« TJM de vente proposé » doit être supérieur à 0 et au plus 5 000."],
+    ["650,125", 650.125, "« TJM de vente proposé » ne prend pas plus de 2 décimales."],
+  ])("répond 400 sous « proposedDailyRate » pour %s, et garde 650", async (_case, proposedDailyRate, message) => {
+    const julie = await consultant("Julie", "Martin");
+    await propose(opportunityId, { personId: julie });
+
+    const res = await change(opportunityId, julie, { proposedDailyRate });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ fields: { proposedDailyRate: message } });
+    expect(await listProposals(opportunityId)).toMatchObject([{ proposedDailyRate: 650 }]);
   });
 });
 
