@@ -135,3 +135,18 @@ export async function addProposal(opportunityId: string, input: unknown, actor: 
   const [added] = await proposalsWhere(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)), 1);
   return added;
 }
+
+/**
+ * Change le résultat d'une proposition (D45) : Proposé, Entretien, Retenu et Refusé se choisissent
+ * dans tous les sens tant que l'opportunité est en cours.
+ */
+export async function changeProposal(opportunityId: string, personId: string, input: unknown): Promise<Proposal> {
+  const fields = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const record = await getObjectRecord(TYPE, opportunityId);
+  await db
+    .update(opportunityConsultant)
+    .set({ result: String(fields.result), updatedAt: new Date() })
+    .where(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)));
+  const [changed] = await proposalsWhere(and(eq(opportunityConsultant.opportunityId, record.id), eq(opportunityConsultant.personId, personId)), 1);
+  return changed;
+}
