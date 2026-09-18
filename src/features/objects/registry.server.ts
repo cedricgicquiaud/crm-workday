@@ -9,6 +9,7 @@ import type { PgTable } from "drizzle-orm/pg-core";
 import type { ReactNode } from "react";
 import type { Banner } from "@/features/objects/banners";
 import type { SerializedRecord } from "@/features/objects/labels";
+import type { ListValue } from "@/features/objects/registry";
 import type { ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
 import type { Executor } from "@/lib/db";
@@ -29,6 +30,12 @@ export type DependentTable = {
   label: string;
   /** une ligne au plus par fiche : la conservée garde la sienne, celle de l'absorbée est consignée dans l'historique puis supprimée (D20) */
   oneAtMost?: boolean;
+  /**
+   * Une ligne au plus par fiche et par valeur de `column` (une proposition par opportunité) : quand la
+   * conservée et l'absorbée en portent une chacune, seule reste celle de plus haut `rank`, la conservée
+   * l'emportant à égalité ; l'autre est consignée dans l'entrée de fusion puis supprimée (D47).
+   */
+  oneAtMostPer?: { column: string; rank: (row: Record<string, unknown>) => number };
   /** colonnes de la fiche que cette ligne tient à jour (l'entreprise de rattachement, un champ dérivé) : elles la suivent quand elle change de fiche, sans quoi la fiche conservée porterait un rattachement à moitié */
   carries?: readonly string[];
   /**
@@ -37,7 +44,24 @@ export type DependentTable = {
    * leurs. Absent, la ligne est consignée colonne par colonne, ce qui suffit à une famille simple.
    */
   describe?: (row: Record<string, unknown>, record: ObjectRecord) => Promise<string>;
+  /**
+   * La ligne retient la suppression définitive de la fiche (D47) : le refus nomme, sous `label`, les
+   * fiches de l'objet `to` qu'elle désigne par `fkColumn` — le consultant, les opportunités où il est
+   * proposé. Absent, la ligne part avec la fiche ou la bloque en base sans le dire.
+   */
+  holds?: { to: string; fkColumn: string; label: string };
+  /**
+   * La ligne désigne aussi une fiche d'un autre objet, qui la voit dans sa colonne des liens (D54) :
+   * le consultant voit les opportunités où il est proposé. Absent, la table ne se lit pas là.
+   */
+  links?: DependentLinks;
 };
+
+/**
+ * Lecture d'une table dépendante dans la colonne des liens de la fiche qu'elle désigne : l'objet de
+ * cette fiche (`to`), la colonne qui la porte, le libellé du groupe et le sous-titre de chaque fiche.
+ */
+export type DependentLinks = { to: string; fkColumn: string; label: string; subtitle?: LinkSubtitle };
 
 /**
  * Champ à plusieurs valeurs rangé dans une table fille, une ligne par valeur (les modules Workday
@@ -73,6 +97,12 @@ export type RelationScope = {
   /** marque d'une fiche liée qui ne remplit plus la condition, depuis le titre de la fiche désignée par `dependsOn` (« a quitté Banque X ») */
   outsideMark: (basisTitle: string) => string;
 };
+
+/**
+ * Sous-titre d'une fiche liée dans la colonne des liens (D61) : le libellé de la valeur de liste
+ * fermée qu'une colonne porte (l'étape d'une opportunité).
+ */
+export type LinkSubtitle = { column: string; values: readonly ListValue[] };
 
 /** Ce qu'une section reçoit pour se rendre : la fiche, ce que son chargeur a lu, et si la fiche ne s'écrit plus (fiche archivée, D21). */
 export type SectionProps<T> = { id: string; data: T; readOnly: boolean };
@@ -174,6 +204,12 @@ export type ServerObjectDefinition = {
    * les fiches et entrées qui la désignent la retiennent.
    */
   deletable?: (record: ObjectRecord) => string | null;
+  /**
+   * Sous-titre des fiches de cet objet dans les groupes inverses des relations nommées par leur clé
+   * étrangère (`relations`) : l'étape d'une opportunité sous l'entreprise et le contact (D61). Absent,
+   * une fiche liée ne montre que son titre.
+   */
+  linkSubtitle?: LinkSubtitle & { relations: readonly string[] };
   /** Bannières propres à l'objet, rangées parmi les communes par leur rang déclaré (D21) ; une seule s'affiche. */
   banners?: readonly DeclaredBanner[];
 };

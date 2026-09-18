@@ -4,24 +4,30 @@ import Link from "next/link";
 import "@/features/objects/manifest.server";
 import { QuickCreateDialog } from "@/features/objects/quick-create-dialog";
 import { getObject, listObjects, type Relation } from "@/features/objects/registry";
-import { getServerObject } from "@/features/objects/registry.server";
+import { getServerObject, type DependentLinks, type DependentTable, type LinkSubtitle } from "@/features/objects/registry.server";
 import { listUserOptions } from "@/features/objects/service";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
-/** `archived` : présent seulement sur une fiche liée archivée, avec la marque à écrire (« archivé », « archivée ») — une relation déclarée `keepArchived` en montre (D21). */
-export type LinkedRecord = { id: string; title: string; href: string; archived?: string };
+/**
+ * `archived` : présent seulement sur une fiche liée archivée, avec la marque à écrire (« archivé », « archivée ») — une relation déclarée `keepArchived` en montre (D21).
+ * `subtitle` : présent seulement quand l'objet lié le déclare pour ce groupe (l'étape d'une opportunité, D61).
+ */
+export type LinkedRecord = { id: string; title: string; href: string; archived?: string; subtitle?: string };
 /** Création rapide depuis ce groupe (D7) : l'objet à créer et le champ pré-rempli avec la fiche courante. */
 export type LinkedCreate = { type: string; prefill: Record<string, string> };
 /** `more` : fiches liées au-delà de la borne, comptées mais pas chargées. */
 export type LinkedGroup = { key: string; label: string; records: LinkedRecord[]; more?: number; create?: LinkedCreate };
 
 /** Une fiche liée prête pour la colonne ; archivée, elle porte sa marque, accordée à l'article déclaré de son objet. */
-function linkedRecord(objectKey: string, row: { id: unknown; title: unknown; archivedAt: unknown }): LinkedRecord {
+function linkedRecord(objectKey: string, row: { id: unknown; title: unknown; archivedAt: unknown }, subtitle?: string): LinkedRecord {
   const definition = getObject(objectKey);
-  const record = { id: String(row.id), title: String(row.title ?? ""), href: definition.href(String(row.id)) };
+  const record = { id: String(row.id), title: String(row.title ?? ""), href: definition.href(String(row.id)), ...(subtitle ? { subtitle } : {}) };
   return row.archivedAt == null ? record : { ...record, archived: definition.labels.article === "un" ? "archivé" : "archivée" };
 }
+
+/** Le libellé d'une valeur de liste fermée, pour le sous-titre d'une fiche liée ; une valeur inconnue s'écrit telle quelle. */
+const subtitleOf = ({ values }: LinkSubtitle, value: unknown): string => values.find((entry) => entry.value === value)?.label ?? String(value ?? "");
 
 /** Fiches liées chargées au plus dans un groupe : une entreprise à trois cents contacts n'en affiche pas trois cents. */
 export const LINKED_RECORDS_LIMIT = 20;
@@ -32,19 +38,45 @@ export const LINKED_RECORDS_LIMIT = 20;
  */
 async function recordsPointingTo(objectKey: string, fkColumn: string, id: string, keepArchived: boolean): Promise<{ records: LinkedRecord[]; more: number }> {
   const definition = getObject(objectKey);
-  const { table } = getServerObject(objectKey);
+  const { table, linkSubtitle } = getServerObject(objectKey);
+  const subtitle = linkSubtitle?.relations.includes(fkColumn) ? linkSubtitle : null;
   const columns = getTableColumns(table);
   const linked = keepArchived ? eq(columns[fkColumn], id) : and(eq(columns[fkColumn], id), isNull(columns.archivedAt));
   const rows = await db
-    .select({ id: columns.id, title: columns[definition.titleField], archivedAt: columns.archivedAt })
+    .select({ id: columns.id, title: columns[definition.titleField], archivedAt: columns.archivedAt, ...(subtitle ? { subtitle: columns[subtitle.column] } : {}) })
     .from(table)
     .where(linked)
     .orderBy(desc(columns.updatedAt), desc(columns.id))
     .limit(LINKED_RECORDS_LIMIT);
-  const records = rows.map((row) => linkedRecord(objectKey, row));
+  const records = rows.map((row) => linkedRecord(objectKey, row, subtitle ? subtitleOf(subtitle, row.subtitle) : undefined));
   /* Le compte n'est demandé que si la borne est atteinte : en dessous, les fiches chargées sont toutes celles qui existent. */
   if (records.length < LINKED_RECORDS_LIMIT) return { records, more: 0 };
   const [total] = await db.select({ value: count() }).from(table).where(linked);
+  return { records, more: Math.max(Number(total?.value ?? records.length) - records.length, 0) };
+}
+
+/**
+ * Fiches actives d'un objet reliées à `id` par une ligne de sa table dépendante déclarée `links`
+ * (les opportunités où une personne est proposée), la dernière modifiée en tête, bornées ; le
+ * sous-titre vient de la ligne (le résultat de la proposition).
+ */
+async function recordsThrough(objectKey: string, dependent: DependentTable, links: DependentLinks, id: string): Promise<{ records: LinkedRecord[]; more: number }> {
+  const definition = getObject(objectKey);
+  const { table } = getServerObject(objectKey);
+  const columns = getTableColumns(table);
+  const through = getTableColumns(dependent.table);
+  const { subtitle } = links;
+  const linked = and(eq(through[links.fkColumn], id), isNull(columns.archivedAt));
+  const rows = await db
+    .select({ id: columns.id, title: columns[definition.titleField], archivedAt: columns.archivedAt, ...(subtitle ? { subtitle: through[subtitle.column] } : {}) })
+    .from(dependent.table)
+    .innerJoin(table, eq(columns.id, through[dependent.fkColumn]))
+    .where(linked)
+    .orderBy(desc(columns.updatedAt), desc(columns.id))
+    .limit(LINKED_RECORDS_LIMIT);
+  const records = rows.map((row) => linkedRecord(objectKey, row, subtitle ? subtitleOf(subtitle, row.subtitle) : undefined));
+  if (records.length < LINKED_RECORDS_LIMIT) return { records, more: 0 };
+  const [total] = await db.select({ value: count() }).from(dependent.table).innerJoin(table, eq(columns.id, through[dependent.fkColumn])).where(linked);
   return { records, more: Math.max(Number(total?.value ?? records.length) - records.length, 0) };
 }
 
@@ -89,7 +121,18 @@ export async function linkedGroups(type: string, id: string): Promise<LinkedGrou
         };
       }),
   );
-  return [...own, ...inverse.filter(({ shown }) => shown).map(({ group }) => group)];
+  const through = await Promise.all(
+    listObjects()
+      .flatMap((object) =>
+        (getServerObject(object.key).dependents ?? []).flatMap((dependent) => (dependent.links?.to === type ? [{ object, dependent, links: dependent.links }] : [])),
+      )
+      .map(async ({ object, dependent, links }) => {
+        const { records, more } = await recordsThrough(object.key, dependent, links, id);
+        return { key: `${object.key}-${links.fkColumn}`, label: links.label, records, ...(more > 0 ? { more } : {}) };
+      }),
+  );
+  /* Un groupe lu par une table dépendante ne dit rien à qui n'y figure pas (une personne jamais proposée) : vide, il ne s'affiche pas. */
+  return [...own, ...inverse.filter(({ shown }) => shown).map(({ group }) => group), ...through.filter((group) => group.records.length > 0)];
 }
 
 /** « Ajouter une entreprise », « Ajouter une personne », « Ajouter un … » pour un objet masculin : le déterminant vient de l'article déclaré. */
@@ -123,11 +166,19 @@ export async function LinksColumn({ type, id, className, readOnly = false }: { t
             ) : (
               <ul className="grid gap-0.5">
                 {group.records.map((record) => (
-                  <li key={record.id} className="min-w-0 truncate text-sm" title={record.archived ? `${record.title} (${record.archived})` : record.title}>
-                    <Link href={record.href} className="hover:underline focus-visible:rounded-sm">
-                      {record.title}
-                    </Link>
-                    {record.archived && <span className="text-xs text-muted-foreground">{` (${record.archived})`}</span>}
+                  <li key={record.id} className="grid min-w-0 text-sm">
+                    <span className="truncate" title={record.archived ? `${record.title} (${record.archived})` : record.title}>
+                      <Link href={record.href} className="hover:underline focus-visible:rounded-sm">
+                        {record.title}
+                      </Link>
+                      {record.archived && <span className="text-xs text-muted-foreground">{` (${record.archived})`}</span>}
+                    </span>
+                    {/* L'étape d'une opportunité, le résultat d'une proposition (D61) : sous le titre, pour qu'un titre long ne le cache pas. */}
+                    {record.subtitle && (
+                      <span className="truncate text-xs text-muted-foreground" title={record.subtitle}>
+                        {record.subtitle}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

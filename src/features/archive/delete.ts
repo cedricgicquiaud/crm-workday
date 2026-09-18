@@ -2,14 +2,15 @@
  * Suppression définitive d'une fiche (D21, contrat 31), commun à tout objet : réservée à un
  * administrateur (la route pose `requireAdmin`), et seulement quand plus rien ne retient la fiche.
  * Ce qui la retient vient des déclarations, jamais d'un objet nommé ici : les relations du registre
- * (les fiches qui la désignent), son fil (activités et emails du journal). Sinon 409, avec la liste.
+ * (les fiches qui la désignent), ses tables dépendantes déclarées `holds` (les lignes qui la relient à
+ * une autre fiche), son fil (activités et emails du journal). Sinon 409, avec la liste.
  *
  * L'historique ne se supprime jamais, **sauf avec la fiche elle-même** (amendement de D12 validé le
  * 8 septembre 2026) : il n'est lisible que depuis sa fiche, et le contrat exige qu'elle n'apparaisse
  * plus nulle part. La fiche, ses entrées et ses valeurs de champs personnalisés partent donc dans la
  * même transaction.
  */
-import { and, count, desc, eq, getTableColumns, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, getTableName, or, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { activity, auditLog, customFieldValue, emailLog } from "@/db/schema";
 import { getObject, listObjects } from "@/features/objects/registry";
@@ -46,6 +47,33 @@ async function relationBlockers(type: string, id: string): Promise<DeleteBlocker
   );
 }
 
+/**
+ * Lignes dépendantes déclarées comme retenant la fiche (`holds`), archivées comprises : le refus nomme
+ * les fiches qu'elles désignent, les plus récentes d'abord (D47).
+ */
+async function dependentBlockers(type: string, id: string): Promise<DeleteBlocker[]> {
+  const holding = (getServerObject(type).dependents ?? []).flatMap((dependent) => (dependent.holds ? [{ dependent, holds: dependent.holds }] : []));
+  return Promise.all(
+    holding.map(async ({ dependent, holds }) => {
+      const key = getTableName(dependent.table);
+      const rows = getTableColumns(dependent.table);
+      const where = eq(rows[dependent.fkColumn], id);
+      const count = await countWhere(dependent.table, where);
+      if (count === 0) return { key, label: holds.label, count, titles: [] };
+      const target = getServerObject(holds.to).table;
+      const targetColumns = getTableColumns(target);
+      const titles = await db
+        .select({ title: targetColumns[getObject(holds.to).titleField] })
+        .from(dependent.table)
+        .innerJoin(target, eq(targetColumns.id, rows[holds.fkColumn]))
+        .where(where)
+        .orderBy(desc(targetColumns.updatedAt), desc(targetColumns.id))
+        .limit(BLOCKER_TITLES_LIMIT);
+      return { key, label: holds.label, count, titles: titles.map((row) => String(row.title ?? "")) };
+    }),
+  );
+}
+
 /** Le fil de la fiche hors historique : ses activités (les siennes et celles qu'elle a reçues comme parente) et les emails du journal qui la citent. */
 async function feedBlockers(type: string, id: string): Promise<DeleteBlocker[]> {
   const own = and(eq(activity.objectType, type), eq(activity.objectId, id));
@@ -58,7 +86,7 @@ async function feedBlockers(type: string, id: string): Promise<DeleteBlocker[]> 
 
 /** Tout ce qui retient une fiche, dans l'ordre déclaré ; vide quand elle se supprime. */
 export async function deleteBlockers(type: string, id: string): Promise<DeleteBlocker[]> {
-  const found = [...(await relationBlockers(type, id)), ...(await feedBlockers(type, id))];
+  const found = [...(await relationBlockers(type, id)), ...(await dependentBlockers(type, id)), ...(await feedBlockers(type, id))];
   return found.filter((blocker) => blocker.count > 0);
 }
 

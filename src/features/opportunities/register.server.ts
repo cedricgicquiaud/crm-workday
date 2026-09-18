@@ -1,15 +1,38 @@
 /**
  * Part serveur de la déclaration de l'opportunité : sa table Drizzle, l'ensemble de ses modules rangé
  * dans sa table fille (D53), la condition sur son contact (D35), son montant estimé et sa probabilité,
- * calculés à chaque lecture. Importé par le manifeste serveur.
+ * calculés à chaque lecture, et la section « Consultants proposés » (4.2b). Importé par le manifeste serveur.
  */
 import { and, desc, eq, exists, ilike, isNull, or } from "drizzle-orm";
-import { company, contactProfile, opportunity, opportunityModule, person } from "@/db/schema";
-import { registerServerObject, type SearchHit } from "@/features/objects/registry.server";
+import { createElement } from "react";
+import { company, contactProfile, opportunity, opportunityConsultant, opportunityModule, person } from "@/db/schema";
+import { defineSection, registerServerObject, type SearchHit } from "@/features/objects/registry.server";
 import { db } from "@/lib/db";
-import { CONTACT_OUTSIDE_COMPANY_RULE, estimatedAmount, FROM_LEAD_DELETE_RULE, STAGES, stageProbability, WON_DELETE_RULE, WON_STAGE } from "./schema";
+import { countProposals, listProposalCandidates, listProposals, PROPOSALS_LIMIT, type Proposal, type ProposalCandidate } from "./proposals";
+import { ProposalsSection } from "./proposals-section";
+import { CONTACT_OUTSIDE_COMPANY_RULE, estimatedAmount, FROM_LEAD_DELETE_RULE, PROPOSAL_RESULTS, STAGES, stageProbability, WON_DELETE_RULE, WON_STAGE } from "./schema";
 
 const MAX_HITS = 20;
+
+/** Ce que la section « Consultants proposés » lit d'un coup : les propositions et les consultants que l'ajout propose. */
+type ProposalsData = { proposals: Proposal[]; moreProposals: number; candidates: { options: ProposalCandidate[]; more: number } };
+
+/**
+ * Section « Consultants proposés » (D44), la première sous « Champs ». Son chargeur lit les propositions,
+ * bornées, et les consultants à proposer : la section les reçoit, elle ne les relit pas pour son compte.
+ */
+const proposalsSection = defineSection<ProposalsData>({
+  key: "consultants-proposes",
+  order: 10,
+  load: async (id) => {
+    const [proposals, candidates] = await Promise.all([listProposals(id), listProposalCandidates(id)]);
+    /* Le compte n'est demandé que si la borne est atteinte : en dessous, les propositions chargées sont toutes celles qui existent. */
+    const moreProposals = proposals.length < PROPOSALS_LIMIT ? 0 : (await countProposals(id)) - proposals.length;
+    return { proposals, moreProposals, candidates };
+  },
+  render: ({ id, data, readOnly }) =>
+    createElement(ProposalsSection, { opportunityId: id, proposals: data.proposals, moreProposals: data.moreProposals, candidates: data.candidates.options, moreCandidates: data.candidates.more, readOnly }),
+});
 
 /**
  * Palette ⌘K (D48) : sous-chaîne du titre ou du nom de l'entreprise, sous-titre « Étape · Entreprise ».
@@ -45,7 +68,22 @@ registerServerObject({
       outsideMark: (companyName) => `a quitté ${companyName}`,
     },
   ],
+  /* L'entreprise et le contact montrent l'étape de l'opportunité sous son titre (D47, D61). */
+  linkSubtitle: { column: "stage", values: STAGES, relations: ["companyId", "contactPersonId"] },
+  /*
+   * Les propositions partent avec l'opportunité (cascade en base, D53) ; chacune désigne aussi son
+   * consultant, qui voit l'opportunité dans sa colonne des liens avec le résultat (D47, D54).
+   */
+  dependents: [
+    {
+      table: opportunityConsultant,
+      fkColumn: "opportunityId",
+      label: "Consultants proposés",
+      links: { to: "person", fkColumn: "personId", label: "Opportunités proposées", subtitle: { column: "result", values: PROPOSAL_RESULTS } },
+    },
+  ],
   /* Deux motifs retiennent la suppression (D43) : la victoire, puis l'origine dans un lead. */
+  sections: [proposalsSection],
   deletable: (record) => (record.stage === WON_STAGE ? WON_DELETE_RULE : record.leadId != null ? FROM_LEAD_DELETE_RULE : null),
   /*
    * Le TJM arrive de la base en décimal écrit (« 650.00 ») : il se lit en nombre, pour que la saisie

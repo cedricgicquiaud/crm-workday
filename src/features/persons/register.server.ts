@@ -6,13 +6,15 @@
  */
 import { and, desc, eq, exists, ilike, isNull, or } from "drizzle-orm";
 import { createElement } from "react";
-import { company, consultantProfile, contactProfile, person, personEmail } from "@/db/schema";
+import { company, consultantProfile, contactProfile, opportunityConsultant, person, personEmail } from "@/db/schema";
 import { normalizeName } from "@/features/duplicates/normalize";
 import type { BillingCompanyOption } from "@/features/consultants/billing-company-picker";
 import { attachConsultantProfiles, consultantSubtitles, describeConsultantProfile, getConsultantProfile, listBillingCompanyOptions, type ConsultantProfile } from "@/features/consultants/consultant-profile";
 import { ConsultantProfileSection } from "@/features/consultants/consultant-profile-section";
 import { defineSection, registerServerObject, type DependentTable, type SearchHit } from "@/features/objects/registry.server";
 import { listRecordOptions } from "@/features/objects/service";
+import { describeProposal } from "@/features/opportunities/proposals";
+import { resultRank } from "@/features/opportunities/schema";
 import { db } from "@/lib/db";
 import type { CompanyOption } from "./company-picker";
 import { getContactProfile, type ContactProfile } from "./contact-profile";
@@ -51,8 +53,8 @@ function duplicateKey(record: Record<string, unknown>): string | null {
 }
 
 /**
- * Ce qui dépend d'une personne sans être un objet : ses autres adresses (plusieurs par personne) et
- * son profil contact (un au plus, D3). La fusion s'en sert pour rattacher ces lignes à la fiche
+ * Ce qui dépend d'une personne sans être un objet : ses autres adresses (plusieurs par personne), ses
+ * profils (un au plus, D3) et ses propositions. La fusion s'en sert pour rattacher ces lignes à la fiche
  * conservée. L'entreprise de rattachement et le champ dérivé « Profils » suivent le profil : ils ne
  * veulent rien dire sans lui.
  */
@@ -61,6 +63,19 @@ const dependents: readonly DependentTable[] = [
   { table: contactProfile, fkColumn: "personId", label: "Profil contact", oneAtMost: true, carries: ["companyId"] },
   /* Le profil consultant emmène la société de facturation : elle ne veut rien dire sans lui (D16). */
   { table: consultantProfile, fkColumn: "personId", label: "Profil consultant", oneAtMost: true, carries: ["billingCompanyId"], describe: describeConsultantProfile },
+  /*
+   * Les propositions du consultant retiennent sa suppression et le suivent dans une fusion (D47) ;
+   * l'opportunité les déclare aussi, et c'est elle qui les lit dans la colonne des liens (D54). Deux
+   * personnes proposées sur la même opportunité n'y laissent que la proposition au résultat le plus avancé.
+   */
+  {
+    table: opportunityConsultant,
+    fkColumn: "personId",
+    label: "Propositions",
+    holds: { to: "opportunity", fkColumn: "opportunityId", label: "Opportunités proposées" },
+    oneAtMostPer: { column: "opportunityId", rank: (row) => resultRank(String(row.result)) },
+    describe: describeProposal,
+  },
 ];
 
 /** Ce que la section « Profil contact » lit d'un coup : le profil de la personne et les entreprises qu'elle peut choisir. */
