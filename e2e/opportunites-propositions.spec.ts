@@ -146,6 +146,27 @@ test.describe("faire avancer une proposition sur la fiche (CRM-108, D45, D46, co
     await expect(section.getByRole("listitem").filter({ hasText: julie })).toHaveCount(0);
     await expect(memberPage.getByText(`Consultant retiré : ${julie}`)).toBeVisible();
   });
+
+  test("Julie, archivée après son ajout, reste dans la section marquée « archivé », son résultat et son TJM en lecture seule, et se retire", async ({ memberPage }) => {
+    const mark = tag();
+    const id = await createOpportunity(memberPage, mark, { targetDailyRate: 650 });
+    const julie = `Julie ${named("Martin", mark)}`;
+    const julieId = await createConsultant(memberPage, "Julie", named("Martin", mark));
+    await propose(memberPage, id, julieId);
+    expect((await memberPage.request.post(`/api/objets/person/${julieId}/archiver`, { data: {} })).status()).toBe(200);
+    await memberPage.goto(`/opportunites/${id}`);
+
+    const section = memberPage.getByRole("region", { name: "Consultants proposés" });
+    const row = section.getByRole("listitem").filter({ hasText: julie });
+    await expect(row.getByText("archivé", { exact: true })).toBeVisible();
+    await expect(row.getByRole("combobox", { name: "Résultat" })).toHaveCount(0);
+    await expect(row.getByLabel("Résultat")).toHaveText("Proposé");
+    await expect(row.getByLabel("TJM de vente proposé")).toHaveText("650,00 €");
+
+    const response = await answered(memberPage, id, "DELETE", () => row.getByRole("button", { name: `Retirer ${julie}` }).click());
+    expect(response.status()).toBe(200);
+    await expect(section.getByRole("listitem").filter({ hasText: julie })).toHaveCount(0);
+  });
 });
 
 test.describe("section « Consultants proposés » à 375 px (CRM-107, D49, contrat 60)", () => {
