@@ -114,6 +114,19 @@ describe("résultat d'une proposition (CRM-108, D45)", () => {
   });
 });
 
+/** D45, contrat 51 : le TJM de vente proposé se modifie, et se vide (il est facultatif). */
+describe("TJM de vente proposé (CRM-108, D45)", () => {
+  it("passe le TJM proposé de Julie Martin de 650 à 700 sans toucher à son résultat", async () => {
+    const opportunityId = await createOpportunity({ targetDailyRate: 650 });
+    const julie = await consultant("Julie", "Martin");
+    await propose(opportunityId, { personId: julie });
+
+    expect((await change(opportunityId, julie, { proposedDailyRate: 700 })).status).toBe(200);
+
+    expect(await listProposals(opportunityId)).toMatchObject([{ result: "propose", proposedDailyRate: 700 }]);
+  });
+});
+
 /** La section lit une page de propositions et annonce le reste (« et N autres ») : jamais toutes les propositions d'un coup. */
 describe("lecture bornée des propositions (CRM-107)", () => {
   it("lit les deux premières propositions ajoutées sur trois, et en compte trois", async () => {
