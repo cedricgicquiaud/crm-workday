@@ -141,6 +141,21 @@ describe("refus d'un TJM proposé hors bornes (CRM-108, D45)", () => {
   });
 });
 
+/** D55 : une modification règle le résultat ou le TJM proposé, rien d'autre ; une autre clé répond 400, jamais ignorée. */
+describe("entrée d'une modification de proposition (CRM-108, D55)", () => {
+  it("répond 400 sous « personId » : le consultant d'une proposition ne se change pas", async () => {
+    const julie = await consultant("Julie", "Martin");
+    const marc = await consultant("Marc", "Petit");
+    await propose(opportunityId, { personId: julie });
+
+    const res = await change(opportunityId, julie, { result: "entretien", personId: marc });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ fields: { personId: "« personId » ne se donne pas à la modification d'une proposition." } });
+    expect(await listProposals(opportunityId)).toMatchObject([{ personId: julie, result: "propose" }]);
+  });
+});
+
 /** D21, D55 : l'opportunité visée existe, n'est pas archivée, et le membre est connecté. */
 describe("opportunité visée par l'ajout (CRM-107, D55)", () => {
   it("répond 409 sur une opportunité archivée, et ne propose rien", async () => {
