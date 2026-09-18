@@ -477,6 +477,17 @@ Faire avancer une proposition (CRM-108). On reprend « Refonte Payroll » où Ma
 - [ ] Contrat 53 — consultant archivé : Julie Martin archivée et proposée (la reproposer d'abord sur « Audit Finance » avant de l'archiver) : `PATCH http://localhost:3000/api/opportunites/<id d'Audit Finance>/propositions/<id de Julie Martin>` avec `{"result":"entretien"}` répond `409` avec « « Julie Martin » est archivée : restaurez sa fiche pour modifier sa proposition. » ; avec `{"proposedDailyRate":700}`, même réponse. Restaurer sa fiche : le même appel répond `200`.
 - [ ] Entrée refusée : `PATCH …/propositions/<id de Karim Benali>` avec `{"personId":"<un autre id>"}` répond `400` avec « « personId » ne se donne pas à la modification d'une proposition. » ; avec `{}`, `400` « Donnez un résultat ou un TJM de vente proposé. ». Un `PATCH` ou un `DELETE` sur un consultant qui n'est pas proposé répond `404`.
 
+Retrouver ses opportunités depuis l'entreprise, le contact et le consultant (CRM-109). On reprend « Refonte Payroll » chez « Banque X », à l'étape « Nouveau besoin ». Sur la fiche de « Banque X », colonne « Liens », « Ajouter une personne » : `Léa` `Bernard` ; puis sur « Refonte Payroll », choisir Léa Bernard comme « Contact ». Julie Martin doit être proposée sur « Refonte Payroll » et non archivée (la restaurer et la reproposer si besoin), puis passée à « Retenu ».
+
+- [ ] Contrat 52 — consultant proposé : sur la fiche de Julie Martin, colonne « Liens », le groupe « Opportunités proposées » montre « Refonte Payroll », avec « Retenu » écrit en dessous.
+- [ ] Contrat 52 — entreprise : sur la fiche de « Banque X », le groupe « Opportunités » montre « Refonte Payroll », avec « Nouveau besoin » écrit en dessous.
+- [ ] Contrat 52 — contact : sur la fiche de Léa Bernard, le groupe « Opportunités » montre « Refonte Payroll », avec « Nouveau besoin » écrit en dessous.
+- [ ] Changements suivis : sur « Refonte Payroll », passer Julie Martin à « Entretien » et l'étape à « Qualifié ». La fiche de Julie Martin montre « Entretien » sous « Refonte Payroll » ; celles de « Banque X » et de Léa Bernard montrent « Qualifié ».
+- [ ] Lien : sur la fiche de Julie Martin, cliquer « Refonte Payroll » sous « Opportunités proposées » : la fiche de l'opportunité s'ouvre (`http://localhost:3000/opportunites/<id>`).
+- [ ] Liste bornée : non jouable à la main sans 21 opportunités. Lancer `npm test -- tests/opportunites/liens.test.ts` : le cas « n'affiche que les vingt dernières opportunités proposées et compte les autres » passe (sous le groupe, « et N autres » s'affiche au-delà de 20).
+- [ ] Refus — proposition retirée : sur « Refonte Payroll », « Retirer » Julie Martin. Sur sa fiche, « Refonte Payroll » n'apparaît plus sous « Opportunités proposées » (le groupe disparaît si elle n'est proposée sur aucune autre opportunité ; « Audit Finance » y reste si elle y est encore proposée).
+- [ ] Refus — personne sans lien : sur la fiche de Paul Durand (ni contact ni proposé), le groupe « Opportunités » affiche « Aucune fiche liée. » et aucun groupe « Opportunités proposées » n'apparaît.
+
 #### La conversion d'un lead en opportunité
 
 Préparation : livraison 4.2c — à remplir avec elle.
