@@ -158,6 +158,24 @@ describe("refus d'un second « Retenu » (CRM-108, D45)", () => {
   });
 });
 
+/** D45, contrat 53 : la proposition d'un consultant archivé après son ajout ne se modifie plus ; restaurer sa fiche la rouvre. */
+describe("refus de modifier la proposition d'un consultant archivé (CRM-108, D45)", () => {
+  it.each([
+    ["son résultat", { result: "entretien" }],
+    ["son TJM proposé", { proposedDailyRate: 700 }],
+  ])("répond 409 en proposant de restaurer Julie Martin quand on change %s, et ne change rien", async (_case, input) => {
+    const julie = await consultant("Julie", "Martin");
+    await propose(opportunityId, { personId: julie });
+    await archiveRecord("person", julie, { id: memberId });
+
+    const res = await change(opportunityId, julie, input);
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ message: "« Julie Martin » est archivée : restaurez sa fiche pour modifier sa proposition." });
+    expect(await listProposals(opportunityId)).toMatchObject([{ result: "propose", proposedDailyRate: 650 }]);
+  });
+});
+
 /** D45, contrat 53 : le TJM de vente proposé a les bornes du TJM cible — plus de 0, 5 000 au plus, deux décimales au plus. */
 describe("refus d'un TJM proposé hors bornes (CRM-108, D45)", () => {
   it.each([
