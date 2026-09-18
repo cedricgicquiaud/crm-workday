@@ -104,7 +104,7 @@ describe("historique d'un ajout (CRM-107, D46)", () => {
     await propose(opportunityId, { personId: julie });
     await propose(opportunityId, { personId: marc });
 
-    expect((await changes("opportunity", opportunityId)).filter((text) => text.startsWith("Consultant proposé"))).toEqual(["Consultant proposé : Marc Petit", "Consultant proposé : Julie Martin"]);
+    expect((await changes("opportunity", opportunityId)).filter((text) => text?.startsWith("Consultant proposé"))).toEqual(["Consultant proposé : Marc Petit", "Consultant proposé : Julie Martin"]);
   });
 
   it("n'écrit rien sur la fiche du consultant", async () => {
