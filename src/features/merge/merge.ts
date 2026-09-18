@@ -21,7 +21,7 @@ import { getObject, listObjects } from "@/features/objects/registry";
 import { getServerObject, type DependentTable } from "@/features/objects/registry.server";
 import { getObjectRecord, listUserOptions, type ObjectRecord } from "@/features/objects/service";
 import { HttpError } from "@/lib/auth/session";
-import { db } from "@/lib/db";
+import { db, type Executor } from "@/lib/db";
 
 /** Une famille de ce qui sera déplacé : sa clé, ce qu'elle est pour un lecteur, et combien. */
 export type MergeCount = { key: string; label: string; count: number };
@@ -74,7 +74,7 @@ const dependentsOf = (type: string): readonly DependentTable[] => getServerObjec
 /** Lignes d'une table dépendante rattachées à une fiche. */
 const heldBy = (dependent: DependentTable, id: string) => eq(getTableColumns(dependent.table)[dependent.fkColumn], id);
 
-const rowsOf = (dependent: DependentTable, id: string) => db.select().from(dependent.table).where(heldBy(dependent, id)) as unknown as Promise<Record<string, unknown>[]>;
+const rowsOf = (dependent: DependentTable, id: string, executor: Executor = db) => executor.select().from(dependent.table).where(heldBy(dependent, id)) as unknown as Promise<Record<string, unknown>[]>;
 
 /**
  * Ce que l'absorbée porte dans ses tables dépendantes et qui rejoindra vraiment la conservée. Une
@@ -148,17 +148,17 @@ async function countMovingValues(type: string, keptId: string, absorbedId: strin
 type DroppedDependent = { dependent: DependentTable; row: Record<string, unknown> };
 
 /** Les lignes dépendantes de l'absorbée qui ne rejoindront pas la conservée, parce qu'elle porte déjà la sienne (D20). */
-async function droppedDependents(type: string, keptId: string, absorbedId: string): Promise<DroppedDependent[]> {
+async function droppedDependents(type: string, keptId: string, absorbedId: string, executor: Executor): Promise<DroppedDependent[]> {
   const found = await Promise.all(
     dependentsOf(type)
       .filter((dependent) => dependent.oneAtMost === true)
       .map(async (dependent) => {
-        const [held] = await rowsOf(dependent, keptId);
-        const [row] = held ? await rowsOf(dependent, absorbedId) : [];
+        const [held] = await rowsOf(dependent, keptId, executor);
+        const [row] = held ? await rowsOf(dependent, absorbedId, executor) : [];
         return row ? { dependent, row } : null;
       }),
   );
-  const perValue = await Promise.all(dependentsOf(type).map((dependent) => droppedPerValue(dependent, keptId, absorbedId)));
+  const perValue = await Promise.all(dependentsOf(type).map((dependent) => droppedPerValue(dependent, keptId, absorbedId, executor)));
   return [...found.filter((entry): entry is DroppedDependent => entry !== null), ...perValue.flat()];
 }
 
@@ -167,10 +167,10 @@ async function droppedDependents(type: string, keptId: string, absorbedId: strin
  * paire part la moins bien classée, de la conservée comme de l'absorbée (D47). Celle qui reste à
  * l'absorbée suit ensuite la fiche avec les autres.
  */
-async function droppedPerValue(dependent: DependentTable, keptId: string, absorbedId: string): Promise<DroppedDependent[]> {
+async function droppedPerValue(dependent: DependentTable, keptId: string, absorbedId: string, executor: Executor = db): Promise<DroppedDependent[]> {
   const rule = dependent.oneAtMostPer;
   if (!rule) return [];
-  const [held, incoming] = await Promise.all([rowsOf(dependent, keptId), rowsOf(dependent, absorbedId)]);
+  const [held, incoming] = await Promise.all([rowsOf(dependent, keptId, executor), rowsOf(dependent, absorbedId, executor)]);
   return incoming.flatMap((row) => {
     const twin = held.find((candidate) => candidate[rule.column] === row[rule.column]);
     if (!twin) return [];
@@ -208,10 +208,10 @@ async function readableValue(type: string, key: string, value: unknown): Promise
  * profil n'a pas de sens sans le profil, et la conservée porterait sinon un rattachement à moitié.
  * Rien ne suit une ligne restée sur place — la conservée garde alors ce qu'elle portait déjà.
  */
-async function carriedColumns(type: string, absorbed: ObjectRecord, dropped: readonly DroppedDependent[]): Promise<Record<string, unknown>> {
+async function carriedColumns(type: string, absorbed: ObjectRecord, dropped: readonly DroppedDependent[], executor: Executor): Promise<Record<string, unknown>> {
   const moving = dependentsOf(type).filter((dependent) => (dependent.carries?.length ?? 0) > 0 && !dropped.some((entry) => entry.dependent === dependent));
   const taken = await Promise.all(
-    moving.map(async (dependent) => ((await rowsOf(dependent, absorbed.id)).length > 0 ? (dependent.carries ?? []).map((key) => [key, absorbed[key]] as [string, unknown]) : [])),
+    moving.map(async (dependent) => ((await rowsOf(dependent, absorbed.id, executor)).length > 0 ? (dependent.carries ?? []).map((key) => [key, absorbed[key]] as [string, unknown]) : [])),
   );
   return Object.fromEntries(taken.flat());
 }
@@ -251,15 +251,18 @@ export async function mergeRecords(type: string, keptId: string, absorbedId: str
   const { table } = getServerObject(type);
   const columns = getTableColumns(table);
   const heldDefinitions = await definitionsOf(type, kept.id);
-  /* Ce qui ne se déplace pas est lu, et écrit en toutes lettres, avant que l'absorbée ne disparaisse. */
-  const dropped = await droppedDependents(type, kept.id, absorbed.id);
-  const notes = await Promise.all(dropped.map((entry) => droppedNote(type, absorbed, entry)));
-  const carried = await carriedColumns(type, absorbed, dropped);
   /* Une valeur que les deux fiches portent : celle de l'absorbée n'arrive que si le champ lui a été pris. */
   const replaced = heldDefinitions.filter((definitionId) => taken.includes(customFieldKey(definitionId)));
   const droppedDefinitions = heldDefinitions.filter((definitionId) => !replaced.includes(definitionId));
 
   await db.transaction(async (tx) => {
+    /* Les deux fiches se verrouillent d'abord, dans l'ordre de leur identifiant : un geste qui verrouille
+       l'une d'elles pour écrire une ligne dépendante passe avant la fusion ou après elle, jamais pendant. */
+    await tx.select({ id: columns.id }).from(table).where(inArray(columns.id, [kept.id, absorbed.id])).orderBy(columns.id).for("update");
+    /* Ce qui ne se déplace pas est lu sous ce verrou, et écrit en toutes lettres, avant que l'absorbée ne disparaisse. */
+    const dropped = await droppedDependents(type, kept.id, absorbed.id, tx);
+    const notes = await Promise.all(dropped.map((entry) => droppedNote(type, absorbed, entry)));
+    const carried = await carriedColumns(type, absorbed, dropped, tx);
     for (const { table: pointing, column } of pointingColumns(type)) {
       await tx.update(pointing).set({ [column]: kept.id }).where(eq(getTableColumns(pointing)[column], absorbed.id));
     }
