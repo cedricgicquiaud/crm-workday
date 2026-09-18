@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { PATCH as patchProposal } from "@/app/api/opportunites/[id]/propositions/[personId]/route";
+import { DELETE as deleteProposal, PATCH as patchProposal } from "@/app/api/opportunites/[id]/propositions/[personId]/route";
 import { POST as postProposal } from "@/app/api/opportunites/[id]/propositions/route";
 import { auditLog, company, consultantModule, consultantProfile, opportunity, person, user } from "@/db/schema";
 import { archiveRecord } from "@/features/archive/archive";
@@ -26,6 +26,9 @@ const byProposal = (id: string, personId: string) => ({ params: Promise.resolve(
 
 const change = (id: string, personId: string, input: unknown, cookie: string | undefined = memberCookie) =>
   patchProposal(jsonRequest("PATCH", `/api/opportunites/${id}/propositions/${personId}`, input, cookie), byProposal(id, personId));
+
+const withdraw = (id: string, personId: string, cookie: string | undefined = memberCookie) =>
+  deleteProposal(jsonRequest("DELETE", `/api/opportunites/${id}/propositions/${personId}`, undefined, cookie), byProposal(id, personId));
 
 const consultant = async (firstName: string, lastName: string) => (await createConsultant({ firstName, lastName, status: "freelance" }, { id: memberId })).id;
 
@@ -229,6 +232,39 @@ describe("proposition visée par une modification (CRM-108, D55)", () => {
     await propose(opportunityId, { personId: julie });
 
     expect((await change(opportunityId, julie, { result: "entretien" }, "")).status).toBe(401);
+  });
+});
+
+/** D46, D55 : un retrait vise une proposition qui existe, sur une opportunité en cours ; jamais un 200 qui n'a rien retiré. */
+describe("proposition visée par un retrait (CRM-108, D46, D55)", () => {
+  it.each([
+    ["mal formé", "julie"],
+    ["inconnu", "00000000-0000-4000-8000-000000000000"],
+  ])("répond 404 pour un consultant %s", async (_case, personId) => {
+    expect((await withdraw(opportunityId, personId)).status).toBe(404);
+  });
+
+  it("répond 404 pour Marc Petit, consultant qui n'est pas proposé sur l'opportunité", async () => {
+    const marc = await consultant("Marc", "Petit");
+
+    expect((await withdraw(opportunityId, marc)).status).toBe(404);
+  });
+
+  it("répond 409 sur une opportunité archivée, et garde Julie Martin", async () => {
+    const julie = await consultant("Julie", "Martin");
+    await propose(opportunityId, { personId: julie });
+    await archiveRecord("opportunity", opportunityId, { id: memberId });
+
+    expect((await withdraw(opportunityId, julie)).status).toBe(409);
+    expect(await listProposals(opportunityId)).toHaveLength(1);
+  });
+
+  it("répond 401 sans session, et garde Julie Martin", async () => {
+    const julie = await consultant("Julie", "Martin");
+    await propose(opportunityId, { personId: julie });
+
+    expect((await withdraw(opportunityId, julie, "")).status).toBe(401);
+    expect(await listProposals(opportunityId)).toHaveLength(1);
   });
 });
 
